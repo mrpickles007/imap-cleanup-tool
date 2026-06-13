@@ -66,6 +66,9 @@ def _add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--expunge", action="store_true")
     parser.add_argument("--yes", action="store_true")
     parser.add_argument("--verbose", "-v", action="store_true")
+    parser.add_argument("--run-job", metavar="NAME",
+                        help="Run a saved scheduled job by name (used by the "
+                             "OS scheduler / cron).")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -129,6 +132,15 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns a process exit code."""
     # pylint: disable=too-many-return-statements
     args = parse_args(argv)
+
+    if args.run_job:
+        from .scheduler import load_jobs
+        job = next((j for j in load_jobs() if j.name == args.run_job), None)
+        if job is None:
+            print(f"[ERROR] No saved job named {args.run_job!r}.")
+            return 4
+        return main(job.args)
+
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)-7s %(message)s", datefmt="%H:%M:%S")

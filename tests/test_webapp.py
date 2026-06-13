@@ -27,7 +27,9 @@ class WebApiTests(unittest.TestCase):
 
     def test_meta(self):
         data = self.client.get("/api/meta").json()
-        self.assertIn("Gmail", data["providers"])
+        names = [p["name"] for p in data["providers"]]
+        self.assertIn("Gmail", names)
+        self.assertGreater(len(names), 20)        # loaded from providers.json
         self.assertIn("date", data["operators"])
 
     def test_index_served(self):
@@ -60,9 +62,13 @@ class WebApiTests(unittest.TestCase):
                     "match_mode": "rule", "rule_tree": _RULE,
                     "kind": "daily", "time": "03:00"})
                 self.assertEqual(save.status_code, 200)
-                self.assertIn("--rule", save.json()["command"])
+                # The OS command runs the job by name; the rule lives in job.args.
+                self.assertIn("--run-job", save.json()["command"])
+                self.assertIn("t1", save.json()["command"])
                 jobs = self.client.get("/api/jobs").json()["jobs"]
                 self.assertIn("t1", [j["name"] for j in jobs])
+                t1 = next(j for j in jobs if j["name"] == "t1")
+                self.assertIn("--rule", t1["args"])
                 self.client.delete("/api/jobs/t1")
                 jobs = self.client.get("/api/jobs").json()["jobs"]
                 self.assertNotIn("t1", [j["name"] for j in jobs])

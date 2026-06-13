@@ -21,7 +21,9 @@ Install the dependencies with::
 # resolve the Pydantic request models (defined locally in create_app) from real
 # annotation objects, not strings.
 
+import json
 import logging
+import re
 import threading
 import uuid
 from pathlib import Path
@@ -33,15 +35,31 @@ from .targets import parse_targets_text
 
 STATIC_DIR = Path(__file__).parent / "web" / "static"
 ASSETS_DIR = Path(__file__).parent / "assets"
+PROVIDERS_FILE = Path(__file__).parent / "web" / "providers.json"
 
-PROVIDER_PRESETS = {
-    "Custom": "",
-    "Gmail": "imap.gmail.com",
-    "iCloud": "imap.mail.me.com",
-    "Outlook / Office365": "outlook.office365.com",
-    "Aruba": "imaps.aruba.it",
-    "Libero": "imapmail.libero.it",
-}
+# Fallback if providers.json is missing/corrupt.
+PROVIDER_PRESETS = [
+    {"name": "Custom", "host": "", "port": 993},
+    {"name": "Gmail", "host": "imap.gmail.com", "port": 993},
+    {"name": "Outlook / Office 365", "host": "outlook.office365.com", "port": 993},
+    {"name": "iCloud Mail", "host": "imap.mail.me.com", "port": 993},
+]
+
+
+def _load_providers() -> list:
+    """Load the IMAP provider presets from the (extensible) JSON config file."""
+    try:
+        data = json.loads(PROVIDERS_FILE.read_text(encoding="utf-8"))
+        if isinstance(data, list) and data:
+            return data
+    except (OSError, ValueError):
+        pass
+    return PROVIDER_PRESETS
+
+
+def _safe_job_name(name: str) -> str:
+    """Sanitise a job name so it is safe in a scheduler command line / task id."""
+    return re.sub(r"[^A-Za-z0-9_-]+", "_", (name or "job").strip()) or "job"
 
 FIELD_OPERATORS = {
     "sender": [["contains", "contains"], ["is exactly", "is"]],
@@ -220,7 +238,7 @@ def create_app():
     def meta() -> dict[str, Any]:
         return {
             "version": __version__,
-            "providers": PROVIDER_PRESETS,
+            "providers": _load_providers(),
             "fields": list(FIELD_OPERATORS),
             "operators": FIELD_OPERATORS,
             "gmail_store_cap": core.GMAIL_STORE_CAP,
@@ -345,6 +363,7 @@ def create_app():
 
     # ----- scheduling ------------------------------------------------------ #
     def _job_from(body: JobIn) -> scheduler.Job:
+        name = _safe_job_name(body.name)
         args: list[str] = []
         if body.host:
             args += ["--host", body.host, "--port", str(body.port)]
@@ -367,7 +386,7 @@ def create_app():
                 parse_targets_text(body.targets_text)  # validate
             except ValueError as exc:
                 raise HTTPException(400, str(exc)) from exc
-            tpath = scheduler.config_dir() / f"{body.name}.targets.txt"
+            tpath = scheduler.config_dir() / f"{name}.targets.txt"
             tpath.write_text(body.targets_text, encoding="utf-8")
             args += ["--targets", str(tpath)]
         if body.gmail_trash:
@@ -377,7 +396,7 @@ def create_app():
         args += ["--scan-mode", body.scan_mode, "--yes"]
         sched = ({"kind": "daily", "time": body.time} if body.kind == "daily"
                  else {"kind": "interval", "minutes": body.minutes})
-        return scheduler.Job(name=body.name or "job", args=args, schedule=sched)
+        return scheduler.Job(name=name, args=args, schedule=sched)
 
     @app.get("/api/jobs")
     def list_jobs() -> dict[str, Any]:
@@ -400,7 +419,21 @@ def create_app():
 
     @app.post("/api/jobs/export")
     def export_job(body: JobIn) -> dict[str, Any]:
-        return {"command": scheduler.export_system(_job_from(body))}
+        # The OS command runs the job by name, so it must be saved first.
+        job = _job_from(body)
+        scheduler.upsert_job(job)
+        return {"name": job.name, "command": scheduler.export_system(job)}
+
+    @app.post("/api/jobs/install")
+    def install_job(body: JobIn) -> dict[str, Any]:
+        job = _job_from(body)
+        scheduler.upsert_job(job)
+        try:
+            message = scheduler.install_system(job)
+        except (RuntimeError, OSError) as exc:
+            raise HTTPException(500, f"Could not install the job: {exc}") from exc
+        return {"name": job.name, "message": message,
+                "command": scheduler.export_system(job)}
 
     @app.post("/api/scheduler")
     def set_scheduler(body: SchedulerIn) -> dict[str, Any]:

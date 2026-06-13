@@ -7,7 +7,7 @@
 <link rel="icon" href="/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
 tailwind.config = { theme: { extend: {
@@ -16,7 +16,7 @@ tailwind.config = { theme: { extend: {
     ink:'#0b1020',panel:'#141a2e',panel2:'#1d2540',line:'#2a3350',
     cream:'#eef1f7',muted:'#94a0bd',danger:'#ff5d73',ok:'#3ecf8e',warn:'#fbbf24',
   },
-  fontFamily:{ display:['"Space Grotesk"','system-ui','sans-serif'], sans:['Inter','system-ui','sans-serif'] },
+  fontFamily:{ display:['"Sora"','system-ui','sans-serif'], sans:['Inter','system-ui','sans-serif'] },
 }}}
 </script>
 <style>
@@ -44,7 +44,7 @@ tailwind.config = { theme: { extend: {
   <div class="max-w-5xl mx-auto px-5 py-3 flex items-center gap-4">
     <img src="/logo.png" alt="logo" class="h-10 w-auto drop-shadow">
     <div class="flex-1">
-      <h1 class="font-display text-lg font-700 tracking-tight">IMAP Cleanup Tool</h1>
+      <h1 class="font-display text-lg font-bold tracking-tight">IMAP Cleanup Tool</h1>
       <p class="text-muted text-xs -mt-0.5">Bulk-clean your mailbox · local web UI <span id="ver"></span></p>
     </div>
     <div class="flex items-center gap-2 text-sm">
@@ -66,7 +66,7 @@ tailwind.config = { theme: { extend: {
   <div class="lg:col-span-3 space-y-5">
     <!-- Connection -->
     <section class="bg-panel border border-line rounded-xl p-5">
-      <h2 class="font-display font-600 text-brand-light mb-4">Connection</h2>
+      <h2 class="font-display font-semibold text-brand-light mb-4">Connection</h2>
       <div class="grid grid-cols-2 gap-3">
         <label class="col-span-2 text-xs text-muted">Provider
           <select id="provider" class="field mt-1"></select>
@@ -91,7 +91,7 @@ tailwind.config = { theme: { extend: {
           </div>
         </label>
         <div class="col-span-2 flex gap-2">
-          <button id="btnConnect" class="flex-1 bg-brand hover:bg-brand-light text-ink font-600 rounded-lg px-4 py-2 transition">Connect &amp; load folders</button>
+          <button id="btnConnect" class="flex-1 bg-brand hover:bg-brand-light text-ink font-semibold rounded-lg px-4 py-2 transition">Connect &amp; load folders</button>
           <button id="btnDisconnect" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Disconnect</button>
         </div>
       </div>
@@ -99,7 +99,7 @@ tailwind.config = { theme: { extend: {
 
     <!-- Folders -->
     <section class="bg-panel border border-line rounded-xl p-5">
-      <h2 class="font-display font-600 text-brand-light mb-3 flex items-center">Folders
+      <h2 class="font-display font-semibold text-brand-light mb-3 flex items-center">Folders
         <span class="tip"><span class="ic">i</span><span class="bub">Pick the folders to scan. Gmail uses special names like <code>[Gmail]/All Mail</code>, <code>[Gmail]/Trash</code> (may be localized). Connect first to load the list.</span></span>
       </h2>
       <div id="folders" class="grid grid-cols-2 sm:grid-cols-3 gap-1 max-h-44 overflow-auto text-sm">
@@ -109,11 +109,12 @@ tailwind.config = { theme: { extend: {
         <input id="manualFolder" class="field" placeholder="Add a folder name manually…">
         <button id="btnAddFolder" class="px-3 rounded-lg border border-line text-muted hover:text-cream">Add</button>
       </div>
+      <p class="text-[11px] text-muted mt-2">⚠️ Every action — <b>Run</b>, <b>List senders</b>, <b>Empty folder</b> — applies to the <b>selected</b> folders above (hover a row and click × to remove it from the list).</p>
     </section>
 
     <!-- Match -->
     <section class="bg-panel border border-line rounded-xl p-5">
-      <h2 class="font-display font-600 text-brand-light mb-3">What to match</h2>
+      <h2 class="font-display font-semibold text-brand-light mb-3">What to match</h2>
       <div class="flex gap-4 mb-3 text-sm">
         <label class="flex items-center gap-2"><input type="radio" name="mode" value="targets" checked> Target list</label>
         <label class="flex items-center gap-2"><input type="radio" name="mode" value="rule"> Rule (query builder)</label>
@@ -130,6 +131,11 @@ tailwind.config = { theme: { extend: {
           </span></span>
         </div>
         <textarea id="targets" rows="6" class="field console" placeholder="spam@example.com&#10;*@newsletter.com&#10;annoying.com&#10;# comment"></textarea>
+        <div class="flex gap-2 mt-2 items-center">
+          <label class="px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream text-xs cursor-pointer">Load from file<input id="targetsFile" type="file" accept=".txt,text/plain" class="hidden"></label>
+          <button id="btnSaveTargets" type="button" class="px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream text-xs">Save to file…</button>
+          <span class="text-[11px] text-muted">one entry per line · reuse across runs</span>
+        </div>
       </div>
       <div id="paneRule" class="hidden">
         <div id="builder"></div>
@@ -141,7 +147,7 @@ tailwind.config = { theme: { extend: {
 
   <div class="lg:col-span-2 space-y-5">
     <section class="bg-panel border border-line rounded-xl p-5">
-      <h2 class="font-display font-600 text-brand-light mb-3">Options</h2>
+      <h2 class="font-display font-semibold text-brand-light mb-3">Options</h2>
       <label class="text-xs text-muted flex items-center">Scan mode
         <span class="tip"><span class="ic">i</span><span class="bub">
           <b>search (default)</b> — fast server-side IMAP SEARCH. It is a substring match on the From header, so it <b>already matches subdomains</b> (a target <code>annoying.com</code> also catches <code>x@mail.annoying.com</code>).<br><br>
@@ -162,7 +168,7 @@ tailwind.config = { theme: { extend: {
 
       <label class="flex items-center justify-between text-sm py-1.5" id="rowGmail">
         <span class="flex items-center">Gmail: move to Trash
-          <span class="tip"><span class="ic">i</span><span class="bub">Only for <b>Gmail</b>. A plain delete in INBOX just removes a label; this applies the <code>\\Trash</code> label so the message is really trashed. Auto-enabled when the host is <code>imap.gmail.com</code>.</span></span>
+          <span class="tip"><span class="ic">i</span><span class="bub">Only for <b>Gmail</b>. A plain delete in INBOX just removes a label; this applies the <code>\\Trash</code> label so the message is really trashed. Auto-enabled when the host is <code>imap.gmail.com</code>.<br><br>⚠️ This does <b>not</b> free space on its own: messages sit in Trash for ~30 days. To remove them now, afterwards select the <code>[Gmail]/Trash</code> folder in the list and run <b>Empty folder</b> (carefully!).</span></span>
         </span>
         <input id="gmailTrash" type="checkbox" disabled>
       </label>
@@ -182,7 +188,7 @@ tailwind.config = { theme: { extend: {
       </label>
 
       <label class="flex items-center justify-between text-sm py-1.5 border-t border-line mt-2 pt-3">
-        <span class="flex items-center text-cream font-600">Dry-run (preview only)
+        <span class="flex items-center text-cream font-semibold">Dry-run (preview only)
           <span class="tip"><span class="ic">i</span><span class="bub">Reports what <b>would</b> happen and changes nothing. Keep it on for your first run.</span></span>
         </span>
         <input id="dryRun" type="checkbox" checked>
@@ -196,13 +202,13 @@ tailwind.config = { theme: { extend: {
 
     <section class="bg-panel border border-line rounded-xl p-5 space-y-2">
       <div class="flex gap-2">
-        <button id="btnRun" class="flex-1 bg-brand hover:bg-brand-light text-ink font-700 rounded-lg px-4 py-2.5 transition">▶ Run</button>
-        <button id="btnStop" class="hidden px-4 py-2.5 rounded-lg bg-danger text-ink font-700">■ Stop</button>
+        <button id="btnRun" class="flex-1 bg-brand hover:bg-brand-light text-ink font-bold rounded-lg px-4 py-2.5 transition">▶ Run</button>
+        <button id="btnStop" class="hidden px-4 py-2.5 rounded-lg bg-danger text-ink font-bold">■ Stop</button>
       </div>
       <button id="btnSenders" class="w-full border border-line text-cream hover:border-brand rounded-lg px-4 py-2 transition">List senders</button>
       <label class="flex items-center gap-2 text-xs text-muted pt-1">
         <input id="saveSenders" type="checkbox"> Save senders to CSV
-        <span class="tip"><span class="ic">i</span><span class="bub">Applies to <b>List senders</b>: appends the results (timestamp, account, folder, sender, count) to this CSV file on this machine.</span></span>
+        <span class="tip"><span class="ic">i</span><span class="bub">Applies to <b>List senders</b>: appends the results (timestamp, account, folder, sender, count) to this CSV. You can enter a <b>full path</b> (e.g. <code>C:\\Users\\you\\Desktop\\senders.csv</code>) to choose where it is saved on this machine.</span></span>
       </label>
       <input id="savePath" class="field" value="senders.csv">
       <p class="text-[11px] text-muted text-center pt-1">With dry-run on, “Run” only previews.</p>
@@ -211,7 +217,7 @@ tailwind.config = { theme: { extend: {
 
   <section class="lg:col-span-5 bg-panel border border-line rounded-xl p-5">
     <div class="flex items-center justify-between mb-2">
-      <h2 class="font-display font-600 text-brand-light">Log</h2>
+      <h2 class="font-display font-semibold text-brand-light">Log</h2>
       <button id="btnClear" class="text-xs text-muted hover:text-cream">clear</button>
     </div>
     <pre id="log" class="console text-[12.5px] leading-relaxed bg-ink border border-line rounded-lg p-3 h-64 overflow-auto whitespace-pre-wrap text-[#c4c8d4]"></pre>
@@ -221,7 +227,7 @@ tailwind.config = { theme: { extend: {
 <!-- ============================ SCHEDULING TAB ============================ -->
 <div id="tab-scheduling" class="hidden grid lg:grid-cols-2 gap-5">
   <section class="bg-panel border border-line rounded-xl p-5">
-    <h2 class="font-display font-600 text-brand-light mb-3">New scheduled job</h2>
+    <h2 class="font-display font-semibold text-brand-light mb-3">New scheduled job</h2>
     <p class="text-xs text-muted mb-3">A job reuses the current <b>Cleanup</b> tab (connection, folders, match, options). It runs the CLI on a schedule.
       <span class="tip"><span class="ic">i</span><span class="bub">For security the password is <b>not</b> stored. Scheduled jobs read it from the <code>IMAP_PASSWORD</code> environment variable when they run.</span></span>
     </p>
@@ -233,16 +239,19 @@ tailwind.config = { theme: { extend: {
       <label class="text-xs text-muted">Time (HH:MM) <input id="jobTime" class="field mt-1" value="03:00"></label>
       <label class="text-xs text-muted">Interval (minutes) <input id="jobMinutes" class="field mt-1" value="60"></label>
     </div>
-    <div class="flex gap-2 mt-4">
-      <button id="btnSaveJob" class="flex-1 bg-brand hover:bg-brand-light text-ink font-600 rounded-lg px-4 py-2">Save job</button>
-      <button id="btnExportJob" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Export system command</button>
+    <div class="flex flex-wrap gap-2 mt-4">
+      <button id="btnSaveJob" class="bg-brand hover:bg-brand-light text-ink font-semibold rounded-lg px-4 py-2">Save job</button>
+      <button id="btnInstallJob" class="bg-ok hover:brightness-110 text-ink font-semibold rounded-lg px-4 py-2 flex items-center">Install to system scheduler
+        <span class="tip"><span class="ic" style="background:#0b1020;color:#bfe9d4">i</span><span class="bub">Registers the job in <b>Windows Task Scheduler</b> (or <b>cron</b>). It then runs on schedule <b>even when this app is closed</b> — nothing needs to stay open. The password is read from the <code>IMAP_PASSWORD</code> environment variable at run time.</span></span>
+      </button>
+      <button id="btnExportJob" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Export command</button>
     </div>
     <pre id="jobCmd" class="console text-[12px] bg-ink border border-line rounded-lg p-3 mt-3 overflow-auto whitespace-pre-wrap text-[#c4c8d4] hidden"></pre>
   </section>
 
   <section class="bg-panel border border-line rounded-xl p-5">
     <div class="flex items-center justify-between mb-3">
-      <h2 class="font-display font-600 text-brand-light">Saved jobs</h2>
+      <h2 class="font-display font-semibold text-brand-light">Saved jobs</h2>
       <label class="flex items-center gap-2 text-xs text-muted">
         <input id="schedToggle" type="checkbox"> internal scheduler
         <span class="tip"><span class="ic">i</span><span class="bub">Runs due jobs while this web app is open. For jobs that run even when the app is closed, use “Export system command” (Task Scheduler / cron).</span></span>
@@ -280,7 +289,7 @@ async function loadMeta(){
   META = await (await fetch('/api/meta')).json();
   $('ver').textContent = META.version?('v'+META.version):'';
   const sel=$('provider'); sel.innerHTML='';
-  Object.keys(META.providers).forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o);});
+  (META.providers||[]).forEach((p,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=p.name;sel.appendChild(o);});
   buildRoot();
 }
 async function restore(){
@@ -312,11 +321,15 @@ function renderFolders(){
   const box=$('folders'); box.innerHTML='';
   const all=Array.from(new Set([...selectedFolders,...knownFolders]));
   if(!all.length){ box.innerHTML='<p class="text-muted col-span-full text-xs">No folders.</p>'; return; }
-  all.forEach(name=>{
-    const w=document.createElement('label');
-    w.className='flex items-center gap-2 px-2 py-1 rounded hover:bg-panel2 cursor-pointer';
-    w.innerHTML=`<input type="checkbox" ${selectedFolders.includes(name)?'checked':''}><span class="truncate" title="${name}">${name}</span>`;
+  all.forEach((name,idx)=>{
+    const id='cb'+idx;
+    const w=document.createElement('div');
+    w.className='group flex items-center gap-2 px-2 py-1 rounded hover:bg-panel2';
+    w.innerHTML=`<input id="${id}" type="checkbox" ${selectedFolders.includes(name)?'checked':''}>
+      <label for="${id}" class="truncate flex-1 cursor-pointer" title="${name}">${name}</label>
+      <button class="opacity-0 group-hover:opacity-100 text-muted hover:text-danger text-sm leading-none" title="remove from list">×</button>`;
     w.querySelector('input').onchange=(e)=>{ if(e.target.checked){ if(!selectedFolders.includes(name))selectedFolders.push(name);} else selectedFolders=selectedFolders.filter(f=>f!==name); };
+    w.querySelector('button').onclick=()=>{ knownFolders=knownFolders.filter(f=>f!==name); selectedFolders=selectedFolders.filter(f=>f!==name); renderFolders(); };
     box.appendChild(w);
   });
 }
@@ -437,7 +450,7 @@ document.querySelectorAll('.tab').forEach(t=> t.onclick=()=>{
   $('tab-scheduling').classList.toggle('hidden', t.dataset.tab!=='scheduling');
   if(t.dataset.tab==='scheduling') loadJobs();
 });
-$('provider').onchange=()=>{ const h=META.providers[$('provider').value]||''; if(h)$('host').value=h; if(h==='imap.gmail.com'){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} refreshConditional(); };
+$('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider').value)||0]; if(p){ if(p.host)$('host').value=p.host; if(p.port)$('port').value=p.port; if(p.host==='imap.gmail.com'){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} } refreshConditional(); };
 $('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional;
 $('togglePass').onclick=()=>{ const p=$('password'); p.type=p.type==='password'?'text':'password'; $('togglePass').textContent=p.type==='password'?'show':'hide'; };
 document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const rule=document.querySelector('input[name=mode]:checked').value==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); });
@@ -461,7 +474,11 @@ $('btnRun').onclick=()=>{
   log((p.dry_run?'[DRY-RUN] ':'')+'Starting on: '+p.folders.join(', ')); startJob('/api/run',p);
 };
 $('btnSaveJob').onclick=async()=>{ try{ const d=await api('/api/jobs',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Saved. System command:\n'+d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
-$('btnExportJob').onclick=async()=>{ try{ const d=await api('/api/jobs/export',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.command; }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
+$('btnExportJob').onclick=async()=>{ try{ const d=await api('/api/jobs/export',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
+$('btnInstallJob').onclick=async()=>{ try{ const d=await api('/api/jobs/install',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.message+'\n\n'+d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
+function download(name, text){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href); }
+$('targetsFile').onchange=(e)=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ $('targets').value=r.result; }; r.readAsText(f); e.target.value=''; };
+$('btnSaveTargets').onclick=()=>download('targets.txt', $('targets').value);
 $('schedToggle').onchange=async(e)=>{ try{ await api('/api/scheduler',{enabled:e.target.checked}); }catch(err){ log('[ERROR] '+err.message); } };
 
 loadMeta().then(()=>{ refreshConditional(); restore(); });

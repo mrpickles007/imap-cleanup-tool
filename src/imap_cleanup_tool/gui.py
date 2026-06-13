@@ -749,6 +749,8 @@ class ImapCleanupToolGUI:
         job = self._build_job()
         if job is None:
             return
+        scheduler.upsert_job(job)   # the OS command runs the job by name
+        self._refresh_jobs()
         command = scheduler.export_system(job)
         self._log_direct("System command (copy and run):")
         self._log_direct(command)

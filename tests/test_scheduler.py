@@ -9,7 +9,7 @@ from unittest import mock
 
 from imap_cleanup_tool import scheduler
 from imap_cleanup_tool.scheduler import (
-    Job, _due, cli_invocation, export_cron, export_windows,
+    Job, _due, export_cron, export_windows,
 )
 
 
@@ -63,11 +63,16 @@ class ExportTests(unittest.TestCase):
         job = Job("j", schedule={"kind": "interval", "minutes": 30})
         self.assertIn("/SC MINUTE /MO 30", export_windows(job))
 
-    def test_cli_invocation_targets_package_module(self):
-        cmd = cli_invocation(["--host", "imap.example.com"])
-        self.assertIn("imap_cleanup_tool.cli", cmd)
-        self.assertIn("--host", cmd)
-        self.assertIn(sys.executable.split("\\")[-1].split("/")[-1], cmd)
+    def test_export_runs_job_by_name(self):
+        # The exported OS command must invoke the job by name (quote-safe), not
+        # embed the raw --rule/--targets args.
+        job = Job("nightly", args=["--rule", 'sender contains "Black Friday"'],
+                  schedule={"kind": "daily", "time": "03:00"})
+        cmd = export_windows(job)
+        self.assertIn("--run-job", cmd)
+        self.assertIn("nightly", cmd)
+        self.assertNotIn("--rule", cmd)
+        self.assertIn("imap_cleanup_tool.cli", export_cron(job))
 
 
 class PersistenceTests(unittest.TestCase):
@@ -93,6 +98,15 @@ class PersistenceTests(unittest.TestCase):
                 scheduler.delete_job("a")
                 self.assertEqual(
                     {j.name for j in scheduler.load_jobs()}, {"b"})
+
+
+class RunJobCliTests(unittest.TestCase):
+    def test_unknown_job_returns_error_code(self):
+        from imap_cleanup_tool import cli
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)):
+                self.assertEqual(cli.main(["--run-job", "no-such-job"]), 4)
 
 
 if __name__ == "__main__":

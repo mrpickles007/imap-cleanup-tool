@@ -22,6 +22,7 @@ import json
 import logging
 import os
 import shlex
+import subprocess
 import sys
 import threading
 from dataclasses import asdict, dataclass, field
@@ -173,46 +174,85 @@ class InternalScheduler:
 # --------------------------------------------------------------------------- #
 # System export
 # --------------------------------------------------------------------------- #
-def cli_invocation(args: list[str]) -> str:
-    """Build the shell command that runs the CLI with the given args.
+# The scheduled task runs the job *by name* (``--run-job NAME``) so the command
+# line stays free of the spaces and quotes a rule expression would contain. This
+# requires the job to be saved (see upsert_job) before it is scheduled.
+def _task_name(job: Job) -> str:
+    return f"ImapCleanupTool_{job.name}"
 
-    Uses the current interpreter and ``-m imap_cleanup_tool.cli`` so it works inside
-    a virtualenv without depending on PATH.
-    """
-    python = sys.executable
-    parts = [python, "-m", "imap_cleanup_tool.cli", *args]
-    return " ".join(shlex.quote(p) for p in parts)
+
+def _runjob_posix(name: str) -> str:
+    return " ".join([shlex.quote(sys.executable), "-m",
+                     "imap_cleanup_tool.cli", "--run-job", shlex.quote(name)])
+
+
+def _runjob_windows(name: str) -> str:
+    # The interpreter path is quoted; the job name is sanitised by the caller.
+    return f'"{sys.executable}" -m imap_cleanup_tool.cli --run-job {name}'
+
+
+def _windows_schedule(job: Job) -> list[str]:
+    when = job.schedule
+    if when.get("kind") == "daily":
+        return ["/SC", "DAILY", "/ST", str(when.get("time", "03:00"))]
+    return ["/SC", "MINUTE", "/MO", str(int(when.get("minutes", 60)))]
 
 
 def export_windows(job: Job) -> str:
     """Return a ``schtasks`` command that registers this job on Windows."""
-    command = cli_invocation(job.args)
-    when = job.schedule
-    if when.get("kind") == "daily":
-        sched = f'/SC DAILY /ST {when.get("time", "03:00")}'
-    else:
-        minutes = int(when.get("minutes", 60))
-        sched = f"/SC MINUTE /MO {minutes}"
-    task_name = f"ImapCleanupTool_{job.name}"
-    return (f'schtasks /Create /TN "{task_name}" '
-            f'/TR "{command}" {sched} /F')
+    sched = " ".join(_windows_schedule(job))
+    return (f'schtasks /Create /TN "{_task_name(job)}" '
+            f'/TR "{_runjob_windows(job.name)}" {sched} /F')
 
 
 def export_cron(job: Job) -> str:
     """Return a crontab line that runs this job on Linux/macOS."""
-    command = cli_invocation(job.args)
     when = job.schedule
     if when.get("kind") == "daily":
         hh, mm = (int(x) for x in when.get("time", "03:00").split(":"))
         spec = f"{mm} {hh} * * *"
     else:
-        minutes = int(when.get("minutes", 60))
-        spec = f"*/{minutes} * * * *"
-    return f"{spec} {command}  # imap-cleanup-tool job: {job.name}"
+        spec = f"*/{int(when.get('minutes', 60))} * * * *"
+    return f"{spec} {_runjob_posix(job.name)}  # imap-cleanup-tool job: {job.name}"
 
 
 def export_system(job: Job) -> str:
-    """Return the OS-appropriate scheduling command for the job."""
+    """Return the OS-appropriate scheduling command for the job (for display)."""
     if sys.platform.startswith("win"):
         return export_windows(job)
     return export_cron(job)
+
+
+def install_windows(job: Job) -> str:
+    """Register the job with the Windows Task Scheduler. Returns a status line."""
+    cmd = ["schtasks", "/Create", "/TN", _task_name(job),
+           "/TR", _runjob_windows(job.name), *_windows_schedule(job), "/F"]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or result.stdout.strip()
+                           or "schtasks failed")
+    return f'Registered Windows task "{_task_name(job)}".'
+
+
+def install_cron(job: Job) -> str:
+    """Add (or replace) this job's line in the user's crontab. Returns a status."""
+    marker = f"# imap-cleanup-tool job: {job.name}"
+    try:
+        current = subprocess.run(["crontab", "-l"], capture_output=True,
+                                 text=True).stdout
+    except FileNotFoundError as exc:
+        raise RuntimeError("crontab command not found") from exc
+    lines = [ln for ln in current.splitlines() if marker not in ln]
+    lines.append(export_cron(job))
+    result = subprocess.run(["crontab", "-"], input="\n".join(lines) + "\n",
+                            text=True, capture_output=True)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "crontab failed")
+    return f"Installed cron job '{job.name}'."
+
+
+def install_system(job: Job) -> str:
+    """Install the job into the OS scheduler (Task Scheduler or cron)."""
+    if sys.platform.startswith("win"):
+        return install_windows(job)
+    return install_cron(job)
