@@ -1,4 +1,8 @@
-# IMAP Cleaner
+<p align="center">
+  <img src="assets/logo.png" alt="IMAP Cleanup Tool logo" width="360">
+</p>
+
+<h1 align="center">IMAP Cleaner</h1>
 
 Delete or move IMAP emails in bulk — by **sender**, by **domain**, or by
 **nested rules** (a query builder). Works from the **command line** and from a
