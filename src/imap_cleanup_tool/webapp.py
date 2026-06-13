@@ -74,21 +74,24 @@ _SESSIONS: dict[str, "Session"] = {}
 _RUN_BY_THREAD: dict[int, "RunState"] = {}
 
 
+SESSION_LOG_CAP = 50000   # keep at most this many log lines per session
+
+
 class RunState:
     """In-memory state of one background operation (cleanup or sender listing)."""
 
-    def __init__(self, run_id: str, kind: str) -> None:
+    def __init__(self, run_id: str, kind: str, session: "Session") -> None:
         self.run_id = run_id
         self.kind = kind                 # "run" | "senders"
+        self.session = session
         self.status = "running"          # running | done | stopped | error
-        self.log: list[str] = []
         self.stop = threading.Event()
         self.result: dict[str, Any] = {}
         self.error: str | None = None
 
 
 class Session:
-    """A live, reusable IMAP connection plus the last folder listing."""
+    """A live, reusable IMAP connection, its folder listing, and a rolling log."""
 
     def __init__(self, sid: str, conn, host: str, port: int, user: str) -> None:
         self.sid = sid
@@ -96,9 +99,22 @@ class Session:
         self.host = host
         self.port = port
         self.user = user
-        self.folders: list[str] = []
+        self.folders: list[dict] = []    # [{name, count}]
         self.lock = threading.Lock()     # serialises IMAP use
         self.run: RunState | None = None
+        self.log: list[str] = []         # rolling log buffer (persists refresh)
+        self.log_base = 0                # absolute index of self.log[0]
+
+    def add_log(self, line: str) -> None:
+        self.log.append(line)
+        if len(self.log) > SESSION_LOG_CAP:
+            drop = len(self.log) - SESSION_LOG_CAP
+            del self.log[:drop]
+            self.log_base += drop
+
+    def log_since(self, cursor: int) -> tuple[list[str], int]:
+        start = max(0, cursor - self.log_base)
+        return self.log[start:], self.log_base + len(self.log)
 
 
 def _install_log_dispatch() -> None:
@@ -111,7 +127,7 @@ def _install_log_dispatch() -> None:
         def emit(self, record: logging.LogRecord) -> None:
             run = _RUN_BY_THREAD.get(threading.get_ident())
             if run is not None:
-                run.log.append(self.format(record))
+                run.session.add_log(self.format(record))
 
     handler = _Dispatch()
     handler.setFormatter(logging.Formatter(
@@ -124,7 +140,7 @@ def _install_log_dispatch() -> None:
 
 def _start_run(session: "Session", kind: str, work) -> "RunState":
     """Spawn ``work(rs)`` in a background thread bound to a new RunState."""
-    run = RunState(uuid.uuid4().hex[:12], kind)
+    run = RunState(uuid.uuid4().hex[:12], kind, session)
     session.run = run
 
     def worker() -> None:
@@ -135,15 +151,15 @@ def _start_run(session: "Session", kind: str, work) -> "RunState":
             run.status = "stopped" if run.stop.is_set() else "done"
         except core.StopRequested:
             run.status = "stopped"
-            run.log.append("⏹  Operation stopped by the user.")
+            session.add_log("⏹  Operation stopped by the user.")
         except (OSError, core.imaplib.IMAP4.error) as exc:
             run.status = "error"
             run.error = str(exc)
-            run.log.append(f"[NETWORK ERROR] {exc}")
+            session.add_log(f"[NETWORK ERROR] {exc}")
         except Exception as exc:  # pylint: disable=broad-exception-caught
             run.status = "error"
             run.error = str(exc)
-            run.log.append(f"[ERROR] {exc}")
+            session.add_log(f"[ERROR] {exc}")
         finally:
             _RUN_BY_THREAD.pop(threading.get_ident(), None)
 
@@ -255,7 +271,9 @@ def create_app():
         sid = uuid.uuid4().hex
         sess = Session(sid, conn, body.host, body.port, body.user)
         try:
-            sess.folders = core.list_folders(conn)
+            names = core.list_folders(conn)
+            counts = core.folder_message_counts(conn, names)
+            sess.folders = [{"name": n, "count": counts.get(n)} for n in names]
         except (OSError, core.imaplib.IMAP4.error):
             sess.folders = []
         _SESSIONS[sid] = sess
@@ -270,6 +288,7 @@ def create_app():
         running = bool(sess.run and sess.run.status == "running")
         return {"connected": True, "host": sess.host, "user": sess.user,
                 "folders": sess.folders,
+                "log_cursor": sess.log_base + len(sess.log),
                 "run_id": sess.run.run_id if running else None}
 
     @app.post("/api/disconnect/{sid}")
@@ -295,17 +314,15 @@ def create_app():
         save_path = (body.save_path or "").strip() or None
 
         def work(rs: RunState) -> None:
-            ranked: list[dict[str, Any]] = []
+            # list_senders already logs each sender (count | address); the web
+            # client reads those lines from the session log, so we don't build a
+            # second copy here (that was doubling the payload and froze the page).
             for folder in folders:
-                counts = core.list_senders(
+                core.list_senders(
                     sess.conn, folder, body.batch_size,
                     should_stop=rs.stop.is_set, account=sess.user,
                     save_path=save_path)
-                for sender, count in sorted(counts.items(),
-                                            key=lambda kv: kv[1], reverse=True):
-                    ranked.append({"folder": folder, "sender": sender,
-                                   "count": count})
-            rs.result = {"senders": ranked, "saved_to": save_path}
+            rs.result = {"saved_to": save_path}
 
         run = _start_run(sess, "senders", work)
         return {"run_id": run.run_id}
@@ -344,15 +361,21 @@ def create_app():
         run_state = _start_run(sess, "run", work)
         return {"run_id": run_state.run_id}
 
-    @app.get("/api/progress/{sid}/{run_id}")
-    def progress(sid: str, run_id: str, cursor: int = 0) -> dict[str, Any]:
+    @app.get("/api/log/{sid}")
+    def get_log(sid: str, cursor: int = 0) -> dict[str, Any]:
+        """Return new session-log lines since ``cursor`` plus the run status.
+
+        The log is per-session and survives a page refresh (the client also
+        keeps a copy). One unified stream covers cleanup and sender listing.
+        """
         sess = _session(sid)
         rs = sess.run
-        if rs is None or rs.run_id != run_id:
-            raise HTTPException(404, "Unknown run.")
-        return {"status": rs.status, "kind": rs.kind, "error": rs.error,
-                "log": rs.log[cursor:], "cursor": len(rs.log),
-                "result": rs.result if rs.status != "running" else {}}
+        lines, new_cursor = sess.log_since(cursor)
+        return {"lines": lines, "cursor": new_cursor,
+                "running": bool(rs and rs.status == "running"),
+                "status": rs.status if rs else None,
+                "run_id": rs.run_id if rs else None,
+                "error": rs.error if rs else None}
 
     @app.post("/api/stop/{sid}/{run_id}")
     def stop(sid: str, run_id: str) -> dict[str, Any]:

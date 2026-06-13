@@ -265,15 +265,21 @@ tailwind.config = { theme: { extend: {
 
 <script>
 const $ = (id) => document.getElementById(id);
-let META = {providers:{},operators:{}};
+let META = {providers:[],operators:{}};
 let SID = localStorage.getItem('icw_sid') || null;
 let selectedFolders = ['INBOX'];
-let knownFolders = [];
-let poll = null;          // active poll timer
+let knownFolders = [];          // [{name,count}]
+let poll = null;                // active poll timer
 let curRunId = null;
+let logLines = [];
+let logCursor = parseInt(localStorage.getItem('icw_logcursor')||'0')||0;
+const LOG_CAP = 2000;           // keep at most this many lines in the DOM
 
-function log(line){ const e=$('log'); e.textContent += `[${new Date().toLocaleTimeString()}] ${line}\n`; e.scrollTop=e.scrollHeight; }
-function logRaw(line){ const e=$('log'); e.textContent += line+"\n"; e.scrollTop=e.scrollHeight; }
+function renderLog(){ const e=$('log'); e.textContent=logLines.join('\n'); e.scrollTop=e.scrollHeight; }
+function persistLog(){ try{ localStorage.setItem('icw_log', JSON.stringify(logLines)); localStorage.setItem('icw_logcursor', String(logCursor)); }catch(_){} }
+function pushLines(arr){ if(!arr||!arr.length) return; for(const l of arr) logLines.push(l); if(logLines.length>LOG_CAP) logLines=logLines.slice(-LOG_CAP); renderLog(); persistLog(); }
+function log(line){ pushLines(['['+new Date().toLocaleTimeString()+'] '+line]); }
+function restoreLog(){ try{ const s=JSON.parse(localStorage.getItem('icw_log')||'[]'); if(Array.isArray(s)){ logLines=s.slice(-LOG_CAP); renderLog(); } }catch(_){} }
 function setStatus(ok, text){ $('dot').className='w-2.5 h-2.5 rounded-full '+(ok?'bg-ok':'bg-muted'); $('status').textContent=text; $('status').className=ok?'text-ok':'text-muted'; }
 function connParams(){ return {host:$('host').value.trim(),port:parseInt($('port').value)||993,user:$('user').value.trim(),password:$('password').value,timeout:parseInt($('timeout').value)||120}; }
 
@@ -302,7 +308,7 @@ async function restore(){
       setStatus(true,'connected · '+knownFolders.length+' folders');
       refreshConditional();
       if(s.run_id){ curRunId=s.run_id; log('Reattached to a running operation…'); startPolling(); }
-    } else { localStorage.removeItem('icw_sid'); SID=null; }
+    } else { localStorage.removeItem('icw_sid'); localStorage.removeItem('icw_logcursor'); SID=null; }
   }catch(e){ localStorage.removeItem('icw_sid'); SID=null; }
 }
 
@@ -317,19 +323,22 @@ function refreshConditional(){
 }
 
 /* ---------- folders ---------- */
+function fmtCount(c){ return c==null?'':' · '+Number(c).toLocaleString()+' msg'; }
 function renderFolders(){
   const box=$('folders'); box.innerHTML='';
-  const all=Array.from(new Set([...selectedFolders,...knownFolders]));
+  const map=new Map(knownFolders.map(f=>[f.name,f]));
+  selectedFolders.forEach(n=>{ if(!map.has(n)) map.set(n,{name:n,count:null}); });
+  const all=[...map.values()];
   if(!all.length){ box.innerHTML='<p class="text-muted col-span-full text-xs">No folders.</p>'; return; }
-  all.forEach((name,idx)=>{
-    const id='cb'+idx;
+  all.forEach((f,idx)=>{
+    const name=f.name, id='cb'+idx;
     const w=document.createElement('div');
     w.className='group flex items-center gap-2 px-2 py-1 rounded hover:bg-panel2';
     w.innerHTML=`<input id="${id}" type="checkbox" ${selectedFolders.includes(name)?'checked':''}>
-      <label for="${id}" class="truncate flex-1 cursor-pointer" title="${name}">${name}</label>
+      <label for="${id}" class="truncate flex-1 cursor-pointer" title="${name}">${name}<span class="text-muted text-xs">${fmtCount(f.count)}</span></label>
       <button class="opacity-0 group-hover:opacity-100 text-muted hover:text-danger text-sm leading-none" title="remove from list">×</button>`;
-    w.querySelector('input').onchange=(e)=>{ if(e.target.checked){ if(!selectedFolders.includes(name))selectedFolders.push(name);} else selectedFolders=selectedFolders.filter(f=>f!==name); };
-    w.querySelector('button').onclick=()=>{ knownFolders=knownFolders.filter(f=>f!==name); selectedFolders=selectedFolders.filter(f=>f!==name); renderFolders(); };
+    w.querySelector('input').onchange=(e)=>{ if(e.target.checked){ if(!selectedFolders.includes(name))selectedFolders.push(name);} else selectedFolders=selectedFolders.filter(x=>x!==name); };
+    w.querySelector('button').onclick=()=>{ knownFolders=knownFolders.filter(x=>x.name!==name); selectedFolders=selectedFolders.filter(x=>x!==name); renderFolders(); };
     box.appendChild(w);
   });
 }
@@ -393,24 +402,16 @@ function setBusy(busy){
   $('btnStop').classList.toggle('hidden',!busy);
   $('btnRun').textContent= busy?'Working…':'▶ Run';
 }
-function startPolling(){
-  setBusy(true); let cursor=0;
-  const tick=async()=>{
-    try{
-      const d=await (await fetch(`/api/progress/${SID}/${curRunId}?cursor=${cursor}`)).json();
-      (d.log||[]).forEach(logRaw); cursor=d.cursor;
-      if(d.status!=='running'){
-        clearTimeout(poll); poll=null;
-        if(d.kind==='senders' && d.result && d.result.senders){
-          d.result.senders.slice(0,1000).forEach(s=>logRaw('   '+String(s.count).padStart(6)+'  '+s.sender+'  ['+s.folder+']'));
-          if(d.result.saved_to) log('Saved to '+d.result.saved_to);
-        }
-        log('— '+d.status+(d.error?(': '+d.error):'')+' —');
-        setBusy(false); curRunId=null;
-      } else { poll=setTimeout(tick,900); }
-    }catch(e){ clearTimeout(poll); poll=null; log('[ERROR] '+e.message); setBusy(false); }
-  };
-  tick();
+function pollDelay(){ return document.hidden ? 3000 : 1300; }
+function startPolling(){ setBusy(true); pollLog(); }
+async function pollLog(){
+  try{
+    const d=await (await fetch(`/api/log/${SID}?cursor=${logCursor}`)).json();
+    if(typeof d.cursor==='number') logCursor=d.cursor;
+    if(d.lines && d.lines.length) pushLines(d.lines);
+    if(d.running){ poll=setTimeout(pollLog, pollDelay()); }
+    else { poll=null; if(d.status && d.status!=='running') log('— '+d.status+(d.error?(': '+d.error):'')+' —'); setBusy(false); curRunId=null; persistLog(); }
+  }catch(e){ poll=null; setBusy(false); log('[ERROR] '+e.message); }
 }
 async function startJob(path, body){
   if(!SID){ log('[ERROR] Not connected.'); return; }
@@ -454,12 +455,13 @@ $('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider')
 $('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional;
 $('togglePass').onclick=()=>{ const p=$('password'); p.type=p.type==='password'?'text':'password'; $('togglePass').textContent=p.type==='password'?'show':'hide'; };
 document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const rule=document.querySelector('input[name=mode]:checked').value==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); });
-$('btnAddFolder').onclick=()=>{ const v=$('manualFolder').value.trim(); if(!v)return; if(!selectedFolders.includes(v))selectedFolders.push(v); if(!knownFolders.includes(v))knownFolders.push(v); $('manualFolder').value=''; renderFolders(); };
-$('btnClear').onclick=()=>$('log').textContent='';
+$('btnAddFolder').onclick=()=>{ const v=$('manualFolder').value.trim(); if(!v)return; if(!selectedFolders.includes(v))selectedFolders.push(v); if(!knownFolders.some(f=>f.name===v))knownFolders.push({name:v,count:null}); $('manualFolder').value=''; renderFolders(); };
+$('btnClear').onclick=()=>{ logLines=[]; renderLog(); persistLog(); };
 
 $('btnConnect').onclick=async()=>{
   try{ setStatus(false,'connecting…'); log('Connecting to '+$('host').value+' …');
     const d=await api('/api/connect',connParams()); SID=d.sid; localStorage.setItem('icw_sid',SID);
+    logCursor=0; persistLog();   // fresh session log
     knownFolders=d.folders||[]; renderFolders(); setStatus(true,'connected · '+knownFolders.length+' folders');
     log('Connected. Loaded '+knownFolders.length+' folder(s).'); refreshConditional();
   }catch(e){ setStatus(false,'failed'); log('[ERROR] '+e.message); }
@@ -481,6 +483,7 @@ $('targetsFile').onchange=(e)=>{ const f=e.target.files[0]; if(!f)return; const 
 $('btnSaveTargets').onclick=()=>download('targets.txt', $('targets').value);
 $('schedToggle').onchange=async(e)=>{ try{ await api('/api/scheduler',{enabled:e.target.checked}); }catch(err){ log('[ERROR] '+err.message); } };
 
+restoreLog();
 loadMeta().then(()=>{ refreshConditional(); restore(); });
 </script>
 </body>

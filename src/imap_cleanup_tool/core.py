@@ -103,6 +103,28 @@ def list_folders(conn: imaplib.IMAP4_SSL) -> list[str]:
     return names
 
 
+def folder_message_counts(conn: imaplib.IMAP4_SSL, names: list[str],
+                          should_stop: StopCheck | None = None
+                          ) -> dict[str, int | None]:
+    """Return a {folder: message_count} map using IMAP STATUS (cheap, no fetch).
+
+    The count is ``None`` for folders that cannot be inspected (e.g. \\Noselect
+    parents like ``[Gmail]``).
+    """
+    counts: dict[str, int | None] = {}
+    for name in names:
+        _check_stop(should_stop)
+        try:
+            status, data = conn.status(f'"{name}"', "(MESSAGES)")
+        except (OSError, imaplib.IMAP4.error):
+            counts[name] = None
+            continue
+        match = (re.search(rb"MESSAGES\s+(\d+)", data[0])
+                 if status == "OK" and data and data[0] else None)
+        counts[name] = int(match.group(1)) if match else None
+    return counts
+
+
 # --------------------------------------------------------------------------- #
 # Fetching headers
 # --------------------------------------------------------------------------- #
