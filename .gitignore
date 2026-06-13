@@ -30,3 +30,8 @@ Thumbs.db
 senders.csv
 targets.txt
 jobs.json
+
+# AI assistant working files (kept local, not published)
+CLAUDE.md
+memory-bank/
+.claude/
