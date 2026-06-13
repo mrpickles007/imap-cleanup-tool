@@ -60,6 +60,16 @@ class WebApiTests(unittest.TestCase):
         r = self.client.post("/api/refresh-folders", json={"sid": "nope"})
         self.assertEqual(r.status_code, 440)
 
+    def test_count_without_session_is_rejected(self):
+        r = self.client.post("/api/count", json={
+            "sid": "nope", "match_mode": "rule", "rule_tree": _RULE})
+        self.assertEqual(r.status_code, 440)
+
+    def test_save_senders_without_session_is_rejected(self):
+        r = self.client.post("/api/save-senders",
+                             json={"sid": "nope", "path": "x.csv"})
+        self.assertEqual(r.status_code, 440)
+
     def test_jobs_crud(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(scheduler, "config_dir",

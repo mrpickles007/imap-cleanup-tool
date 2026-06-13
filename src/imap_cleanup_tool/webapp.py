@@ -27,6 +27,7 @@ import logging
 import os
 import re
 import threading
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -77,7 +78,8 @@ _SESSIONS: dict[str, "Session"] = {}
 _RUN_BY_THREAD: dict[int, "RunState"] = {}
 
 
-SESSION_LOG_CAP = 50000   # keep at most this many log lines per session
+SESSION_LOG_CAP = 50000     # keep at most this many log lines per session
+SESSION_IDLE_LIMIT = 600    # seconds: idle sessions are logged out and dropped
 
 
 class RunState:
@@ -107,6 +109,10 @@ class Session:
         self.run: RunState | None = None
         self.log: list[str] = []         # rolling log buffer (persists refresh)
         self.log_base = 0                # absolute index of self.log[0]
+        self.last_seen = time.monotonic()
+
+    def touch(self) -> None:
+        self.last_seen = time.monotonic()
 
     def add_log(self, line: str) -> None:
         self.log.append(line)
@@ -170,6 +176,30 @@ def _start_run(session: "Session", kind: str, work) -> "RunState":
     return run
 
 
+def _start_reaper() -> None:
+    """Start (once) a daemon that logs out IMAP sessions left idle.
+
+    A page kept open sends a heartbeat that refreshes ``last_seen``; when the page
+    is closed abruptly the heartbeat stops and the connection is reaped instead of
+    hanging. Running operations are never reaped.
+    """
+    if getattr(_start_reaper, "_done", False):
+        return
+
+    def loop() -> None:
+        while True:
+            time.sleep(60)
+            now = time.monotonic()
+            for sid, sess in list(_SESSIONS.items()):
+                running = bool(sess.run and sess.run.status == "running")
+                if not running and now - sess.last_seen > SESSION_IDLE_LIMIT:
+                    core.safe_logout(sess.conn)
+                    _SESSIONS.pop(sid, None)
+
+    threading.Thread(target=loop, daemon=True).start()
+    _start_reaper._done = True   # type: ignore[attr-defined]
+
+
 def create_app():
     """Build and return the FastAPI application (lazy fastapi import)."""
     from fastapi import FastAPI, HTTPException
@@ -178,6 +208,7 @@ def create_app():
     from pydantic import BaseModel, Field
 
     _install_log_dispatch()
+    _start_reaper()
 
     # ----- request models -------------------------------------------------- #
     class ConnIn(BaseModel):
@@ -238,6 +269,7 @@ def create_app():
         sess = _SESSIONS.get(sid)
         if sess is None:
             raise HTTPException(440, "Not connected. Click Connect.")
+        sess.touch()
         return sess
 
     def _resolve_match(match: "Match"):
@@ -295,6 +327,7 @@ def create_app():
         sess = _SESSIONS.get(sid)
         if sess is None:
             return {"connected": False}
+        sess.touch()
         running = bool(sess.run and sess.run.status == "running")
         return {"connected": True, "host": sess.host, "user": sess.user,
                 "folders": sess.folders,
@@ -390,6 +423,31 @@ def create_app():
             rs.result = {"processed": total, "dry_run": body.dry_run}
 
         run_state = _start_run(sess, "run", work)
+        return {"run_id": run_state.run_id}
+
+    @app.post("/api/count")
+    def count_matches(body: RunIn) -> dict[str, Any]:
+        """Count how many messages the current filter matches (no changes)."""
+        sess = _session(body.sid)
+        if sess.run and sess.run.status == "running":
+            raise HTTPException(409, "An operation is already running.")
+        addresses, domains, search_argument = _resolve_match(body)
+        folders = body.folders or ["INBOX"]
+
+        def work(rs: RunState) -> None:
+            total = 0
+            for folder in folders:
+                total += core.process_folder(
+                    sess.conn, folder, addresses=addresses, domains=domains,
+                    search_argument=search_argument, dry_run=True,
+                    include_subdomains=body.include_subdomains,
+                    batch_size=body.batch_size, scan_mode=body.scan_mode,
+                    should_stop=rs.stop.is_set)
+            core.logger.info("=> %d matching message(s) across %d folder(s).",
+                             total, len(folders))
+            rs.result = {"matched": total}
+
+        run_state = _start_run(sess, "count", work)
         return {"run_id": run_state.run_id}
 
     @app.get("/api/log/{sid}")
