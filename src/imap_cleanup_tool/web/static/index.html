@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IMAP Cleanup Tool</title>
+<link rel="icon" href="/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        brand:  { DEFAULT:'#1890d8', light:'#3aa6ec', dark:'#0f6fae' },
+        ink:'#0b1020', panel:'#141a2e', panel2:'#1d2540', line:'#2a3350',
+        cream:'#eef1f7', muted:'#94a0bd',
+        danger:'#ff5d73', ok:'#3ecf8e', warn:'#fbbf24',
+      },
+      fontFamily: {
+        display: ['"Space Grotesk"','system-ui','sans-serif'],
+        sans: ['Inter','system-ui','sans-serif'],
+      },
+    },
+  },
+}
+</script>
+<style>
+  body{background:radial-gradient(1200px 600px at 80% -10%,rgba(24,144,216,.18),transparent),#0b1020;}
+  .tip{position:relative;display:inline-flex;align-items:center;cursor:help}
+  .tip > .ic{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:9999px;
+    background:#2a3350;color:#cdd6ee;font-size:10px;font-weight:700;margin-left:6px}
+  .tip .bub{position:absolute;bottom:135%;left:50%;transform:translateX(-50%);width:max-content;max-width:280px;
+    background:#0b1020;color:#dfe5f3;border:1px solid #2a3350;border-radius:8px;padding:8px 10px;font-size:12px;
+    line-height:1.45;box-shadow:0 10px 30px rgba(0,0,0,.5);opacity:0;visibility:hidden;transition:.12s;z-index:50;text-align:left;font-weight:400}
+  .tip:hover .bub{opacity:1;visibility:visible}
+  .console{font-family:"Consolas","SFMono-Regular",ui-monospace,monospace}
+  ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#2a3350;border-radius:8px}
+  input:disabled,select:disabled{opacity:.4;cursor:not-allowed}
+  .field{background:#0b1020;border:1px solid #2a3350;border-radius:8px;padding:8px 10px;color:#eef1f7;font-size:14px;width:100%}
+  .field:focus{outline:none;border-color:#1890d8;box-shadow:0 0 0 2px rgba(24,144,216,.25)}
+</style>
+</head>
+<body class="font-sans text-cream min-h-screen">
+
+<header class="sticky top-0 z-30 backdrop-blur bg-ink/80 border-b border-line">
+  <div class="max-w-5xl mx-auto px-5 py-3 flex items-center gap-4">
+    <img src="/logo.png" alt="logo" class="h-10 w-auto drop-shadow">
+    <div class="flex-1">
+      <h1 class="font-display text-lg font-700 tracking-tight">IMAP Cleanup Tool</h1>
+      <p class="text-muted text-xs -mt-0.5">Bulk-clean your mailbox · local web UI <span id="ver"></span></p>
+    </div>
+    <div class="flex items-center gap-2 text-sm">
+      <span id="dot" class="w-2.5 h-2.5 rounded-full bg-muted"></span>
+      <span id="status" class="text-muted">disconnected</span>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-5 py-6 grid lg:grid-cols-5 gap-5">
+
+  <!-- LEFT: configuration -->
+  <div class="lg:col-span-3 space-y-5">
+
+    <!-- Connection -->
+    <section class="bg-panel border border-line rounded-xl p-5">
+      <h2 class="font-display font-600 text-brand-light mb-4 flex items-center">Connection</h2>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="col-span-2 text-xs text-muted">Provider
+          <select id="provider" class="field mt-1"></select>
+        </label>
+        <label class="text-xs text-muted">Host
+          <input id="host" class="field mt-1" placeholder="imap.example.com">
+        </label>
+        <label class="text-xs text-muted flex-col">Port
+          <input id="port" class="field mt-1" value="993">
+        </label>
+        <label class="text-xs text-muted">User
+          <input id="user" class="field mt-1" placeholder="you@example.com" autocomplete="username">
+        </label>
+        <label class="text-xs text-muted flex items-center">Password
+          <span class="tip"><span class="ic">i</span><span class="bub">For <b>Gmail</b> use an <b>App Password</b> (not your normal password) with IMAP enabled — see Gmail → Security → App passwords.</span></span>
+          <div class="w-full mt-1 flex gap-2">
+            <input id="password" type="password" class="field" autocomplete="current-password">
+            <button id="togglePass" type="button" class="px-2 rounded-lg border border-line text-muted hover:text-cream">show</button>
+          </div>
+        </label>
+        <label class="text-xs text-muted">Timeout (s)
+          <input id="timeout" class="field mt-1" value="120">
+        </label>
+        <div class="flex items-end">
+          <button id="btnConnect" class="w-full bg-brand hover:bg-brand-light text-ink font-600 rounded-lg px-4 py-2 transition">Connect &amp; load folders</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Folders -->
+    <section class="bg-panel border border-line rounded-xl p-5">
+      <h2 class="font-display font-600 text-brand-light mb-3 flex items-center">Folders
+        <span class="tip"><span class="ic">i</span><span class="bub">Pick the folders to scan. Gmail uses special names like <code>[Gmail]/All Mail</code>, <code>[Gmail]/Trash</code> (may be localized). Connect first to load the list.</span></span>
+      </h2>
+      <div id="folders" class="grid grid-cols-2 sm:grid-cols-3 gap-1 max-h-44 overflow-auto text-sm">
+        <p class="text-muted col-span-full text-xs">Not connected — folders will appear here. Defaults to <code>INBOX</code>.</p>
+      </div>
+      <div class="flex gap-2 mt-3">
+        <input id="manualFolder" class="field" placeholder="Add a folder name manually…">
+        <button id="btnAddFolder" class="px-3 rounded-lg border border-line text-muted hover:text-cream">Add</button>
+      </div>
+    </section>
+
+    <!-- What to match -->
+    <section class="bg-panel border border-line rounded-xl p-5">
+      <h2 class="font-display font-600 text-brand-light mb-3">What to match</h2>
+      <div class="flex gap-4 mb-3 text-sm">
+        <label class="flex items-center gap-2"><input type="radio" name="mode" value="targets" checked> Target list</label>
+        <label class="flex items-center gap-2"><input type="radio" name="mode" value="rule"> Rule (query builder)</label>
+      </div>
+
+      <div id="paneTargets">
+        <div class="flex items-center text-xs text-muted mb-1">Senders / domains, one per line
+          <span class="tip"><span class="ic">i</span><span class="bub">
+            <b>One entry per line:</b><br>
+            • <code>spam@example.com</code> — an exact sender address<br>
+            • <code>*@newsletter.com</code> — a whole domain (wildcard)<br>
+            • <code>annoying.com</code> — a whole domain (bare form)<br>
+            • <code>mail.annoying.com</code> — only that subdomain<br>
+            • lines starting with <code>#</code> are comments
+          </span></span>
+        </div>
+        <textarea id="targets" rows="6" class="field console" placeholder="spam@example.com&#10;*@newsletter.com&#10;annoying.com&#10;# this is a comment"></textarea>
+      </div>
+
+      <div id="paneRule" class="hidden">
+        <div id="builder"></div>
+        <button id="btnValidate" class="mt-3 px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream text-sm">Validate rule</button>
+        <span id="ruleOut" class="text-xs text-muted ml-2"></span>
+      </div>
+    </section>
+  </div>
+
+  <!-- RIGHT: options + actions + log -->
+  <div class="lg:col-span-2 space-y-5">
+
+    <section class="bg-panel border border-line rounded-xl p-5">
+      <h2 class="font-display font-600 text-brand-light mb-3">Options</h2>
+
+      <label class="text-xs text-muted flex items-center">Scan mode
+        <span class="tip"><span class="ic">i</span><span class="bub">
+          <b>search</b> — fast, server-side IMAP SEARCH (recommended for big folders).<br>
+          <b>full</b> — downloads each message header and matches locally: stricter, and the only mode that can match <b>subdomains</b>.
+        </span></span>
+      </label>
+      <select id="scanMode" class="field mt-1 mb-3">
+        <option value="search">search — fast (server-side)</option>
+        <option value="full">full — strict (local headers)</option>
+      </select>
+
+      <label class="flex items-center justify-between text-sm py-1.5 opacity-100" id="rowSub">
+        <span class="flex items-center">Include subdomains
+          <span class="tip"><span class="ic">i</span><span class="bub">Only available in <b>full</b> mode. A target <code>annoying.com</code> will then also match <code>mail.annoying.com</code>.</span></span>
+        </span>
+        <input id="subdomains" type="checkbox" disabled>
+      </label>
+
+      <label class="flex items-center justify-between text-sm py-1.5" id="rowGmail">
+        <span class="flex items-center">Gmail: move to Trash
+          <span class="tip"><span class="ic">i</span><span class="bub">Only for <b>Gmail</b>. On Gmail a plain delete in INBOX just removes a label; this applies the <code>\\Trash</code> label so the message is really trashed. Auto-enabled when the host is <code>imap.gmail.com</code>.</span></span>
+        </span>
+        <input id="gmailTrash" type="checkbox" disabled>
+      </label>
+
+      <label class="flex items-center justify-between text-sm py-1.5">
+        <span class="flex items-center">Expunge (permanent)
+          <span class="tip"><span class="ic">i</span><span class="bub" style="border-color:#ff5d73">⚠️ Permanently removes flagged messages. Without this, messages are only flagged <code>\\Deleted</code> (often hidden but recoverable until expunged).</span></span>
+        </span>
+        <input id="expunge" type="checkbox">
+      </label>
+
+      <label class="flex items-center justify-between text-sm py-1.5">
+        <span class="flex items-center text-danger">Empty folder (delete ALL)
+          <span class="tip"><span class="ic">i</span><span class="bub" style="border-color:#ff5d73">⚠️ Deletes <b>every</b> message in the selected folders, ignoring the match criteria. Use for emptying Trash, etc.</span></span>
+        </span>
+        <input id="emptyFolder" type="checkbox">
+      </label>
+
+      <label class="flex items-center justify-between text-sm py-1.5 border-t border-line mt-2 pt-3">
+        <span class="flex items-center text-cream font-600">Dry-run (preview only)
+          <span class="tip"><span class="ic">i</span><span class="bub">Reports what <b>would</b> happen and changes nothing. Keep this on for your first run.</span></span>
+        </span>
+        <input id="dryRun" type="checkbox" checked>
+      </label>
+
+      <label class="text-xs text-muted block mt-2">Batch size
+        <input id="batch" class="field mt-1" value="500">
+      </label>
+    </section>
+
+    <section class="bg-panel border border-line rounded-xl p-5 space-y-2">
+      <button id="btnRun" class="w-full bg-brand hover:bg-brand-light text-ink font-700 rounded-lg px-4 py-2.5 transition">▶ Run</button>
+      <button id="btnSenders" class="w-full border border-line text-cream hover:border-brand rounded-lg px-4 py-2 transition">List senders</button>
+      <p class="text-[11px] text-muted text-center">With dry-run on, “Run” only previews.</p>
+    </section>
+  </div>
+
+  <!-- LOG (full width) -->
+  <section class="lg:col-span-5 bg-panel border border-line rounded-xl p-5">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="font-display font-600 text-brand-light">Log</h2>
+      <button id="btnClear" class="text-xs text-muted hover:text-cream">clear</button>
+    </div>
+    <pre id="log" class="console text-[12.5px] leading-relaxed bg-ink border border-line rounded-lg p-3 h-64 overflow-auto whitespace-pre-wrap text-[#c4c8d4]"></pre>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let META = { providers:{}, operators:{} };
+let selectedFolders = ['INBOX'];
+
+function log(line, cls){
+  const el = $('log');
+  const stamp = new Date().toLocaleTimeString();
+  el.textContent += `[${stamp}] ${line}\n`;
+  el.scrollTop = el.scrollHeight;
+}
+function setStatus(ok, text){
+  $('dot').className = 'w-2.5 h-2.5 rounded-full ' + (ok ? 'bg-ok' : 'bg-muted');
+  $('status').textContent = text;
+  $('status').className = ok ? 'text-ok' : 'text-muted';
+}
+function connParams(){
+  return { host:$('host').value.trim(), port:parseInt($('port').value)||993,
+           user:$('user').value.trim(), password:$('password').value,
+           timeout:parseInt($('timeout').value)||120 };
+}
+async function api(path, body){
+  const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  const data = await r.json().catch(()=>({}));
+  if(!r.ok){ throw new Error(data.detail || (`HTTP ${r.status}`)); }
+  return data;
+}
+
+/* ---------- meta / providers ---------- */
+async function loadMeta(){
+  META = await (await fetch('/api/meta')).json();
+  $('ver').textContent = META.version ? ('v'+META.version) : '';
+  const sel = $('provider');
+  sel.innerHTML = '';
+  for(const name of Object.keys(META.providers)){
+    const o = document.createElement('option'); o.value=name; o.textContent=name; sel.appendChild(o);
+  }
+  buildRoot();
+}
+function gmailHost(){ return $('host').value.trim() === 'imap.gmail.com'; }
+function refreshConditional(){
+  const full = $('scanMode').value === 'full';
+  $('subdomains').disabled = !full;
+  if(!full) $('subdomains').checked = false;
+  const gmail = gmailHost();
+  $('gmailTrash').disabled = !gmail;
+  if(!gmail) $('gmailTrash').checked = false;
+  $('rowGmail').style.opacity = gmail ? '1' : '.45';
+  $('rowSub').style.opacity = full ? '1' : '.45';
+  const empty = $('emptyFolder').checked;
+  document.querySelectorAll('#paneTargets, #paneRule, #targets').forEach(e=>{});
+  $('paneTargets').style.opacity = empty ? '.4' : '1';
+  $('paneRule').style.opacity = empty ? '.4' : '1';
+}
+
+/* ---------- folders ---------- */
+function renderFolders(names){
+  const box = $('folders'); box.innerHTML = '';
+  const all = Array.from(new Set([...selectedFolders, ...names]));
+  if(!all.length){ box.innerHTML='<p class="text-muted col-span-full text-xs">No folders.</p>'; return; }
+  for(const name of all){
+    const id = 'f_'+btoa(name).replace(/=/g,'');
+    const wrap = document.createElement('label');
+    wrap.className = 'flex items-center gap-2 px-2 py-1 rounded hover:bg-panel2 cursor-pointer';
+    wrap.innerHTML = `<input type="checkbox" ${selectedFolders.includes(name)?'checked':''}>
+                      <span class="truncate" title="${name}">${name}</span>`;
+    wrap.querySelector('input').addEventListener('change', e=>{
+      if(e.target.checked){ if(!selectedFolders.includes(name)) selectedFolders.push(name); }
+      else selectedFolders = selectedFolders.filter(f=>f!==name);
+    });
+    box.appendChild(wrap);
+  }
+}
+
+/* ---------- query builder ---------- */
+let ROOT = null;
+function newCond(){ return {kind:'cond', field:'sender', operator:'contains', value:''}; }
+function newGroup(){ return {kind:'group', op:'AND', children:[newCond()]}; }
+function buildRoot(){ ROOT = newGroup(); renderBuilder(); }
+
+function opOptions(field){ return (META.operators[field]||[['contains','contains']]); }
+function renderNode(node, parentArr, depth){
+  if(node.kind==='cond'){
+    const row = document.createElement('div');
+    row.className='flex flex-wrap items-center gap-2 my-1';
+    const fSel = document.createElement('select'); fSel.className='field w-28';
+    (META.fields||['sender','subject','date']).forEach(f=>{ const o=document.createElement('option');o.value=f;o.textContent=f;fSel.appendChild(o); });
+    fSel.value = node.field;
+    const oSel = document.createElement('select'); oSel.className='field w-32';
+    const valWrap = document.createElement('div'); valWrap.className='flex-1 min-w-[140px] flex items-center gap-2';
+    const val = document.createElement('input'); val.className='field'; val.placeholder='value'; val.value=node.value;
+    const hint = document.createElement('span'); hint.className='text-[11px] text-muted';
+    function fillOps(){
+      oSel.innerHTML='';
+      opOptions(node.field).forEach(([label,key])=>{ const o=document.createElement('option');o.value=key;o.textContent=label;oSel.appendChild(o); });
+      oSel.value = node.operator;
+      hint.textContent = node.field==='date' ? 'YYYY-MM-DD' : '';
+    }
+    fillOps();
+    fSel.onchange=()=>{ node.field=fSel.value; node.operator=opOptions(node.field)[0][1]; fillOps(); };
+    oSel.onchange=()=>{ node.operator=oSel.value; };
+    val.oninput=()=>{ node.value=val.value; };
+    const del = document.createElement('button'); del.className='px-2 rounded-lg bg-danger/20 text-danger hover:bg-danger/30'; del.textContent='×';
+    del.onclick=()=>{ const i=parentArr.indexOf(node); if(i>=0) parentArr.splice(i,1); renderBuilder(); };
+    valWrap.append(val, hint);
+    row.append(fSel,oSel,valWrap,del);
+    return row;
+  }
+  // group
+  const box = document.createElement('div');
+  box.className='rounded-lg border border-line p-3 my-2';
+  box.style.background = depth%2 ? 'rgba(29,37,64,.5)' : 'rgba(11,16,32,.5)';
+  const head = document.createElement('div'); head.className='flex items-center gap-2 mb-1';
+  const lbl = document.createElement('span'); lbl.className='text-xs text-muted'; lbl.textContent='Match';
+  const opSel = document.createElement('select'); opSel.className='field w-44';
+  [['ALL — all match (AND)','AND'],['ANY — any match (OR)','OR']].forEach(([t,v])=>{ const o=document.createElement('option');o.value=v;o.textContent=t;opSel.appendChild(o); });
+  opSel.value = node.op; opSel.onchange=()=>{ node.op=opSel.value; };
+  const addC = document.createElement('button'); addC.className='text-xs px-2 py-1 rounded-lg border border-line text-muted hover:text-cream'; addC.textContent='+ Condition';
+  addC.onclick=()=>{ node.children.push(newCond()); renderBuilder(); };
+  const addG = document.createElement('button'); addG.className='text-xs px-2 py-1 rounded-lg border border-line text-muted hover:text-cream'; addG.textContent='+ Group';
+  addG.onclick=()=>{ node.children.push(newGroup()); renderBuilder(); };
+  head.append(lbl, opSel, addC, addG);
+  if(depth>0){
+    const delG = document.createElement('button'); delG.className='ml-auto text-xs px-2 py-1 rounded-lg bg-danger/20 text-danger hover:bg-danger/30'; delG.textContent='× group';
+    delG.onclick=()=>{ const i=parentArr.indexOf(node); if(i>=0) parentArr.splice(i,1); renderBuilder(); };
+    head.append(delG);
+  }
+  box.append(head);
+  const body = document.createElement('div'); body.className = depth>0 ? 'pl-3' : '';
+  node.children.forEach(ch=> body.append(renderNode(ch, node.children, depth+1)) );
+  box.append(body);
+  return box;
+}
+function renderBuilder(){
+  const b = $('builder'); b.innerHTML='';
+  b.append(renderNode(ROOT, [ROOT], 0));
+}
+function toTree(node){
+  if(node.kind==='cond') return {type:'condition', field:node.field, operator:node.operator, value:node.value};
+  return {type:'group', op:node.op, children:node.children.map(toTree)};
+}
+
+/* ---------- payload ---------- */
+function runPayload(){
+  const mode = document.querySelector('input[name=mode]:checked').value;
+  return {
+    conn: connParams(),
+    folders: selectedFolders.length ? selectedFolders : ['INBOX'],
+    match_mode: mode,
+    targets_text: $('targets').value,
+    rule_tree: mode==='rule' ? toTree(ROOT) : null,
+    scan_mode: $('scanMode').value,
+    include_subdomains: $('subdomains').checked,
+    batch_size: parseInt($('batch').value)||500,
+    gmail_trash: $('gmailTrash').checked,
+    expunge: $('expunge').checked,
+    empty_folder: $('emptyFolder').checked,
+    dry_run: $('dryRun').checked,
+  };
+}
+
+/* ---------- events ---------- */
+$('provider').onchange = ()=>{
+  const host = META.providers[$('provider').value] || '';
+  if(host) $('host').value = host;
+  if(host==='imap.gmail.com'){ $('gmailTrash').disabled=false; $('gmailTrash').checked=true; }
+  refreshConditional();
+};
+$('host').oninput = refreshConditional;
+$('scanMode').onchange = refreshConditional;
+$('emptyFolder').onchange = refreshConditional;
+$('togglePass').onclick = ()=>{ const p=$('password'); p.type = p.type==='password'?'text':'password'; $('togglePass').textContent = p.type==='password'?'show':'hide'; };
+document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{
+  const rule = document.querySelector('input[name=mode]:checked').value==='rule';
+  $('paneRule').classList.toggle('hidden', !rule);
+  $('paneTargets').classList.toggle('hidden', rule);
+});
+$('btnAddFolder').onclick = ()=>{
+  const v=$('manualFolder').value.trim(); if(!v) return;
+  if(!selectedFolders.includes(v)) selectedFolders.push(v);
+  $('manualFolder').value='';
+  renderFolders(Array.from(document.querySelectorAll('#folders span[title]')).map(s=>s.getAttribute('title')));
+};
+$('btnClear').onclick = ()=>{ $('log').textContent=''; };
+
+$('btnConnect').onclick = async ()=>{
+  try{
+    setStatus(false,'connecting…');
+    log('Connecting to '+$('host').value+' …');
+    const d = await api('/api/folders', { conn: connParams() });
+    renderFolders(d.folders);
+    setStatus(true,'connected · '+d.folders.length+' folders');
+    log('Connected. Loaded '+d.folders.length+' folder(s).');
+  }catch(e){ setStatus(false,'failed'); log('[ERROR] '+e.message); }
+};
+$('btnValidate').onclick = async ()=>{
+  try{
+    const d = await api('/api/validate-rule', { tree: toTree(ROOT) });
+    $('ruleOut').textContent = 'OK → SEARCH ' + d.search;
+    $('ruleOut').className = 'text-xs text-ok ml-2';
+  }catch(e){ $('ruleOut').textContent = e.message; $('ruleOut').className='text-xs text-danger ml-2'; }
+};
+$('btnSenders').onclick = async ()=>{
+  try{
+    log('Listing senders in: '+(selectedFolders.join(', ')||'INBOX')+' …');
+    const d = await api('/api/senders', { conn:connParams(), folders:selectedFolders.length?selectedFolders:['INBOX'], batch_size:parseInt($('batch').value)||500 });
+    (d.log||[]).forEach(l=>log(l));
+    d.senders.slice(0,500).forEach(s=> log('   '+String(s.count).padStart(6)+'  '+s.sender+'  ['+s.folder+']'));
+    log('Listed '+d.senders.length+' sender(s).');
+  }catch(e){ log('[ERROR] '+e.message); }
+};
+$('btnRun').onclick = async ()=>{
+  const p = runPayload();
+  if(!p.dry_run){
+    const what = p.empty_folder ? 'DELETE EVERYTHING in' : 'act on matching messages in';
+    if(!confirm(`This is NOT a dry-run.\nAbout to ${what}:\n${p.folders.join(', ')}\n\nContinue?`)) return;
+  }
+  try{
+    $('btnRun').disabled=true; $('btnRun').textContent='Working…';
+    log((p.dry_run?'[DRY-RUN] ':'')+'Starting on: '+p.folders.join(', '));
+    const d = await api('/api/run', p);
+    (d.log||[]).forEach(l=>log(l));
+    log('Done. '+d.processed+' message(s) '+(d.dry_run?'would be ':'')+'processed.');
+  }catch(e){ log('[ERROR] '+e.message); }
+  finally{ $('btnRun').disabled=false; $('btnRun').textContent='▶ Run'; }
+};
+
+loadMeta().then(refreshConditional);
+</script>
+</body>
+</html>

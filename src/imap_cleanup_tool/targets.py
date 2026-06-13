@@ -8,8 +8,8 @@ import os
 logger = logging.getLogger("imap_cleanup_tool")
 
 
-def load_targets(path: str) -> tuple[set[str], set[str]]:
-    """Read the targets file and return (addresses, domains), lowercased.
+def parse_targets_text(text: str) -> tuple[set[str], set[str]]:
+    """Parse target list *text* and return (addresses, domains), lowercased.
 
     Format, one entry per line::
 
@@ -18,34 +18,46 @@ def load_targets(path: str) -> tuple[set[str], set[str]]:
         annoying.com         # whole domain (bare form)
         mail.annoying.com    # a specific subdomain only
         # comment lines and blank lines are ignored
-    """
-    if not os.path.isfile(path):
-        raise FileNotFoundError(f"Targets file not found: {path}")
 
+    Raises ``ValueError`` if no valid entries are found.
+    """
     addresses: set[str] = set()
     domains: set[str] = set()
 
-    with open(path, "r", encoding="utf-8") as handle:
-        for lineno, raw in enumerate(handle, start=1):
-            entry = raw.strip().lower()
-            if not entry or entry.startswith("#"):
-                continue
-            if entry.startswith("*@"):
-                domain = entry[2:].strip()
-                if domain:
-                    domains.add(domain)
-            elif "@" in entry:
-                addresses.add(entry)
-            else:
-                domains.add(entry)
-            logger.debug("Target line %d parsed: %r", lineno, entry)
+    for lineno, raw in enumerate(text.splitlines(), start=1):
+        entry = raw.strip().lower()
+        if not entry or entry.startswith("#"):
+            continue
+        if entry.startswith("*@"):
+            domain = entry[2:].strip()
+            if domain:
+                domains.add(domain)
+        elif "@" in entry:
+            addresses.add(entry)
+        else:
+            domains.add(entry)
+        logger.debug("Target line %d parsed: %r", lineno, entry)
 
     if not addresses and not domains:
-        raise ValueError(f"No valid targets found in {path}")
+        raise ValueError("No valid targets found.")
 
     logger.info("Loaded %d address(es) and %d domain(s).",
                 len(addresses), len(domains))
     return addresses, domains
+
+
+def load_targets(path: str) -> tuple[set[str], set[str]]:
+    """Read the targets file and return (addresses, domains), lowercased.
+
+    Thin wrapper over :func:`parse_targets_text`; see it for the line format.
+    """
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"Targets file not found: {path}")
+    with open(path, "r", encoding="utf-8") as handle:
+        try:
+            return parse_targets_text(handle.read())
+        except ValueError as exc:
+            raise ValueError(f"No valid targets found in {path}") from exc
 
 
 def sender_matches(sender: str, addresses: set[str], domains: set[str],

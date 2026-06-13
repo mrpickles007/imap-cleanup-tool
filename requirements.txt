@@ -4,6 +4,10 @@
 # tkinter is part of the standard library but on some Linux distros it ships
 # as a separate OS package, e.g. on Debian/Ubuntu:  sudo apt install python3-tk
 #
+# Web UI (optional), install with:  pip install "imap-cleanup-tool[web]"
+# fastapi
+# uvicorn[standard]
+#
 # Development / building (optional), install with:  pip install -e ".[dev]"
 # pylint
 # pyinstaller

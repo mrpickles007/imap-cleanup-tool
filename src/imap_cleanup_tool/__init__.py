@@ -22,7 +22,7 @@ from .core import (
     search_rule,
     search_targets,
 )
-from .targets import load_targets, sender_matches
+from .targets import load_targets, parse_targets_text, sender_matches
 from .rules import Condition, Group, compile_search, node_from_dict
 from .rule_parser import parse_rule_expression
 
@@ -43,6 +43,7 @@ __all__ = [
     "empty_folder",
     "process_folder",
     "load_targets",
+    "parse_targets_text",
     "sender_matches",
     "Condition",
     "Group",

@@ -33,6 +33,7 @@ only the Python standard library.
 - [Rule expressions](#rule-expressions)
 - [Target file format](#target-file-format)
 - [Graphical interface](#graphical-interface)
+- [Web interface](#web-interface)
 - [Scheduling](#scheduling)
 - [Gmail notes](#gmail-notes)
 - [Building a Windows .exe](#building-a-windows-exe)
@@ -52,7 +53,14 @@ python -m venv .venv
 pip install imap-cleanup-tool
 ```
 
-This installs two commands: `imap-cleanup-tool` (CLI) and `imap-cleanup-tool-gui` (GUI).
+This installs two commands: `imap-cleanup-tool` (CLI) and `imap-cleanup-tool-gui`
+(desktop GUI). For the **web interface**, install the extra:
+
+```bash
+pip install "imap-cleanup-tool[web]"     # adds the imap-cleanup-tool-web command
+```
+
+The core tool and CLI stay dependency-free; only the web UI pulls FastAPI + uvicorn.
 
 ### From source
 
@@ -212,6 +220,32 @@ checkpoint.
 
 **Scheduling** — save the current form as a named job, toggle the internal
 scheduler, or export an OS command (see below).
+
+---
+
+## Web interface
+
+A local web UI (FastAPI) with the same capabilities as the desktop GUI, plus a
+nicer look and inline help. Install the extra and run:
+
+```bash
+pip install "imap-cleanup-tool[web]"
+imap-cleanup-tool-web        # serves http://127.0.0.1:8765 and opens your browser
+```
+
+Options: `--host`, `--port`, `--no-browser`. The server is **stateless** — your
+credentials are sent with each action to the local server and never stored. It
+runs only on your machine (`127.0.0.1`) by default.
+
+Highlights:
+
+- Provider presets, connect-and-load-folders, multi-folder selection.
+- Match by a **target list** (paste senders/domains, with inline format help) or
+  a **visual nested query builder** (field ▸ operator ▸ value, AND/OR groups).
+- Context-aware options: *Include subdomains* enables only in **full** scan mode;
+  *Gmail: move to Trash* enables only for Gmail hosts — each with a tooltip
+  explaining what it does.
+- Dry-run by default, live log panel, and a one-click sender listing.
 
 ---
 

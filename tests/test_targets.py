@@ -4,7 +4,23 @@ import os
 import tempfile
 import unittest
 
-from imap_cleanup_tool.targets import load_targets, sender_matches
+from imap_cleanup_tool.targets import (
+    load_targets, parse_targets_text, sender_matches,
+)
+
+
+class ParseTargetsTextTests(unittest.TestCase):
+    def test_classifies_entries(self):
+        addresses, domains = parse_targets_text(
+            "spam@example.com\n*@newsletter.com\nannoying.com\n"
+            "mail.annoying.com\n# comment\n\n  UPPER@Example.COM  ")
+        self.assertEqual(addresses, {"spam@example.com", "upper@example.com"})
+        self.assertEqual(
+            domains, {"newsletter.com", "annoying.com", "mail.annoying.com"})
+
+    def test_empty_text_raises(self):
+        with self.assertRaises(ValueError):
+            parse_targets_text("# only a comment\n\n")
 
 
 class LoadTargetsTests(unittest.TestCase):
