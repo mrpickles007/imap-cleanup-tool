@@ -1,0 +1,65 @@
+name: build-and-release
+
+# Builds a standalone Windows .exe with PyInstaller on every tag, attaches it
+# to the GitHub Release, and (optionally) publishes the package to PyPI.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  windows-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller .
+
+      - name: Build GUI executable
+        run: >
+          pyinstaller --onefile --windowed
+          --name imap-cleanup-tool-gui
+          --collect-submodules imap_cleanup_tool
+          src/imap_cleanup_tool/gui.py
+
+      - name: Build CLI executable
+        run: >
+          pyinstaller --onefile
+          --name imap-cleanup-tool
+          --collect-submodules imap_cleanup_tool
+          src/imap_cleanup_tool/cli.py
+
+      - name: Upload executables to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/imap-cleanup-tool-gui.exe
+            dist/imap-cleanup-tool.exe
+
+  pypi:
+    runs-on: ubuntu-latest
+    # Publishing requires a PyPI API token saved as the PYPI_API_TOKEN secret.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}

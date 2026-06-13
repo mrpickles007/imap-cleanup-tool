@@ -1,0 +1,11 @@
+# Runtime: no third-party dependencies — the tool uses only the Python
+# standard library (imaplib, argparse, tkinter, threading, csv, json).
+#
+# tkinter is part of the standard library but on some Linux distros it ships
+# as a separate OS package, e.g. on Debian/Ubuntu:  sudo apt install python3-tk
+#
+# Development / building (optional), install with:  pip install -e ".[dev]"
+# pylint
+# pyinstaller
+# build
+# twine
