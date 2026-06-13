@@ -13,25 +13,25 @@
 tailwind.config = { theme: { extend: {
   colors: {
     brand:{DEFAULT:'#1890d8',light:'#3aa6ec',dark:'#0f6fae'},
-    ink:'#0b1020',panel:'#141a2e',panel2:'#1d2540',line:'#2a3350',
+    ink:'#0a0f1a',panel:'#111927',panel2:'#1a2433',line:'#27324a',
     cream:'#eef1f7',muted:'#94a0bd',danger:'#ff5d73',ok:'#3ecf8e',warn:'#fbbf24',
   },
   fontFamily:{ display:['"Sora"','system-ui','sans-serif'], sans:['Inter','system-ui','sans-serif'] },
 }}}
 </script>
 <style>
-  body{background:radial-gradient(1200px 600px at 80% -10%,rgba(24,144,216,.18),transparent),#0b1020;}
+  body{background:radial-gradient(1200px 600px at 80% -10%,rgba(24,144,216,.14),transparent),#0a0f1a;}
   .tip{position:relative;display:inline-flex;align-items:center;cursor:help}
   .tip > .ic{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:9999px;
-    background:#2a3350;color:#cdd6ee;font-size:10px;font-weight:700;margin-left:6px;flex:none}
+    background:#27324a;color:#cdd6ee;font-size:10px;font-weight:700;margin-left:6px;flex:none}
   .tip .bub{position:absolute;bottom:140%;left:50%;transform:translateX(-50%);width:max-content;max-width:300px;
-    background:#0b1020;color:#dfe5f3;border:1px solid #3a4566;border-radius:8px;padding:9px 11px;font-size:12px;
+    background:#0a0f1a;color:#dfe5f3;border:1px solid #33415c;border-radius:8px;padding:9px 11px;font-size:12px;
     line-height:1.5;box-shadow:0 12px 34px rgba(0,0,0,.6);opacity:0;visibility:hidden;transition:.12s;z-index:60;text-align:left;font-weight:400}
   .tip:hover .bub{opacity:1 !important;visibility:visible !important}
   .console{font-family:"Consolas","SFMono-Regular",ui-monospace,monospace}
   ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#2a3350;border-radius:8px}
-  input:disabled,select:disabled{opacity:.4;cursor:not-allowed}
-  .field{background:#121a33;border:1px solid #3a4566;border-radius:8px;padding:8px 10px;color:#eef1f7;font-size:14px;width:100%}
+  input:disabled,select:disabled,button:disabled{opacity:.45;cursor:not-allowed}
+  .field{background:#0f1626;border:1px solid #33415c;border-radius:8px;padding:8px 10px;color:#eef1f7;font-size:14px;width:100%}
   .field::placeholder{color:#7c87a6}
   .field:focus{outline:none;border-color:#1890d8;box-shadow:0 0 0 2px rgba(24,144,216,.25)}
   .tab{padding:7px 16px;border-radius:9px;font-weight:600;color:#94a0bd;cursor:pointer}
@@ -85,11 +85,11 @@ tailwind.config = { theme: { extend: {
         <label class="text-xs text-muted">Timeout (s)
           <input id="timeout" class="field mt-1" value="120">
         </label>
-        <label class="text-xs text-muted col-span-2 flex items-center">Password
-          <span id="passTip" class="tip hidden"><span class="ic">i</span><span class="bub" id="passBub"></span></span>
-          <div class="w-full mt-1 flex gap-2">
+        <label class="text-xs text-muted col-span-2">
+          <span class="flex items-center">Password<span id="passTip" class="tip hidden"><span class="ic">i</span><span class="bub" id="passBub"></span></span></span>
+          <div class="mt-1 flex gap-2">
             <input id="password" type="password" class="field" autocomplete="current-password">
-            <button id="togglePass" type="button" class="px-2 rounded-lg border border-line text-muted hover:text-cream">show</button>
+            <button id="togglePass" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream">show</button>
           </div>
         </label>
         <div class="col-span-2 flex gap-2">
@@ -137,8 +137,8 @@ tailwind.config = { theme: { extend: {
         </div>
         <textarea id="targets" rows="6" class="field console" placeholder="spam@example.com&#10;*@newsletter.com&#10;annoying.com&#10;# comment"></textarea>
         <div class="flex gap-2 mt-2 items-center flex-wrap">
-          <label class="px-4 py-2 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm cursor-pointer flex items-center gap-1.5">📂 Load from file<input id="targetsFile" type="file" accept=".txt,text/plain" class="hidden"></label>
-          <button id="btnSaveTargets" type="button" class="px-4 py-2 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm flex items-center gap-1.5">💾 Save to file…</button>
+          <label class="px-4 py-2 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm cursor-pointer flex items-center gap-2"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Load from file<input id="targetsFile" type="file" accept=".txt,text/plain" class="hidden"></label>
+          <button id="btnSaveTargets" type="button" class="px-4 py-2 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm flex items-center gap-2"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Save to file…</button>
           <span class="text-[11px] text-muted">one entry per line · reuse across runs</span>
         </div>
       </div>
@@ -211,12 +211,8 @@ tailwind.config = { theme: { extend: {
         <button id="btnStop" class="hidden px-4 py-2.5 rounded-lg bg-danger text-ink font-bold">■ Stop</button>
       </div>
       <button id="btnSenders" class="w-full border border-line text-cream hover:border-brand rounded-lg px-4 py-2 transition">List senders</button>
-      <label class="flex items-center gap-2 text-xs text-muted pt-1">
-        <input id="saveSenders" type="checkbox"> Save senders to CSV
-        <span class="tip"><span class="ic">i</span><span class="bub">Applies to <b>List senders</b>: appends the results (timestamp, account, folder, sender, count) to this CSV. You can enter a <b>full path</b> (e.g. <code>C:\\Users\\you\\Desktop\\senders.csv</code>) to choose where it is saved on this machine.</span></span>
-      </label>
-      <input id="savePath" class="field" value="senders.csv">
-      <p class="text-[11px] text-muted text-center pt-1">With dry-run on, “Run” only previews.</p>
+      <button id="btnSaveSenders" class="w-full border border-line text-cream hover:border-brand rounded-lg px-4 py-2 transition flex items-center justify-center gap-2"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Save senders CSV…</button>
+      <p class="text-[11px] text-muted text-center pt-1">“Save senders CSV…” exports the last listing — you choose where to save it. With dry-run on, “Run” only previews.</p>
     </section>
   </div>
 
@@ -288,11 +284,23 @@ function restoreLog(){ try{ const s=JSON.parse(localStorage.getItem('icw_log')||
 function setStatus(ok, text){ $('dot').className='w-2.5 h-2.5 rounded-full '+(ok?'bg-ok':'bg-muted'); $('status').textContent=text; $('status').className=ok?'text-ok':'text-muted'; }
 function connParams(){ return {host:$('host').value.trim(),port:parseInt($('port').value)||993,user:$('user').value.trim(),password:$('password').value,timeout:parseInt($('timeout').value)||120}; }
 
+function errText(data, status){
+  const d = data && data.detail;
+  if(typeof d==='string') return d;
+  if(Array.isArray(d)) return d.map(e=>{ const where=Array.isArray(e.loc)?e.loc.filter(x=>x!=='body').join('.'):''; return (where?where+': ':'')+(e.msg||'invalid'); }).join('; ');
+  if(d && typeof d==='object') return JSON.stringify(d);
+  return 'Request failed (HTTP '+status+')';
+}
 async function api(path, body, method){
   const r = await fetch(path, {method:method||'POST', headers:{'Content-Type':'application/json'}, body: body?JSON.stringify(body):undefined});
   const data = await r.json().catch(()=>({}));
-  if(!r.ok) throw new Error(data.detail || ('HTTP '+r.status));
+  if(!r.ok) throw new Error(errText(data, r.status));
   return data;
+}
+function setConnectedUI(connected){
+  $('btnConnect').disabled=connected;
+  $('btnDisconnect').disabled=!connected;
+  $('btnRefreshFolders').disabled=!connected;
 }
 
 /* ---------- meta + restore ---------- */
@@ -314,11 +322,11 @@ async function restore(){
       if(pi>=0) $('provider').value=String(pi);
       applyProviderTips();
       knownFolders=s.folders||[]; renderFolders();
-      setStatus(true,'connected · '+knownFolders.length+' folders');
+      setStatus(true,'connected · '+knownFolders.length+' folders'); setConnectedUI(true);
       refreshConditional();
       if(s.run_id){ curRunId=s.run_id; log('Reattached to a running operation…'); startPolling(); }
-    } else { localStorage.removeItem('icw_sid'); localStorage.removeItem('icw_logcursor'); SID=null; }
-  }catch(e){ localStorage.removeItem('icw_sid'); SID=null; }
+    } else { localStorage.removeItem('icw_sid'); localStorage.removeItem('icw_logcursor'); SID=null; setConnectedUI(false); }
+  }catch(e){ localStorage.removeItem('icw_sid'); SID=null; setConnectedUI(false); }
 }
 
 function applyProviderTips(){
@@ -474,17 +482,32 @@ $('btnAddFolder').onclick=()=>{ const v=$('manualFolder').value.trim(); if(!v)re
 $('btnClear').onclick=()=>{ logLines=[]; renderLog(); persistLog(); };
 
 $('btnConnect').onclick=async()=>{
-  try{ setStatus(false,'connecting…'); log('Connecting to '+$('host').value+' …');
+  if(!$('host').value.trim() || !$('user').value.trim()){ setStatus(false,'failed'); log('[ERROR] Please enter at least Host and User before connecting.'); return; }
+  if(!$('password').value){ if(!confirm('No password entered — try connecting anyway?')) return; }
+  try{ setStatus(false,'connecting…'); $('btnConnect').disabled=true; log('Connecting to '+$('host').value+' …');
     const d=await api('/api/connect',connParams()); SID=d.sid; localStorage.setItem('icw_sid',SID);
     logCursor=0; persistLog();   // fresh session log
-    knownFolders=d.folders||[]; renderFolders(); setStatus(true,'connected · '+knownFolders.length+' folders');
+    knownFolders=d.folders||[]; renderFolders(); setStatus(true,'connected · '+knownFolders.length+' folders'); setConnectedUI(true);
     log('Connected. Loaded '+knownFolders.length+' folder(s).'); refreshConditional();
-  }catch(e){ setStatus(false,'failed'); log('[ERROR] '+e.message); }
+  }catch(e){ setStatus(false,'failed'); setConnectedUI(false); log('[ERROR] '+e.message); }
 };
-$('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; setStatus(false,'disconnected'); log('Disconnected.'); };
+$('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; setStatus(false,'disconnected'); setConnectedUI(false); log('Disconnected.'); };
 $('btnValidate').onclick=async()=>{ try{ const d=await api('/api/validate-rule',{tree:toTree(ROOT)}); $('ruleOut').textContent='OK → SEARCH '+d.search; $('ruleOut').className='text-xs text-ok ml-2'; }catch(e){ $('ruleOut').textContent=e.message; $('ruleOut').className='text-xs text-danger ml-2'; } };
 $('btnStop').onclick=async()=>{ if(SID&&curRunId){ try{ await api(`/api/stop/${SID}/${curRunId}`); log('Stop requested…'); }catch(e){} } };
-$('btnSenders').onclick=()=>{ log('Listing senders in: '+(selectedFolders.join(', ')||'INBOX')+' …'); startJob('/api/senders',{sid:SID,folders:selectedFolders.length?selectedFolders:['INBOX'],batch_size:parseInt($('batch').value)||500, save_path: $('saveSenders').checked?($('savePath').value.trim()||'senders.csv'):null}); };
+$('btnSenders').onclick=()=>{ log('Listing senders in: '+(selectedFolders.join(', ')||'INBOX')+' …'); startJob('/api/senders',{sid:SID,folders:selectedFolders.length?selectedFolders:['INBOX'],batch_size:parseInt($('batch').value)||500}); };
+async function saveSendersCsv(){
+  if(!SID){ log('[ERROR] Not connected.'); return; }
+  try{
+    const r=await fetch('/api/senders.csv/'+SID);
+    if(!r.ok){ const d=await r.json().catch(()=>({})); throw new Error(errText(d,r.status)); }
+    const text=await r.text();
+    if(window.showSaveFilePicker){
+      const h=await window.showSaveFilePicker({suggestedName:'senders.csv', types:[{description:'CSV file',accept:{'text/csv':['.csv']}}]});
+      const w=await h.createWritable(); await w.write(text); await w.close(); log('Senders CSV saved to '+h.name+'.');
+    } else { download('senders.csv', text); }
+  }catch(e){ if(!(e && e.name==='AbortError')) log('[ERROR] '+e.message); }
+}
+$('btnSaveSenders').onclick=saveSendersCsv;
 $('btnRun').onclick=()=>{
   const p=Object.assign({sid:SID}, matchPayload(), optionsPayload());
   if(!p.dry_run){ const what=p.empty_folder?'DELETE EVERYTHING in':'act on matching messages in'; if(!confirm(`This is NOT a dry-run.\nAbout to ${what}:\n${p.folders.join(', ')}\n\nContinue?`)) return; }
@@ -513,6 +536,7 @@ $('btnRefreshFolders').onclick=async()=>{
 };
 $('schedToggle').onchange=async(e)=>{ try{ await api('/api/scheduler',{enabled:e.target.checked}); }catch(err){ log('[ERROR] '+err.message); } };
 
+setConnectedUI(false);
 restoreLog();
 loadMeta().then(()=>{ refreshConditional(); restore(); });
 </script>

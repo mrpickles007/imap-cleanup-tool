@@ -21,11 +21,14 @@ Install the dependencies with::
 # resolve the Pydantic request models (defined locally in create_app) from real
 # annotation objects, not strings.
 
+import csv
+import io
 import json
 import logging
 import re
 import threading
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -170,7 +173,7 @@ def _start_run(session: "Session", kind: str, work) -> "RunState":
 def create_app():
     """Build and return the FastAPI application (lazy fastapi import)."""
     from fastapi import FastAPI, HTTPException
-    from fastapi.responses import FileResponse
+    from fastapi.responses import FileResponse, Response
     from fastapi.staticfiles import StaticFiles
     from pydantic import BaseModel, Field
 
@@ -332,15 +335,21 @@ def create_app():
         save_path = (body.save_path or "").strip() or None
 
         def work(rs: RunState) -> None:
-            # list_senders already logs each sender (count | address); the web
-            # client reads those lines from the session log, so we don't build a
-            # second copy here (that was doubling the payload and froze the page).
+            # list_senders logs each sender (count | address) into the session
+            # log, which the client streams. We also keep a structured copy in
+            # the run result (server-side only, not sent on every poll) so it can
+            # be exported as CSV on demand via /api/senders.csv.
+            ranked: list[dict[str, Any]] = []
             for folder in folders:
-                core.list_senders(
+                counts = core.list_senders(
                     sess.conn, folder, body.batch_size,
                     should_stop=rs.stop.is_set, account=sess.user,
                     save_path=save_path)
-            rs.result = {"saved_to": save_path}
+                for sender, count in sorted(counts.items(),
+                                            key=lambda kv: kv[1], reverse=True):
+                    ranked.append({"folder": folder, "sender": sender,
+                                   "count": count})
+            rs.result = {"senders": ranked, "saved_to": save_path}
 
         run = _start_run(sess, "senders", work)
         return {"run_id": run.run_id}
@@ -394,6 +403,23 @@ def create_app():
                 "status": rs.status if rs else None,
                 "run_id": rs.run_id if rs else None,
                 "error": rs.error if rs else None}
+
+    @app.get("/api/senders.csv/{sid}")
+    def senders_csv(sid: str):
+        sess = _session(sid)
+        rs = sess.run
+        rows = rs.result.get("senders") if rs and rs.result else None
+        if not rows:
+            raise HTTPException(404, "No sender listing available yet. "
+                                     "Run 'List senders' first.")
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["timestamp", "account", "folder", "sender", "count"])
+        timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
+        for row in rows:
+            writer.writerow([timestamp, sess.user, row["folder"],
+                             row["sender"], row["count"]])
+        return Response(content=buf.getvalue(), media_type="text/csv")
 
     @app.post("/api/stop/{sid}/{run_id}")
     def stop(sid: str, run_id: str) -> dict[str, Any]:
