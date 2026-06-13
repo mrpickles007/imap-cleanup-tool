@@ -1,15 +1,22 @@
 """Tests for the web API. Skipped unless the [web] extra (+httpx) is installed."""
 
+import tempfile
 import unittest
+from pathlib import Path
+from unittest import mock
 
 try:
     import httpx  # noqa: F401  (required by fastapi TestClient)
     from fastapi.testclient import TestClient
 
+    from imap_cleanup_tool import scheduler
     from imap_cleanup_tool.webapp import create_app
     _HAVE_WEB = True
 except Exception:  # pragma: no cover - depends on optional deps
     _HAVE_WEB = False
+
+_RULE = {"type": "condition", "field": "sender",
+         "operator": "contains", "value": "amazon.com"}
 
 
 @unittest.skipUnless(_HAVE_WEB, "web extra (fastapi + httpx) not installed")
@@ -29,9 +36,7 @@ class WebApiTests(unittest.TestCase):
         self.assertIn("IMAP Cleanup Tool", r.text)
 
     def test_validate_rule_ok(self):
-        tree = {"type": "condition", "field": "sender",
-                "operator": "contains", "value": "amazon.com"}
-        r = self.client.post("/api/validate-rule", json={"tree": tree})
+        r = self.client.post("/api/validate-rule", json={"tree": _RULE})
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()["search"], 'FROM "amazon.com"')
 
@@ -41,11 +46,26 @@ class WebApiTests(unittest.TestCase):
                                             "children": []}})
         self.assertEqual(r.status_code, 400)
 
-    def test_run_rejects_empty_targets(self):
+    def test_run_without_session_is_rejected(self):
         r = self.client.post("/api/run", json={
-            "conn": {"host": "h", "user": "u"},
-            "match_mode": "targets", "targets_text": "   ", "dry_run": True})
-        self.assertEqual(r.status_code, 400)
+            "sid": "does-not-exist", "match_mode": "rule", "rule_tree": _RULE})
+        self.assertEqual(r.status_code, 440)
+
+    def test_jobs_crud(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)):
+                save = self.client.post("/api/jobs", json={
+                    "name": "t1", "host": "imap.gmail.com", "user": "u",
+                    "match_mode": "rule", "rule_tree": _RULE,
+                    "kind": "daily", "time": "03:00"})
+                self.assertEqual(save.status_code, 200)
+                self.assertIn("--rule", save.json()["command"])
+                jobs = self.client.get("/api/jobs").json()["jobs"]
+                self.assertIn("t1", [j["name"] for j in jobs])
+                self.client.delete("/api/jobs/t1")
+                jobs = self.client.get("/api/jobs").json()["jobs"]
+                self.assertNotIn("t1", [j["name"] for j in jobs])
 
 
 if __name__ == "__main__":

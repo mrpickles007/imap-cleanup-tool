@@ -148,6 +148,10 @@ class InternalScheduler:
         self._stop.set()
         logger.info("Internal scheduler stopped.")
 
+    def is_running(self) -> bool:
+        """True if the background scheduler thread is alive."""
+        return bool(self._thread and self._thread.is_alive())
+
     def _loop(self) -> None:
         while not self._stop.wait(timeout=20):
             now = datetime.now()
