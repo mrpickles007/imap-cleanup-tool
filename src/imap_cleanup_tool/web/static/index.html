@@ -31,7 +31,8 @@ tailwind.config = { theme: { extend: {
   .console{font-family:"Consolas","SFMono-Regular",ui-monospace,monospace}
   ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#2a3350;border-radius:8px}
   input:disabled,select:disabled{opacity:.4;cursor:not-allowed}
-  .field{background:#0b1020;border:1px solid #2a3350;border-radius:8px;padding:8px 10px;color:#eef1f7;font-size:14px;width:100%}
+  .field{background:#121a33;border:1px solid #3a4566;border-radius:8px;padding:8px 10px;color:#eef1f7;font-size:14px;width:100%}
+  .field::placeholder{color:#7c87a6}
   .field:focus{outline:none;border-color:#1890d8;box-shadow:0 0 0 2px rgba(24,144,216,.25)}
   .tab{padding:7px 16px;border-radius:9px;font-weight:600;color:#94a0bd;cursor:pointer}
   .tab.active{background:#1890d8;color:#0b1020}
@@ -99,9 +100,12 @@ tailwind.config = { theme: { extend: {
 
     <!-- Folders -->
     <section class="bg-panel border border-line rounded-xl p-5">
-      <h2 class="font-display font-semibold text-brand-light mb-3 flex items-center">Folders
-        <span class="tip"><span class="ic">i</span><span class="bub">Pick the folders to scan. Gmail uses special names like <code>[Gmail]/All Mail</code>, <code>[Gmail]/Trash</code> (may be localized). Connect first to load the list.</span></span>
-      </h2>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-display font-semibold text-brand-light flex items-center">Folders
+          <span class="tip"><span class="ic">i</span><span class="bub">Pick the folders to scan. Gmail uses special names like <code>[Gmail]/All Mail</code>, <code>[Gmail]/Trash</code> (may be localized). Connect first to load the list.</span></span>
+        </h2>
+        <button id="btnRefreshFolders" class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream hover:border-brand" title="Reload the folder list and message counts">↻ Refresh</button>
+      </div>
       <div id="folders" class="grid grid-cols-2 sm:grid-cols-3 gap-1 max-h-44 overflow-auto text-sm">
         <p class="text-muted col-span-full text-xs">Not connected — folders will appear here. Defaults to <code>INBOX</code>.</p>
       </div>
@@ -131,9 +135,9 @@ tailwind.config = { theme: { extend: {
           </span></span>
         </div>
         <textarea id="targets" rows="6" class="field console" placeholder="spam@example.com&#10;*@newsletter.com&#10;annoying.com&#10;# comment"></textarea>
-        <div class="flex gap-2 mt-2 items-center">
-          <label class="px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream text-xs cursor-pointer">Load from file<input id="targetsFile" type="file" accept=".txt,text/plain" class="hidden"></label>
-          <button id="btnSaveTargets" type="button" class="px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream text-xs">Save to file…</button>
+        <div class="flex gap-2 mt-2 items-center flex-wrap">
+          <label class="px-4 py-2 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm cursor-pointer flex items-center gap-1.5">📂 Load from file<input id="targetsFile" type="file" accept=".txt,text/plain" class="hidden"></label>
+          <button id="btnSaveTargets" type="button" class="px-4 py-2 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm flex items-center gap-1.5">💾 Save to file…</button>
           <span class="text-[11px] text-muted">one entry per line · reuse across runs</span>
         </div>
       </div>
@@ -479,8 +483,23 @@ $('btnSaveJob').onclick=async()=>{ try{ const d=await api('/api/jobs',jobPayload
 $('btnExportJob').onclick=async()=>{ try{ const d=await api('/api/jobs/export',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
 $('btnInstallJob').onclick=async()=>{ try{ const d=await api('/api/jobs/install',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.message+'\n\n'+d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
 function download(name, text){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href); }
-$('targetsFile').onchange=(e)=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ $('targets').value=r.result; }; r.readAsText(f); e.target.value=''; };
-$('btnSaveTargets').onclick=()=>download('targets.txt', $('targets').value);
+$('targetsFile').onchange=(e)=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ $('targets').value=r.result; log('Loaded target list from '+f.name+'.'); }; r.readAsText(f); e.target.value=''; };
+async function saveTargets(){
+  const text=$('targets').value;
+  if(window.showSaveFilePicker){
+    try{
+      const h=await window.showSaveFilePicker({suggestedName:'targets.txt', types:[{description:'Text file',accept:{'text/plain':['.txt']}}]});
+      const w=await h.createWritable(); await w.write(text); await w.close(); log('Target list saved to '+h.name+'.');
+    }catch(err){ if(err && err.name!=='AbortError') log('[ERROR] '+err.message); }
+  } else { download('targets.txt', text); }   // fallback: browser download dialog
+}
+$('btnSaveTargets').onclick=saveTargets;
+$('btnRefreshFolders').onclick=async()=>{
+  if(!SID){ log('[ERROR] Not connected.'); return; }
+  try{ const d=await api('/api/refresh-folders',{sid:SID}); knownFolders=d.folders||[]; renderFolders();
+    setStatus(true,'connected · '+knownFolders.length+' folders'); log('Folders refreshed ('+knownFolders.length+').');
+  }catch(e){ log('[ERROR] '+e.message); }
+};
 $('schedToggle').onchange=async(e)=>{ try{ await api('/api/scheduler',{enabled:e.target.checked}); }catch(err){ log('[ERROR] '+err.message); } };
 
 restoreLog();

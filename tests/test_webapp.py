@@ -56,6 +56,10 @@ class WebApiTests(unittest.TestCase):
     def test_log_without_session_is_rejected(self):
         self.assertEqual(self.client.get("/api/log/nope").status_code, 440)
 
+    def test_refresh_folders_without_session_is_rejected(self):
+        r = self.client.post("/api/refresh-folders", json={"sid": "nope"})
+        self.assertEqual(r.status_code, 440)
+
     def test_jobs_crud(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(scheduler, "config_dir",

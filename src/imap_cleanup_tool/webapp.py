@@ -211,6 +211,9 @@ def create_app():
     class RuleIn(BaseModel):
         tree: dict
 
+    class SidIn(BaseModel):
+        sid: str
+
     class JobIn(Match, Options):
         name: str = "job"
         host: str = ""
@@ -290,6 +293,21 @@ def create_app():
                 "folders": sess.folders,
                 "log_cursor": sess.log_base + len(sess.log),
                 "run_id": sess.run.run_id if running else None}
+
+    @app.post("/api/refresh-folders")
+    def refresh_folders(body: SidIn) -> dict[str, Any]:
+        sess = _session(body.sid)
+        if sess.run and sess.run.status == "running":
+            raise HTTPException(409, "An operation is running; try again after "
+                                     "it finishes.")
+        with sess.lock:
+            try:
+                names = core.list_folders(sess.conn)
+                counts = core.folder_message_counts(sess.conn, names)
+            except (OSError, core.imaplib.IMAP4.error) as exc:
+                raise HTTPException(502, f"IMAP error: {exc}") from exc
+        sess.folders = [{"name": n, "count": counts.get(n)} for n in names]
+        return {"folders": sess.folders}
 
     @app.post("/api/disconnect/{sid}")
     def disconnect(sid: str) -> dict[str, Any]:
