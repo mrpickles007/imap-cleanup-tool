@@ -62,6 +62,15 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"          # editable install + dev tools
 ```
 
+### Running the tests
+
+The test suite uses only the standard library (`unittest`) — nothing extra to
+install:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
 ### Tkinter (GUI) on Linux
 
 Tkinter ships with Python, but some Linux distros split it into a system
