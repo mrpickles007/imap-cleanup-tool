@@ -41,7 +41,7 @@ tailwind.config = { theme: { extend: {
 <body class="font-sans text-cream min-h-screen">
 
 <header class="sticky top-0 z-30 backdrop-blur bg-ink/80 border-b border-line">
-  <div class="max-w-5xl mx-auto px-5 py-3 flex items-center gap-4">
+  <div class="max-w-[1600px] mx-auto px-6 py-3 flex items-center gap-4">
     <img src="/logo.png" alt="logo" class="h-10 w-auto drop-shadow">
     <div class="flex-1">
       <h1 class="font-display text-lg font-bold tracking-tight">IMAP Cleanup Tool</h1>
@@ -52,13 +52,13 @@ tailwind.config = { theme: { extend: {
       <span id="status" class="text-muted">disconnected</span>
     </div>
   </div>
-  <div class="max-w-5xl mx-auto px-5 pb-2 flex gap-2">
+  <div class="max-w-[1600px] mx-auto px-6 pb-2 flex gap-2">
     <div class="tab active" data-tab="cleanup">Cleanup</div>
     <div class="tab" data-tab="scheduling">Scheduling</div>
   </div>
 </header>
 
-<main class="max-w-5xl mx-auto px-5 py-6">
+<main class="max-w-[1600px] mx-auto px-6 py-6">
 
 <!-- ============================ CLEANUP TAB ============================ -->
 <div id="tab-cleanup" class="grid lg:grid-cols-5 gap-5">
