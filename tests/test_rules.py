@@ -5,6 +5,7 @@ import unittest
 from imap_cleanup_tool.rules import (
     Condition, Group, RuleError, compile_search, node_from_dict,
 )
+from imap_cleanup_tool.rule_parser import parse_rule_expression
 
 
 class ConditionTests(unittest.TestCase):
@@ -98,6 +99,33 @@ class SerializationTests(unittest.TestCase):
     def test_unknown_node_type(self):
         with self.assertRaises(RuleError):
             node_from_dict({"type": "bogus"})
+
+
+class ExpressionTests(unittest.TestCase):
+    """The text rendering used to feed scheduled jobs' --rule must re-parse."""
+
+    def _assert_roundtrip(self, node):
+        expr = node.to_expression()
+        reparsed = parse_rule_expression(expr)
+        self.assertEqual(compile_search(reparsed), compile_search(node))
+
+    def test_simple_condition(self):
+        self._assert_roundtrip(Condition("sender", "contains", "amazon.com"))
+
+    def test_value_with_spaces_is_quoted(self):
+        node = Condition("subject", "is", "Black Friday")
+        self.assertEqual(node.to_expression(), 'subject is "Black Friday"')
+        self._assert_roundtrip(node)
+
+    def test_nested_group_roundtrip(self):
+        node = Group("OR", [
+            Condition("sender", "contains", "amazon.com"),
+            Group("AND", [
+                Condition("subject", "is", "Black Friday"),
+                Condition("date", "starts", "2025-01-01"),
+            ]),
+        ])
+        self._assert_roundtrip(node)
 
 
 if __name__ == "__main__":

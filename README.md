@@ -151,6 +151,11 @@ imap-cleanup-tool --host HOST --user USER --targets targets.txt \
 
 ## Rule expressions
 
+In the **GUI** you build rules visually with the query builder (no typing). The
+text grammar below is what the **CLI** `--rule` flag accepts and what scheduled
+jobs store — the visual builder produces exactly these expressions under the
+hood.
+
 Rules are an alternative to target files, evaluated server-side via IMAP
 `SEARCH`. Fields and operators:
 
@@ -198,9 +203,12 @@ The window has two tabs:
 **Cleanup** — connect once with the **Connect** button (the connection stays
 open and is reused). Pick folders by moving them from *Available* to *Selected*
 (each click **adds**; double-click or the **←** button **removes** one —
-selections no longer overwrite each other). Choose a target file or a rule, set
-options, and press **Run**. **Stop** cancels a running operation at the next
-safe checkpoint.
+selections no longer overwrite each other). Match either by a **target file**
+or by building a **rule visually** with the query builder — dropdowns for
+*field ▸ operator ▸ value*, **+ Condition** to add a test, and **+ Group** for
+nested AND/OR groups (no expression typing, so no syntax mistakes). Set options
+and press **Run**. **Stop** cancels a running operation at the next safe
+checkpoint.
 
 **Scheduling** — save the current form as a named job, toggle the internal
 scheduler, or export an OS command (see below).

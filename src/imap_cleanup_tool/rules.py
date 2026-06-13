@@ -92,6 +92,18 @@ class Condition:
         return {"type": "condition", "field": self.field,
                 "operator": self.operator, "value": self.value}
 
+    def to_expression(self) -> str:
+        """Render this condition back to the text rule grammar.
+
+        Values containing whitespace or parentheses are quoted so they survive
+        re-parsing by ``rule_parser.parse_rule_expression``.
+        """
+        self.validate()
+        value = self.value.strip()
+        if (not value) or any(ch in value for ch in ' \t()"'):
+            value = '"' + value.replace('"', '\\"') + '"'
+        return f"{self.field} {self.operator} {value}"
+
 
 @dataclass
 class Group:
@@ -133,6 +145,12 @@ class Group:
         """Serialise this group (and children) to a plain dict."""
         return {"type": "group", "op": self.op,
                 "children": [c.to_dict() for c in self.children]}
+
+    def to_expression(self) -> str:
+        """Render this group back to the parenthesised text rule grammar."""
+        self.validate()
+        joiner = f" {self.op} "
+        return "(" + joiner.join(c.to_expression() for c in self.children) + ")"
 
 
 def node_from_dict(data: dict):

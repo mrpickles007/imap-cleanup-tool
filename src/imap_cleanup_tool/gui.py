@@ -24,7 +24,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 from . import core, scheduler
-from .rule_parser import parse_rule_expression
+from .query_builder import QueryBuilder
 from .rules import RuleError, compile_search
 from .targets import load_targets
 
@@ -289,15 +289,15 @@ class ImapCleanupToolGUI:
                    command=self._on_browse_targets).pack(side="left", padx=6)
 
         self.rule_frame = ttk.Frame(box)
-        self.rule_var = tk.StringVar()
-        ttk.Entry(self.rule_frame, textvariable=self.rule_var).pack(
-            side="left", fill="x", expand=True)
-        ttk.Button(self.rule_frame, text="Validate",
-                   command=self._validate_rule).pack(side="left", padx=6)
-        ttk.Label(box, foreground=Theme.MUTED, background=Theme.BG,
-                  text=("E.g.: sender contains amazon.com OR "
-                        "(subject is Invoice AND date starts 2025-01-01)")
-                  ).pack(anchor="w", padx=6, pady=(0, 4))
+        ttk.Label(self.rule_frame, foreground=Theme.MUTED, background=Theme.BG,
+                  text=("Build your rule with the dropdowns — no typing of "
+                        "expressions. Use “+ Condition” to add a test and "
+                        "“+ Group” for nested AND/OR groups.")
+                  ).pack(anchor="w", pady=(0, 2))
+        self.query_builder = QueryBuilder(self.rule_frame, Theme)
+        self.query_builder.pack(fill="x", expand=True)
+        ttk.Button(self.rule_frame, text="Validate rule",
+                   command=self._validate_rule).pack(anchor="w", pady=(4, 0))
         self._update_match_mode()
 
     def _build_options_box(self, parent: ttk.Frame) -> None:
@@ -466,7 +466,7 @@ class ImapCleanupToolGUI:
 
     def _validate_rule(self) -> None:
         try:
-            argument = compile_search(parse_rule_expression(self.rule_var.get()))
+            argument = compile_search(self.query_builder.to_node())
         except RuleError as exc:
             messagebox.showerror("Invalid rule", str(exc))
             return
@@ -634,7 +634,7 @@ class ImapCleanupToolGUI:
     def _build_match_kwargs(self) -> dict:
         """Resolve target/rule selection into process_folder kwargs."""
         if self.match_mode.get() == "rule":
-            argument = compile_search(parse_rule_expression(self.rule_var.get()))
+            argument = compile_search(self.query_builder.to_node())
             return {"search_argument": argument}
         path = self.targets_var.get().strip()
         if not path or not os.path.isfile(path):
@@ -691,7 +691,7 @@ class ImapCleanupToolGUI:
             for folder in params["folders"]:
                 args += ["--folder", folder]
         if self.match_mode.get() == "rule":
-            args += ["--rule", self.rule_var.get()]
+            args += ["--rule", self.query_builder.to_node().to_expression()]
         else:
             args += ["--targets", self.targets_var.get().strip()]
         if self.gmail_var.get():
@@ -710,18 +710,28 @@ class ImapCleanupToolGUI:
             return {"kind": "daily", "time": when or "03:00"}
         return {"kind": "interval", "minutes": int(when or "60")}
 
+    def _build_job(self) -> "scheduler.Job | None":
+        """Assemble a Job from the current form, or None if the rule is invalid."""
+        try:
+            args = self._job_args()
+        except RuleError as exc:
+            messagebox.showerror("Invalid rule", str(exc))
+            return None
+        return scheduler.Job(name=self.job_name_var.get().strip() or "job",
+                             args=args, schedule=self._current_schedule())
+
     def _save_job(self) -> None:
-        job = scheduler.Job(name=self.job_name_var.get().strip() or "job",
-                            args=self._job_args(),
-                            schedule=self._current_schedule())
+        job = self._build_job()
+        if job is None:
+            return
         scheduler.upsert_job(job)
         self._log_direct(f"Job '{job.name}' saved.")
         self._refresh_jobs()
 
     def _export_job(self) -> None:
-        job = scheduler.Job(name=self.job_name_var.get().strip() or "job",
-                            args=self._job_args(),
-                            schedule=self._current_schedule())
+        job = self._build_job()
+        if job is None:
+            return
         command = scheduler.export_system(job)
         self._log_direct("System command (copy and run):")
         self._log_direct(command)
