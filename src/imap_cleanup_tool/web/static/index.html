@@ -43,7 +43,7 @@ tailwind.config = { theme: { extend: {
 
 <header class="sticky top-0 z-30 backdrop-blur bg-ink/80 border-b border-line">
   <div class="max-w-[1600px] mx-auto px-6 py-3 flex items-center gap-4">
-    <img src="/logo.png" alt="logo" class="h-10 w-auto drop-shadow">
+    <img src="/logo.png" alt="logo" class="h-14 w-auto drop-shadow">
     <div class="flex-1">
       <h1 class="font-display text-lg font-bold tracking-tight">IMAP Cleanup Tool</h1>
       <p class="text-muted text-xs -mt-0.5">Bulk-clean your mailbox · local web UI <span id="ver"></span></p>
@@ -53,7 +53,7 @@ tailwind.config = { theme: { extend: {
       <span id="status" class="text-muted">disconnected</span>
     </div>
   </div>
-  <div class="max-w-[1600px] mx-auto px-6 pb-2 flex gap-2">
+  <div class="max-w-[1600px] mx-auto px-6 pt-3 pb-4 flex gap-2">
     <div class="tab active" data-tab="cleanup">Cleanup</div>
     <div class="tab" data-tab="scheduling">Scheduling</div>
   </div>
@@ -78,14 +78,15 @@ tailwind.config = { theme: { extend: {
         <label class="text-xs text-muted">Port
           <input id="port" class="field mt-1" value="993">
         </label>
-        <label class="text-xs text-muted">User
+        <label class="text-xs text-muted">
+          <span class="flex items-center">User<span id="userTip" class="tip hidden"><span class="ic">i</span><span class="bub" id="userBub"></span></span></span>
           <input id="user" class="field mt-1" placeholder="you@example.com" autocomplete="username">
         </label>
         <label class="text-xs text-muted">Timeout (s)
           <input id="timeout" class="field mt-1" value="120">
         </label>
         <label class="text-xs text-muted col-span-2 flex items-center">Password
-          <span class="tip"><span class="ic">i</span><span class="bub">For <b>Gmail</b> use an <b>App Password</b> (Google account → Security → App passwords) with IMAP enabled — not your normal password.</span></span>
+          <span id="passTip" class="tip hidden"><span class="ic">i</span><span class="bub" id="passBub"></span></span>
           <div class="w-full mt-1 flex gap-2">
             <input id="password" type="password" class="field" autocomplete="current-password">
             <button id="togglePass" type="button" class="px-2 rounded-lg border border-line text-muted hover:text-cream">show</button>
@@ -300,6 +301,7 @@ async function loadMeta(){
   $('ver').textContent = META.version?('v'+META.version):'';
   const sel=$('provider'); sel.innerHTML='';
   (META.providers||[]).forEach((p,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=p.name;sel.appendChild(o);});
+  applyProviderTips();
   buildRoot();
 }
 async function restore(){
@@ -308,6 +310,9 @@ async function restore(){
     const s = await (await fetch('/api/session/'+SID)).json();
     if(s.connected){
       $('host').value=s.host||''; $('user').value=s.user||'';
+      const pi=(META.providers||[]).findIndex(pr=>pr.host && pr.host===s.host);
+      if(pi>=0) $('provider').value=String(pi);
+      applyProviderTips();
       knownFolders=s.folders||[]; renderFolders();
       setStatus(true,'connected · '+knownFolders.length+' folders');
       refreshConditional();
@@ -316,6 +321,12 @@ async function restore(){
   }catch(e){ localStorage.removeItem('icw_sid'); SID=null; }
 }
 
+function applyProviderTips(){
+  const p=(META.providers||[])[parseInt($('provider').value)||0]||{};
+  const set=(tipId,bubId,text)=>{ if(text){ $(bubId).innerHTML=text; $(tipId).classList.remove('hidden'); } else { $(tipId).classList.add('hidden'); } };
+  set('userTip','userBub', p.user_tip);
+  set('passTip','passBub', p.pass_tip);
+}
 function gmailHost(){ return $('host').value.trim()==='imap.gmail.com'; }
 function refreshConditional(){
   const full=$('scanMode').value==='full';
@@ -455,7 +466,7 @@ document.querySelectorAll('.tab').forEach(t=> t.onclick=()=>{
   $('tab-scheduling').classList.toggle('hidden', t.dataset.tab!=='scheduling');
   if(t.dataset.tab==='scheduling') loadJobs();
 });
-$('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider').value)||0]; if(p){ if(p.host)$('host').value=p.host; if(p.port)$('port').value=p.port; if(p.host==='imap.gmail.com'){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} } refreshConditional(); };
+$('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider').value)||0]; if(p){ if(p.host)$('host').value=p.host; if(p.port)$('port').value=p.port; if(p.host==='imap.gmail.com'){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} } applyProviderTips(); refreshConditional(); };
 $('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional;
 $('togglePass').onclick=()=>{ const p=$('password'); p.type=p.type==='password'?'text':'password'; $('togglePass').textContent=p.type==='password'?'show':'hide'; };
 document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const rule=document.querySelector('input[name=mode]:checked').value==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); });
