@@ -65,10 +65,9 @@ class WebApiTests(unittest.TestCase):
             "sid": "nope", "match_mode": "rule", "rule_tree": _RULE})
         self.assertEqual(r.status_code, 440)
 
-    def test_save_senders_without_session_is_rejected(self):
-        r = self.client.post("/api/save-senders",
-                             json={"sid": "nope", "path": "x.csv"})
-        self.assertEqual(r.status_code, 440)
+    def test_senders_csv_without_session_is_rejected(self):
+        self.assertEqual(
+            self.client.get("/api/senders.csv/nope").status_code, 440)
 
     def test_jobs_crud(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -226,10 +226,10 @@ tailwind.config = { theme: { extend: {
         <button id="btnSenders" class="w-full border border-line text-cream hover:border-brand rounded-lg px-4 py-2 transition">List senders</button>
         <p class="text-[11px] text-muted mt-1.5">Shows the senders in the selected folders ranked by how many emails each sent — use it to decide what to target.</p>
         <div class="flex gap-2 mt-2">
-          <input id="sendersPath" class="field" value="senders.csv" placeholder="C:\path\senders.csv">
+          <input id="sendersName" class="field" placeholder="senders_….csv">
           <button id="btnSaveSenders" class="px-4 py-2 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm flex items-center gap-2 whitespace-nowrap"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Save CSV</button>
         </div>
-        <p class="text-[11px] text-muted mt-1.5">Exports the last “List senders” result to this path (type a full path to choose the folder &amp; name).</p>
+        <p class="text-[11px] text-muted mt-1.5">Downloads the last “List senders” result to your browser’s download folder. Edit the file name if you like; with “ask where to save” enabled, your browser also lets you choose the folder.</p>
       </div>
     </section>
   </div>
@@ -513,10 +513,21 @@ $('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+
 $('btnValidate').onclick=async()=>{ try{ const d=await api('/api/validate-rule',{tree:toTree(ROOT)}); $('ruleOut').textContent='OK → SEARCH '+d.search; $('ruleOut').className='text-xs text-ok ml-2'; }catch(e){ $('ruleOut').textContent=e.message; $('ruleOut').className='text-xs text-danger ml-2'; } };
 $('btnStop').onclick=async()=>{ if(SID&&curRunId){ try{ await api(`/api/stop/${SID}/${curRunId}`); log('Stop requested…'); }catch(e){} } };
 $('btnSenders').onclick=()=>{ log('Listing senders in: '+(selectedFolders.join(', ')||'INBOX')+' …'); startJob('/api/senders',{sid:SID,folders:selectedFolders.length?selectedFolders:['INBOX'],batch_size:parseInt($('batch').value)||500}); };
+function humanStamp(){ const d=new Date(), p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}`; }
+function defaultSendersName(){ return 'senders_'+humanStamp()+'.csv'; }
+let lastAutoSendersName = defaultSendersName();
+$('sendersName').value = lastAutoSendersName;
 $('btnSaveSenders').onclick=async()=>{
   if(!SID){ log('[ERROR] Not connected.'); return; }
-  try{ const d=await api('/api/save-senders',{sid:SID, path:$('sendersPath').value});
-    log('Senders saved to '+d.saved_to+' ('+d.count+' rows).');
+  let name=$('sendersName').value.trim();
+  if(!name || name===lastAutoSendersName){ name=defaultSendersName(); lastAutoSendersName=name; $('sendersName').value=name; }
+  if(!/\.csv$/i.test(name)) name+='.csv';
+  try{
+    const r=await fetch('/api/senders.csv/'+SID);
+    if(!r.ok){ const d=await r.json().catch(()=>({})); throw new Error(errText(d,r.status)); }
+    const text=await r.text();
+    download(name, text);
+    log('Senders CSV downloaded as '+name+'.');
   }catch(e){ log('[ERROR] '+e.message); }
 };
 $('btnRun').onclick=()=>{
