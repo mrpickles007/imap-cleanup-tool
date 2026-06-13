@@ -22,9 +22,9 @@ Install the dependencies with::
 # annotation objects, not strings.
 
 import csv
-import io
 import json
 import logging
+import os
 import re
 import threading
 import uuid
@@ -173,7 +173,7 @@ def _start_run(session: "Session", kind: str, work) -> "RunState":
 def create_app():
     """Build and return the FastAPI application (lazy fastapi import)."""
     from fastapi import FastAPI, HTTPException
-    from fastapi.responses import FileResponse, Response
+    from fastapi.responses import FileResponse
     from fastapi.staticfiles import StaticFiles
     from pydantic import BaseModel, Field
 
@@ -216,6 +216,10 @@ def create_app():
 
     class SidIn(BaseModel):
         sid: str
+
+    class SavePathIn(BaseModel):
+        sid: str
+        path: str = "senders.csv"
 
     class JobIn(Match, Options):
         name: str = "job"
@@ -404,22 +408,28 @@ def create_app():
                 "run_id": rs.run_id if rs else None,
                 "error": rs.error if rs else None}
 
-    @app.get("/api/senders.csv/{sid}")
-    def senders_csv(sid: str):
-        sess = _session(sid)
+    @app.post("/api/save-senders")
+    def save_senders(body: SavePathIn) -> dict[str, Any]:
+        """Write the last 'List senders' result to a CSV at the chosen path."""
+        sess = _session(body.sid)
         rs = sess.run
         rows = rs.result.get("senders") if rs and rs.result else None
         if not rows:
             raise HTTPException(404, "No sender listing available yet. "
                                      "Run 'List senders' first.")
-        buf = io.StringIO()
-        writer = csv.writer(buf)
-        writer.writerow(["timestamp", "account", "folder", "sender", "count"])
+        path = (body.path or "senders.csv").strip() or "senders.csv"
         timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
-        for row in rows:
-            writer.writerow([timestamp, sess.user, row["folder"],
-                             row["sender"], row["count"]])
-        return Response(content=buf.getvalue(), media_type="text/csv")
+        try:
+            with open(path, "w", newline="", encoding="utf-8") as handle:
+                writer = csv.writer(handle)
+                writer.writerow(["timestamp", "account", "folder",
+                                 "sender", "count"])
+                for row in rows:
+                    writer.writerow([timestamp, sess.user, row["folder"],
+                                     row["sender"], row["count"]])
+        except OSError as exc:
+            raise HTTPException(500, f"Could not write {path}: {exc}") from exc
+        return {"saved_to": os.path.abspath(path), "count": len(rows)}
 
     @app.post("/api/stop/{sid}/{run_id}")
     def stop(sid: str, run_id: str) -> dict[str, Any]:
