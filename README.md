@@ -257,4 +257,11 @@ secret. Remember to bump `version` in `pyproject.toml` and
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+**GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)** — see
+[LICENSE](LICENSE).
+
+This is free, open-source software with a strong copyleft: you may use, study,
+modify, and redistribute it, but **any derivative work — including software that
+reuses any part of this code, and modified versions offered over a network as a
+service — must also be released as open source under the AGPL-3.0**. You cannot
+incorporate this code into a closed-source or proprietary product.
