@@ -21,6 +21,7 @@ import os
 import queue
 import threading
 import tkinter as tk
+from importlib.resources import as_file, files
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 from . import core, scheduler
@@ -86,6 +87,7 @@ class ImapCleanupToolGUI:
         root.geometry("900x900")
         root.minsize(820, 760)
         root.configure(bg=Theme.BG)
+        self._set_window_icon()
         self._init_combobox_popup_colors()
         self._build_styles()
         self._build_widgets()
@@ -94,6 +96,21 @@ class ImapCleanupToolGUI:
         self._refresh_selected_folders()
         self._poll_log_queue()
         root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    # ----------------------------------------------------------------- icon
+    def _set_window_icon(self) -> None:
+        """Set the window/taskbar icon from the packaged logo (best effort).
+
+        An icon is purely cosmetic, so any failure (old Tk without PNG support,
+        missing resource in some packaging) is swallowed silently.
+        """
+        try:
+            resource = files("imap_cleanup_tool").joinpath("assets/logo.png")
+            with as_file(resource) as path:
+                self._icon_image = tk.PhotoImage(file=str(path))
+            self.root.iconphoto(True, self._icon_image)
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
 
     # ----------------------------------------------------------------- styling
     def _init_combobox_popup_colors(self) -> None:

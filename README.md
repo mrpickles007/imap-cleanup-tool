@@ -251,8 +251,10 @@ Locally:
 ```bash
 pip install pyinstaller .
 pyinstaller --onefile --windowed --name imap-cleanup-tool-gui \
+    --icon assets/icon.ico --collect-data imap_cleanup_tool \
     --collect-submodules imap_cleanup_tool src/imap_cleanup_tool/gui.py
 pyinstaller --onefile --name imap-cleanup-tool \
+    --icon assets/icon.ico \
     --collect-submodules imap_cleanup_tool src/imap_cleanup_tool/cli.py
 ```
 
