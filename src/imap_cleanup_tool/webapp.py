@@ -541,7 +541,8 @@ def create_app():
                 total += core.process_folder(
                     sess.conn, folder, addresses=addresses, domains=domains,
                     exact_domains=exact_domains, search_argument=search_argument,
-                    dry_run=True, include_subdomains=body.include_subdomains,
+                    dry_run=True, count_only=True,
+                    include_subdomains=body.include_subdomains,
                     batch_size=body.batch_size, scan_mode=body.scan_mode,
                     should_stop=rs.stop.is_set)
             core.logger.info("=> %d matching message(s) across %d folder(s).",

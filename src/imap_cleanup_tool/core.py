@@ -457,6 +457,7 @@ def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
                    gmail_trash: bool = False,
                    move: bool = False,
                    dest_folder: str | None = None,
+                   count_only: bool = False,
                    should_stop: StopCheck | None = None) -> int:
     """Scan one folder and act on matching messages. Returns count acted on.
 
@@ -504,6 +505,10 @@ def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
     if not matched:
         logger.info("No matching messages in %r.", folder)
         return 0
+
+    if count_only:
+        logger.info("Matched %d message(s) in %r.", len(matched), folder)
+        return len(matched)
 
     if dry_run:
         if move:

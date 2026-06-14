@@ -108,6 +108,14 @@ class MoveAllTests(unittest.TestCase):
         self.assertEqual(n, 3)
         self.assertFalse(any(c[0] == "MOVE" for c in conn.calls))
 
+    def test_count_only_does_not_act(self):
+        conn = FakeConn(capabilities=("MOVE",))
+        n = core.process_folder(conn, "INBOX", search_argument="ALL",
+                                count_only=True, dry_run=True)
+        self.assertEqual(n, 3)
+        self.assertFalse(any(c[0] in ("MOVE", "COPY", "STORE")
+                             for c in conn.calls))
+
     def test_move_into_self_is_skipped(self):
         conn = FakeConn(capabilities=("MOVE",))
         n = core.process_folder(conn, "Archive", search_argument="ALL",

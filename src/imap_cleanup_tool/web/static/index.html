@@ -821,7 +821,7 @@ $('btnConnect').onclick=async()=>{
 $('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setStatus(false,'disconnected'); setConnectedUI(false); log('Disconnected.'); };
 $('btnValidate').onclick=async()=>{ try{ const d=await api('/api/validate-rule',{tree:toTree(ROOT)}); $('ruleOut').textContent='OK → SEARCH '+d.search; $('ruleOut').className='text-xs text-ok ml-2'; }catch(e){ $('ruleOut').textContent=e.message; $('ruleOut').className='text-xs text-danger ml-2'; } };
 $('btnStop').onclick=async()=>{ if(SID&&curRunId){ try{ await api(`/api/stop/${SID}/${curRunId}`); log('Stop requested…'); }catch(e){} } };
-$('btnSenders').onclick=()=>{ log('Listing senders in: '+(selectedFolders.join(', ')||'INBOX')+' …'); startJob('/api/senders',{sid:SID,folders:selectedFolders.length?selectedFolders:['INBOX'],batch_size:parseInt($('batch').value)||500}); };
+$('btnSenders').onclick=async()=>{ if(!(await ensureFolderChosen())) return; log('Listing senders in: '+(selectedFolders.join(', ')||'INBOX')+' …'); startJob('/api/senders',{sid:SID,folders:selectedFolders.length?selectedFolders:['INBOX'],batch_size:parseInt($('batch').value)||500}); };
 function humanStamp(){ const d=new Date(), p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}`; }
 function defaultSendersName(){ return 'senders_'+humanStamp()+'.csv'; }
 let lastAutoSendersName = defaultSendersName();
@@ -839,7 +839,12 @@ $('btnSaveSenders').onclick=async()=>{
     log('Senders CSV downloaded as '+name+'.');
   }catch(e){ log('[ERROR] '+e.message); }
 };
+async function ensureFolderChosen(){
+  if(selectedFolders.length) return true;
+  return await confirmDialog({title:'No folder selected', message:'You have not selected any folder. The action will run on INBOX by default.\n\nProceed on INBOX?', okText:'Use INBOX'});
+}
 $('btnRun').onclick=async ()=>{
+  if(!(await ensureFolderChosen())) return;
   const p=Object.assign({sid:SID}, matchPayload(), optionsPayload());
   if(!p.dry_run){
     let what;
@@ -905,8 +910,9 @@ $('logClose').onclick=()=>{ $('logModal').classList.add('hidden'); LOG_JOB=null;
 $('logModal').onclick=(e)=>{ if(e.target.id==='logModal'){ $('logModal').classList.add('hidden'); LOG_JOB=null; } };
 $('logDownload').onclick=()=>{ if(LOG_JOB) download(LOG_JOB+'.log', $('logBody').textContent); };
 
-$('btnCount').onclick=()=>{
+$('btnCount').onclick=async()=>{
   if(!SID){ log('[ERROR] Not connected.'); return; }
+  if(!(await ensureFolderChosen())) return;
   const p=Object.assign({sid:SID}, matchPayload(), {folders:selectedFolders.length?selectedFolders:['INBOX'], scan_mode:$('scanMode').value, include_subdomains:$('subdomains').checked, batch_size:parseInt($('batch').value)||500});
   log('Counting matching emails in: '+p.folders.join(', ')+' …');
   startJob('/api/count', p);
