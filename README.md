@@ -449,6 +449,14 @@ saved job to view (or download) its run history.
 
 ---
 
+## Support
+
+Questions, bugs, or feature ideas? Open an
+[issue](https://github.com/mrpickles007/imap-cleanup-tool/issues) or email
+**support@imapcleanuptool.com**.
+
+---
+
 ## License
 
 **GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)** - see

@@ -61,6 +61,8 @@ pip install -e ".[dev,web]"        # editable install + dev tools + web UI
 Open a GitHub issue with steps to reproduce (for bugs) or a clear use case (for
 features). Never include real passwords or app passwords in issues or logs.
 
+For anything else, you can reach support at **support@imapcleanuptool.com**.
+
 ## Code of conduct
 
 Be respectful and constructive. Harassment or abuse will not be tolerated.
