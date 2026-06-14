@@ -139,7 +139,7 @@ tailwind.config = { theme: { extend: {
             • <code>annoying.com</code> — that domain, <b>plus subdomains</b> if “Include subdomains” is on<br>
             • <code>mail.annoying.com</code> — that specific subdomain<br>
             • lines starting with <code>#</code> are comments<br>
-            <span style="color:#94a0bd">The exact-vs-subdomain difference applies in <b>full</b> scan mode; <b>search</b> mode is a substring match.</span>
+            <span style="color:#94a0bd">In <b>full</b> mode, <code>*@paypal.com</code> = <code>paypal.com</code> <i>without</i> Include-subdomains. The point: with Include-subdomains <b>on</b>, <code>*@paypal.com</code> stays exact while bare domains (e.g. <code>newsletter.com</code>) also catch their subdomains — so you can mix per-entry. (search mode is always a substring match.)</span>
           </span></span>
         </div>
         <textarea id="targets" rows="6" class="field console" placeholder="spam@example.com&#10;*@newsletter.com&#10;annoying.com&#10;# comment"></textarea>
@@ -592,20 +592,29 @@ setInterval(async()=>{
   }catch(_){}
 }, 60000);
 
-// Keep tooltips inside the viewport: nudge horizontally if they'd overflow.
-document.addEventListener('mouseover', (e)=>{
-  const tip = e.target.closest && e.target.closest('.tip');
-  if(!tip) return;
+// Keep tooltips inside the viewport. Position the bubble with fixed coords
+// computed from the icon, clamped to the screen (and flipped below if needed).
+function placeTip(tip){
   const bub = tip.querySelector('.bub'); if(!bub) return;
-  bub.style.transform = 'translateX(-50%)';
-  requestAnimationFrame(()=>{
-    const r = bub.getBoundingClientRect(), m = 8;
-    let shift = 0;
-    if(r.left < m) shift = m - r.left;
-    else if(r.right > window.innerWidth - m) shift = (window.innerWidth - m) - r.right;
-    if(shift) bub.style.transform = `translateX(calc(-50% + ${Math.round(shift)}px))`;
-  });
-});
+  const icon = tip.querySelector('.ic') || tip;
+  const ir = icon.getBoundingClientRect();
+  bub.style.position='fixed'; bub.style.bottom='auto'; bub.style.transform='none';
+  bub.style.left='0px'; bub.style.top='0px';
+  const br = bub.getBoundingClientRect(), m = 8;
+  let x = ir.left + ir.width/2 - br.width/2;
+  x = Math.max(m, Math.min(x, window.innerWidth - br.width - m));
+  let y = ir.top - br.height - 8;
+  if(y < m) y = ir.bottom + 8;            // not enough room above → show below
+  bub.style.left = Math.round(x)+'px';
+  bub.style.top = Math.round(y)+'px';
+}
+function resetTip(tip){
+  const bub = tip.querySelector('.bub'); if(!bub) return;
+  bub.style.position=''; bub.style.left=''; bub.style.top='';
+  bub.style.bottom=''; bub.style.transform='';
+}
+document.addEventListener('mouseover', e=>{ const t=e.target.closest && e.target.closest('.tip'); if(t) placeTip(t); });
+document.addEventListener('mouseout', e=>{ const t=e.target.closest && e.target.closest('.tip'); if(t && !t.contains(e.relatedTarget)) resetTip(t); });
 
 setConnectedUI(false);
 restoreLog();

@@ -203,6 +203,16 @@ also matches subdomains when `--include-subdomains` is given. This distinction
 applies to local `--scan-mode full`; server-side `search` is a substring match
 either way.
 
+So in `full` mode `*@paypal.com` is the same as `paypal.com` *without*
+`--include-subdomains`. The useful part is mixing them: with
+`--include-subdomains` **on**, `*@paypal.com` stays exact while bare domains
+expand to their subdomains — per-entry control in a single list. Example:
+
+```text
+*@paypal.com      # exact, even with --include-subdomains
+newsletter.com    # this one DOES include its subdomains
+```
+
 ---
 
 ## Graphical interface
