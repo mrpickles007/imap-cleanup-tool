@@ -19,15 +19,20 @@ tailwind.config = { theme: { extend: {
   fontFamily:{ display:['"Sora"','system-ui','sans-serif'], sans:['Inter','system-ui','sans-serif'] },
 }}}
 </script>
+<link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css">
+<script src="https://unpkg.com/@popperjs/core@2"></script>
+<script src="https://unpkg.com/tippy.js@6"></script>
 <style>
   body{background:radial-gradient(1200px 600px at 80% -10%,rgba(24,144,216,.14),transparent),#0a0f1a;}
   .tip{position:relative;display:inline-flex;align-items:center;cursor:help}
   .tip > .ic{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:9999px;
     background:#27324a;color:#cdd6ee;font-size:10px;font-weight:700;margin-left:6px;flex:none}
-  .tip .bub{position:absolute;bottom:140%;left:50%;transform:translateX(-50%);width:max-content;max-width:min(300px,92vw);
-    background:#0a0f1a;color:#dfe5f3;border:1px solid #33415c;border-radius:8px;padding:9px 11px;font-size:12px;
-    line-height:1.5;box-shadow:0 12px 34px rgba(0,0,0,.6);opacity:0;visibility:hidden;transition:.12s;z-index:60;text-align:left;font-weight:400}
-  .tip:hover .bub{opacity:1 !important;visibility:visible !important}
+  .tip .bub{display:none}
+  .tippy-box[data-theme~='icw']{background:#0a0f1a;color:#dfe5f3;border:1px solid #33415c;border-radius:8px;font-size:12px;line-height:1.5;text-align:left;box-shadow:0 12px 34px rgba(0,0,0,.6)}
+  .tippy-box[data-theme~='icw'] .tippy-content{padding:9px 11px}
+  .tippy-box[data-theme~='icw'][data-placement^='top'] .tippy-arrow::before{border-top-color:#0a0f1a}
+  .tippy-box[data-theme~='icw'][data-placement^='bottom'] .tippy-arrow::before{border-bottom-color:#0a0f1a}
+  .tippy-box[data-theme~='icw'] code{background:#1a2433;padding:0 3px;border-radius:3px}
   @keyframes icAttn{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(24,144,216,0)}30%{transform:scale(1.35);background:#1890d8;color:#06101f;box-shadow:0 0 0 5px rgba(24,144,216,.4)}}
   .ic-attn{animation:icAttn .7s ease-in-out 2}
   .console{font-family:"Consolas","SFMono-Regular",ui-monospace,monospace}
@@ -139,7 +144,7 @@ tailwind.config = { theme: { extend: {
             • <code>annoying.com</code> — that domain, <b>plus subdomains</b> if “Include subdomains” is on<br>
             • <code>mail.annoying.com</code> — that specific subdomain<br>
             • lines starting with <code>#</code> are comments<br>
-            <span style="color:#94a0bd">In <b>full</b> mode, <code>*@paypal.com</code> = <code>paypal.com</code> <i>without</i> Include-subdomains. The point: with Include-subdomains <b>on</b>, <code>*@paypal.com</code> stays exact while bare domains (e.g. <code>newsletter.com</code>) also catch their subdomains — so you can mix per-entry. (search mode is always a substring match.)</span>
+            <span style="color:#94a0bd">In <b>"full"</b> mode, <code>*@paypal.com</code> = <code>paypal.com</code> <i>without</i> Include-subdomains. The point: with Include-subdomains <b>on</b>, <code>*@paypal.com</code> stays exact while bare domains (e.g. <code>newsletter.com</code>) also catch their subdomains — so you can mix per-entry. (<b>"search"</b> mode is always a substring match.)</span>
           </span></span>
         </div>
         <textarea id="targets" rows="6" class="field console" placeholder="spam@example.com&#10;*@newsletter.com&#10;annoying.com&#10;# comment"></textarea>
@@ -153,7 +158,7 @@ tailwind.config = { theme: { extend: {
         <div id="builder"></div>
         <button id="btnValidate" class="mt-3 px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream text-sm">Validate rule</button>
         <span id="ruleOut" class="text-xs text-muted ml-2"></span>
-        <p class="text-[11px] text-muted mt-2">Rules match <b>server-side</b> (substring), so a domain also matches its subdomains and partials — and <code>*@</code> is not special here. For an <b>exact</b> domain with no subdomains, use a <b>Target list</b> with <code>*@domain.com</code> and scan mode <b>full</b>.</p>
+        <p class="text-[11px] text-muted mt-2">Rules match <b>server-side</b> (substring), so a domain also matches its subdomains and partials — and <code>*@</code> is not special here. For an <b>exact</b> domain with no subdomains, use a <b>Target list</b> with <code>*@domain.com</code> and scan mode <b>"full"</b>.</p>
       </div>
       <div class="mt-4 pt-3 border-t border-line flex items-center gap-3 flex-wrap">
         <button id="btnCount" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>Count matching emails</button>
@@ -167,19 +172,19 @@ tailwind.config = { theme: { extend: {
       <h2 class="font-display font-semibold text-brand-light mb-3">Options</h2>
       <label class="text-xs text-muted flex items-center">Scan mode
         <span class="tip"><span class="ic">i</span><span class="bub">
-          <b>search (default)</b> — fast server-side IMAP SEARCH. It is a substring match on the From header, so it <b>already matches subdomains</b> (a target <code>annoying.com</code> also catches <code>x@mail.annoying.com</code>).<br><br>
-          <b>full</b> — downloads each header and matches the <b>exact domain</b> locally (stricter). Enable “Include subdomains” to also catch subdomains in this mode.
+          <b>"search"</b> (default) — fast server-side IMAP SEARCH. It is a substring match on the From header, so it <b>already matches subdomains</b> (a target <code>annoying.com</code> also catches <code>x@mail.annoying.com</code>).<br><br>
+          <b>"full"</b> — downloads each header and matches the <b>exact domain</b> locally (stricter). Enable “Include subdomains” to also catch subdomains in this mode.
         </span></span>
       </label>
       <select id="scanMode" class="field mt-1 mb-2">
-        <option value="search">search — fast, also matches subdomains</option>
-        <option value="full">full — strict, exact domain (local)</option>
+        <option value="search">"search" — fast, also matches subdomains</option>
+        <option value="full">"full" — strict, exact domain (local)</option>
       </select>
       <p id="scanNote" class="hidden text-[11px] text-muted mb-3">Disabled because you’re using a <b>Rule</b>: rule matching is always a fast server-side SEARCH (subdomains already included). Scan mode applies only to <b>Target lists</b>.</p>
 
       <label class="flex items-center justify-between text-sm py-1.5" id="rowSub">
         <span class="flex items-center">Include subdomains
-          <span class="tip"><span class="ic">i</span><span class="bub">Affects <b>full</b> mode only. It expands <b>bare-form</b> domains (e.g. <code>annoying.com</code> → also <code>mail.annoying.com</code>). The <code>*@domain</code> form is always exact and is never expanded. In <b>search</b> mode subdomains match anyway (substring).</span></span>
+          <span class="tip"><span class="ic">i</span><span class="bub">Affects <b>"full"</b> mode only. It expands <b>bare-form</b> domains (e.g. <code>annoying.com</code> → also <code>mail.annoying.com</code>). The <code>*@domain</code> form is always exact and is never expanded. In <b>"search"</b> mode subdomains match anyway (substring).</span></span>
         </span>
         <input id="subdomains" type="checkbox" disabled>
       </label>
@@ -359,9 +364,11 @@ async function restore(){
 
 function applyProviderTips(){
   const p=(META.providers||[])[parseInt($('provider').value)||0]||{};
-  const set=(tipId,bubId,text)=>{ if(text){ $(bubId).innerHTML=text; $(tipId).classList.remove('hidden'); } else { $(tipId).classList.add('hidden'); } };
-  set('userTip','userBub', p.user_tip);
-  set('passTip','passBub', p.pass_tip);
+  const set=(tipId,text)=>{ const tip=$(tipId); if(!tip)return; const ic=tip.querySelector('.ic');
+    if(text){ tip.classList.remove('hidden'); if(ic&&ic._tippy){ic._tippy.setContent(text);ic._tippy.enable();} }
+    else { tip.classList.add('hidden'); if(ic&&ic._tippy) ic._tippy.disable(); } };
+  set('userTip', p.user_tip);
+  set('passTip', p.pass_tip);
 }
 function gmailHost(){ return $('host').value.trim()==='imap.gmail.com'; }
 function refreshConditional(){
@@ -592,32 +599,22 @@ setInterval(async()=>{
   }catch(_){}
 }, 60000);
 
-// Keep tooltips inside the viewport. Position the bubble with fixed coords
-// computed from the icon, clamped to the screen (and flipped below if needed).
-function placeTip(tip){
-  const bub = tip.querySelector('.bub'); if(!bub) return;
-  const icon = tip.querySelector('.ic') || tip;
-  const ir = icon.getBoundingClientRect();
-  bub.style.position='fixed'; bub.style.bottom='auto'; bub.style.transform='none';
-  bub.style.left='0px'; bub.style.top='0px';
-  const br = bub.getBoundingClientRect(), m = 8;
-  let x = ir.left + ir.width/2 - br.width/2;
-  x = Math.max(m, Math.min(x, window.innerWidth - br.width - m));
-  let y = ir.top - br.height - 8;
-  if(y < m) y = ir.bottom + 8;            // not enough room above → show below
-  bub.style.left = Math.round(x)+'px';
-  bub.style.top = Math.round(y)+'px';
+// Tooltips via Tippy.js (Popper): robust placement, flip + viewport clamping,
+// no flashing. Each .tip's .bub holds the (HTML) content; the .ic is the anchor.
+function initTooltips(){
+  if(typeof tippy!=='function') return;
+  document.querySelectorAll('.tip').forEach(tip=>{
+    const ic=tip.querySelector('.ic'), bub=tip.querySelector('.bub');
+    if(!ic||!bub) return;
+    const inst=tippy(ic,{content:bub.innerHTML||' ', allowHTML:true, theme:'icw',
+      placement:'top', maxWidth:300, delay:[60,0], appendTo:()=>document.body});
+    if(!bub.innerHTML.trim()) inst.disable();   // dynamic (provider) tips
+  });
 }
-function resetTip(tip){
-  const bub = tip.querySelector('.bub'); if(!bub) return;
-  bub.style.position=''; bub.style.left=''; bub.style.top='';
-  bub.style.bottom=''; bub.style.transform='';
-}
-document.addEventListener('mouseover', e=>{ const t=e.target.closest && e.target.closest('.tip'); if(t) placeTip(t); });
-document.addEventListener('mouseout', e=>{ const t=e.target.closest && e.target.closest('.tip'); if(t && !t.contains(e.relatedTarget)) resetTip(t); });
 
 setConnectedUI(false);
 restoreLog();
+initTooltips();
 loadMeta().then(()=>{ refreshConditional(); restore(); });
 
 // Blink the provider user/password tooltips at random intervals to draw the
