@@ -314,9 +314,21 @@ tailwind.config = { theme: { extend: {
     <label class="flex items-center gap-2 text-sm mt-3">
       <input id="saveEncrypt" type="checkbox"> Encrypt the password
     </label>
-    <div id="saveSecretRow" class="hidden mt-2">
-      <input id="saveSecret" type="password" class="field" placeholder="Encryption password">
-      <p class="text-[11px] text-muted mt-1">You'll need this to load the profile — it is never stored.</p>
+    <div id="saveSecretRow" class="hidden mt-3 space-y-2">
+      <div class="flex gap-2">
+        <input id="saveSecret" type="password" class="field" placeholder="Encryption password" autocomplete="new-password">
+        <button id="saveSecretEye" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream text-sm">show</button>
+      </div>
+      <input id="saveSecret2" type="password" class="field" placeholder="Confirm password" autocomplete="new-password">
+      <ul id="pwCriteria" class="text-[11px] space-y-0.5 mt-1">
+        <li data-c="len" class="text-muted"><span class="mark">○</span> at least 8 characters</li>
+        <li data-c="lower" class="text-muted"><span class="mark">○</span> a lowercase letter</li>
+        <li data-c="upper" class="text-muted"><span class="mark">○</span> an uppercase letter</li>
+        <li data-c="num" class="text-muted"><span class="mark">○</span> a number</li>
+        <li data-c="sym" class="text-muted"><span class="mark">○</span> a special character</li>
+        <li data-c="match" class="text-muted"><span class="mark">○</span> both passwords match</li>
+      </ul>
+      <p class="text-[11px] text-muted">This password is never stored — you'll need it to load the profile.</p>
     </div>
     <p id="savePlainWarn" class="text-[11px] text-warn mt-2">⚠️ Without encryption the IMAP password is stored in plain text in a local database file on this machine.</p>
     <div class="flex gap-2 justify-end mt-4">
@@ -695,18 +707,37 @@ $('unlockConfirm').onclick=async ()=>{
   catch(e){ $('unlockErr').textContent=e.message; $('unlockErr').classList.remove('hidden'); }
 };
 $('unlockSecret').addEventListener('keydown', e=>{ if(e.key==='Enter') $('unlockConfirm').click(); });
+function evalPw(){
+  const pw=$('saveSecret').value, pw2=$('saveSecret2').value;
+  const c={ len:pw.length>=8, lower:/[a-z]/.test(pw), upper:/[A-Z]/.test(pw),
+            num:/[0-9]/.test(pw), sym:/[^A-Za-z0-9]/.test(pw),
+            match: pw.length>0 && pw===pw2 };
+  document.querySelectorAll('#pwCriteria li').forEach(li=>{
+    const ok=!!c[li.dataset.c];
+    li.classList.toggle('text-ok',ok); li.classList.toggle('text-muted',!ok);
+    const m=li.querySelector('.mark'); if(m) m.textContent= ok?'✓':'○';
+  });
+  return Object.values(c).every(Boolean);
+}
+function updateSaveBtn(){ $('saveConfirm').disabled = $('saveEncrypt').checked && !evalPw(); }
+$('saveSecret').addEventListener('input', updateSaveBtn);
+$('saveSecret2').addEventListener('input', updateSaveBtn);
+$('saveSecretEye').onclick=()=>{ const t=$('saveSecret').type==='password'?'text':'password'; $('saveSecret').type=t; $('saveSecret2').type=t; $('saveSecretEye').textContent= t==='password'?'show':'hide'; };
 $('btnSaveProfile').onclick=()=>{
   if(!$('host').value.trim()||!$('user').value.trim()){ log('[ERROR] Fill host and user before saving a profile.'); return; }
   $('saveName').value = $('profileSelect').value || $('user').value || '';
-  $('saveEncrypt').checked=false; $('saveSecret').value=''; $('saveSecretRow').classList.add('hidden'); $('savePlainWarn').classList.remove('hidden');
+  $('saveEncrypt').checked=false; $('saveSecret').value=''; $('saveSecret2').value='';
+  $('saveSecret').type='password'; $('saveSecret2').type='password'; $('saveSecretEye').textContent='show';
+  $('saveSecretRow').classList.add('hidden'); $('savePlainWarn').classList.remove('hidden');
+  evalPw(); updateSaveBtn();
   $('saveModal').classList.remove('hidden'); setTimeout(()=>$('saveName').focus(),50);
 };
-$('saveEncrypt').onchange=()=>{ const on=$('saveEncrypt').checked; $('saveSecretRow').classList.toggle('hidden',!on); $('savePlainWarn').classList.toggle('hidden',on); };
+$('saveEncrypt').onchange=()=>{ const on=$('saveEncrypt').checked; $('saveSecretRow').classList.toggle('hidden',!on); $('savePlainWarn').classList.toggle('hidden',on); updateSaveBtn(); };
 $('saveCancel').onclick=()=>$('saveModal').classList.add('hidden');
 $('saveConfirm').onclick=async ()=>{
   const name=$('saveName').value.trim(); if(!name){ $('saveName').focus(); return; }
   const encrypt=$('saveEncrypt').checked, secret=$('saveSecret').value;
-  if(encrypt && !secret){ $('saveSecret').focus(); return; }
+  if(encrypt && !evalPw()){ return; }
   try{
     await api('/api/profiles', {name, host:$('host').value.trim(), port:parseInt($('port').value)||993, user:$('user').value.trim(), password:$('password').value, timeout:parseInt($('timeout').value)||120, encrypt, secret});
     $('saveModal').classList.add('hidden'); await loadProfiles(name);
