@@ -4,6 +4,12 @@
 
 <h1 align="center">IMAP Cleaner</h1>
 
+<p align="center">
+  <a href="https://pypi.org/project/imap-cleanup-tool/"><img src="https://img.shields.io/pypi/v/imap-cleanup-tool" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/imap-cleanup-tool/"><img src="https://img.shields.io/pypi/pyversions/imap-cleanup-tool" alt="Supported Python versions"></a>
+  <img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="License: AGPL-3.0-or-later">
+</p>
+
 Delete or move IMAP emails in bulk - by **sender**, by **domain**, or by
 **nested rules** (a query builder). Works from the **command line** and from a
 local **web interface**. The CLI uses only the Python standard library; the web
