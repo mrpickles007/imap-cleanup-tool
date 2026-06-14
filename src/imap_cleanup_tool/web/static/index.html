@@ -362,6 +362,18 @@ tailwind.config = { theme: { extend: {
   </div>
 </div>
 
+<!-- Generic confirm modal -->
+<div id="confirmModal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+  <div class="bg-panel border border-line rounded-xl p-5 w-full max-w-sm">
+    <h3 id="confirmTitle" class="font-display font-semibold text-brand-light mb-2">Confirm</h3>
+    <p id="confirmMsg" class="text-sm text-muted mb-4 whitespace-pre-line"></p>
+    <div class="flex gap-2 justify-end">
+      <button id="confirmCancel" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Cancel</button>
+      <button id="confirmOk" class="px-4 py-2 rounded-lg bg-brand text-ink font-semibold hover:bg-brand-light">OK</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const $ = (id) => document.getElementById(id);
 let META = {providers:[],operators:{}};
@@ -399,6 +411,20 @@ function setConnectedUI(connected){
   $('btnConnect').disabled=connected;
   $('btnDisconnect').disabled=!connected;
   $('btnRefreshFolders').disabled=!connected;
+}
+// Styled replacement for window.confirm(); resolves true/false.
+function confirmDialog(opts){
+  opts = opts || {};
+  return new Promise(resolve=>{
+    $('confirmTitle').textContent = opts.title || 'Confirm';
+    $('confirmMsg').textContent = opts.message || '';
+    const ok=$('confirmOk'); ok.textContent = opts.okText || 'OK';
+    ok.className = 'px-4 py-2 rounded-lg font-semibold ' + (opts.danger
+      ? 'bg-danger text-ink hover:brightness-110' : 'bg-brand text-ink hover:bg-brand-light');
+    $('confirmModal').classList.remove('hidden');
+    const done=(v)=>{ $('confirmModal').classList.add('hidden'); ok.onclick=null; $('confirmCancel').onclick=null; resolve(v); };
+    ok.onclick=()=>done(true); $('confirmCancel').onclick=()=>done(false);
+  });
 }
 
 /* ---------- meta + restore ---------- */
@@ -591,7 +617,7 @@ $('btnDeselectAll').onclick=()=>{ selectedFolders=[]; renderFolders(); };
 
 $('btnConnect').onclick=async()=>{
   if(!$('host').value.trim() || !$('user').value.trim()){ setStatus(false,'failed'); log('[ERROR] Please enter at least Host and User before connecting.'); return; }
-  if(!$('password').value){ if(!confirm('No password entered — try connecting anyway?')) return; }
+  if(!$('password').value){ if(!(await confirmDialog({title:'No password', message:'No password entered — try connecting anyway?', okText:'Connect'}))) return; }
   try{ setStatus(false,'connecting…'); $('btnConnect').disabled=true; log('Connecting to '+$('host').value+' …');
     const d=await api('/api/connect',connParams()); SID=d.sid; localStorage.setItem('icw_sid',SID);
     logCursor=0; persistLog();   // fresh session log
@@ -620,9 +646,10 @@ $('btnSaveSenders').onclick=async()=>{
     log('Senders CSV downloaded as '+name+'.');
   }catch(e){ log('[ERROR] '+e.message); }
 };
-$('btnRun').onclick=()=>{
+$('btnRun').onclick=async ()=>{
   const p=Object.assign({sid:SID}, matchPayload(), optionsPayload());
-  if(!p.dry_run){ const what=p.empty_folder?'DELETE EVERYTHING in':'act on matching messages in'; if(!confirm(`This is NOT a dry-run.\nAbout to ${what}:\n${p.folders.join(', ')}\n\nContinue?`)) return; }
+  if(!p.dry_run){ const what=p.empty_folder?'DELETE EVERYTHING in':'act on matching messages in';
+    if(!(await confirmDialog({title:'This is not a dry-run', message:'About to '+what+':\n'+p.folders.join(', ')+'\n\nContinue?', okText:'Run for real', danger:true}))) return; }
   log((p.dry_run?'[DRY-RUN] ':'')+'Starting on: '+p.folders.join(', ')); startJob('/api/run',p);
 };
 $('btnSaveJob').onclick=async()=>{ try{ const d=await api('/api/jobs',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Saved. System command:\n'+d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
@@ -792,6 +819,9 @@ $('saveConfirm').onclick=async ()=>{
   const name=$('saveName').value.trim(); if(!name){ $('saveName').focus(); return; }
   const encrypt=$('saveEncrypt').checked, secret=$('saveSecret').value;
   if(encrypt && !evalPw()){ return; }
+  if(PROFILES.some(p=>p.name===name)){
+    if(!(await confirmDialog({title:'Overwrite profile', message:'A profile named "'+name+'" already exists. Overwrite it?', okText:'Overwrite', danger:true}))) return;
+  }
   try{
     await api('/api/profiles', {name, host:$('host').value.trim(), port:parseInt($('port').value)||993, user:$('user').value.trim(), password:$('password').value, timeout:parseInt($('timeout').value)||120, encrypt, secret});
     $('saveModal').classList.add('hidden'); await loadProfiles(name);
@@ -800,7 +830,7 @@ $('saveConfirm').onclick=async ()=>{
 };
 $('btnDeleteProfile').onclick=async ()=>{
   const name=selectedProfile; if(!name){ log('Select a saved profile to delete.'); return; }
-  if(!confirm('Delete profile "'+name+'"?')) return;
+  if(!(await confirmDialog({title:'Delete profile', message:'Delete profile "'+name+'"?', okText:'Delete', danger:true}))) return;
   try{ await api('/api/profiles/'+encodeURIComponent(name), null, 'DELETE'); await loadProfiles(''); log('Profile "'+name+'" deleted.'); }catch(e){ log('[ERROR] '+e.message); }
 };
 
