@@ -108,6 +108,18 @@ class MoveAllTests(unittest.TestCase):
         self.assertEqual(n, 3)
         self.assertFalse(any(c[0] == "MOVE" for c in conn.calls))
 
+    def test_move_into_self_is_skipped(self):
+        conn = FakeConn(capabilities=("MOVE",))
+        n = core.process_folder(conn, "Archive", search_argument="ALL",
+                                move=True, dest_folder="Archive", dry_run=False)
+        self.assertEqual(n, 0)
+        self.assertFalse(any(c[0] == "MOVE" for c in conn.calls))
+
+    def test_same_mailbox_inbox_case_insensitive(self):
+        self.assertTrue(core._same_mailbox("inbox", "INBOX"))
+        self.assertTrue(core._same_mailbox("Archive", "Archive"))
+        self.assertFalse(core._same_mailbox("Archive", "Other"))
+
 
 class DeleteFolderTests(unittest.TestCase):
     def test_protected_set_detection(self):

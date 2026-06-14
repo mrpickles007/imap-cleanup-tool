@@ -390,6 +390,12 @@ the source label, adds the destination one); the message itself still lives in
 *All Mail*. Move is mutually exclusive with delete / Gmail-trash / expunge; only
 *Empty folder* overrides everything.
 
+You **cannot move a folder into itself**: the web destination dropdown lists only
+folders **not** selected as the source, and the core skips any move where source
+== destination (with a warning) - so the CLI and scheduled jobs are protected
+too. (IMAP does not guard this reliably: the `COPY` + delete fallback could even
+duplicate the messages.)
+
 **Move everything.** If you enable Move **without** a target list or rule, it
 moves **every** message in the selected folders into the destination (handy to
 clear out or reorganize a whole folder). From the CLI, just omit `--targets` and

@@ -45,6 +45,18 @@ def _quote_mailbox(name: str) -> str:
     return '"' + name.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def _same_mailbox(a: str, b: str) -> bool:
+    """True if two mailbox names refer to the same folder.
+
+    Names are case-sensitive in general, but ``INBOX`` is case-insensitive per
+    the IMAP spec, so ``inbox`` and ``INBOX`` are the same folder.
+    """
+    a, b = (a or "").strip(), (b or "").strip()
+    if a.upper() == "INBOX" and b.upper() == "INBOX":
+        return True
+    return a == b
+
+
 # --------------------------------------------------------------------------- #
 # Header helpers
 # --------------------------------------------------------------------------- #
@@ -457,6 +469,9 @@ def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
     """
     if move and not (dest_folder and dest_folder.strip()):
         logger.error("Move requested but no destination folder given - skipping.")
+        return 0
+    if move and _same_mailbox(dest_folder, folder):
+        logger.warning("Skipping %r: cannot move a folder into itself.", folder)
         return 0
     status, _ = conn.select(_quote_mailbox(folder), readonly=dry_run)
     if status != "OK":

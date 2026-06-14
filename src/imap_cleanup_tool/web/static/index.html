@@ -552,7 +552,7 @@ function renderFolders(){
       <label for="${id}" class="truncate flex-1 cursor-pointer" title="${name}">${name}<span class="text-muted text-xs">${fmtCount(f.count)}</span></label>
       ${delBtn}
       <button data-act="unlist" class="opacity-0 group-hover:opacity-100 text-muted hover:text-cream text-sm leading-none" title="Remove from this list (does NOT delete on the server)">×</button>`;
-    w.querySelector('input').onchange=(e)=>{ if(e.target.checked){ if(!selectedFolders.includes(name))selectedFolders.push(name);} else selectedFolders=selectedFolders.filter(x=>x!==name); };
+    w.querySelector('input').onchange=(e)=>{ if(e.target.checked){ if(!selectedFolders.includes(name))selectedFolders.push(name);} else selectedFolders=selectedFolders.filter(x=>x!==name); populateMoveDest(); };
     w.querySelector('[data-act=unlist]').onclick=()=>{ knownFolders=knownFolders.filter(x=>x.name!==name); selectedFolders=selectedFolders.filter(x=>x!==name); renderFolders(); };
     const db=w.querySelector('[data-act=del]');
     if(db) db.onclick=async()=>{
@@ -569,7 +569,8 @@ function populateMoveDest(){
   const sel=$('moveDest'); if(!sel) return;
   const cur=sel.value;
   sel.innerHTML='';
-  knownFolders.forEach(f=>{ const o=document.createElement('option'); o.value=f.name; o.textContent=f.name; sel.appendChild(o); });
+  // Exclude the folders selected as the source - you can't move a folder into itself.
+  knownFolders.filter(f=>!selectedFolders.includes(f.name)).forEach(f=>{ const o=document.createElement('option'); o.value=f.name; o.textContent=f.name; sel.appendChild(o); });
   const o=document.createElement('option'); o.value='__new__'; o.textContent='➕ Create a new folder / label…'; sel.appendChild(o);
   if(cur && [...sel.options].some(x=>x.value===cur)) sel.value=cur;
   const nr=$('moveNewRow'); if(nr) nr.classList.toggle('hidden', sel.value!=='__new__');
