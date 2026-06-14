@@ -12,6 +12,12 @@ on:
     tags:
       - "v*"                # pushing a v* tag -> real PyPI
 
+# Run JavaScript actions on Node.js 24 (GitHub forces this from 2026-06-16
+# anyway). Silences the "Node.js 20 actions are deprecated" warnings without
+# pinning exact action versions.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   build:
     runs-on: ubuntu-latest
