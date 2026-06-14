@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="IMAP Cleanup Tool logo" width="360">
+  <img src="https://raw.githubusercontent.com/mrpickles007/imap-cleanup-tool/main/src/imap_cleanup_tool/assets/logo.png" alt="IMAP Cleanup Tool logo" width="360">
 </p>
 
 <h1 align="center">IMAP Cleaner</h1>
@@ -35,7 +35,6 @@ UI is an optional extra (FastAPI).
 - [Web interface](#web-interface)
 - [Scheduling](#scheduling)
 - [Gmail notes](#gmail-notes)
-- [Publishing to PyPI](#publishing-to-pypi)
 
 ---
 
@@ -126,6 +125,7 @@ land in your shell history.
 | `--expunge` | Permanently remove after flagging. |
 | `--yes` | Skip the confirmation prompt (for scripts/cron). |
 | `--verbose`, `-v` | Debug logging with per-batch progress. |
+| `--run-job NAME` | Run a saved scheduled job by name (used by the OS scheduler). |
 
 Examples:
 
@@ -260,20 +260,6 @@ environment variable (it is never stored in the job).
    `[Gmail]/All Mail`, `[Gmail]/Spam` (localised, e.g. `[Gmail]/Cestino`).
 4. Use `--gmail-trash`: a plain delete in `INBOX` only removes the label, not
    the message. Target `[Gmail]/All Mail` to catch archived mail too.
-
----
-
-## Publishing to PyPI
-
-```bash
-pip install build twine
-python -m build                 # creates dist/*.whl and dist/*.tar.gz
-twine upload dist/*             # needs a PyPI account + API token
-```
-
-Or let the workflow publish on tag push, with a `PYPI_API_TOKEN` repository
-secret. Remember to bump `version` in `pyproject.toml` and
-`src/imap_cleanup_tool/__init__.py` for each release.
 
 ---
 
