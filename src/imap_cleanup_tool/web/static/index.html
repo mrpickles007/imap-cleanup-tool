@@ -625,7 +625,7 @@ $('btnConnect').onclick=async()=>{
     log('Connected. Loaded '+knownFolders.length+' folder(s).'); refreshConditional();
   }catch(e){ setStatus(false,'failed'); setConnectedUI(false); log('[ERROR] '+e.message); }
 };
-$('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; setStatus(false,'disconnected'); setConnectedUI(false); log('Disconnected.'); };
+$('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setStatus(false,'disconnected'); setConnectedUI(false); log('Disconnected.'); };
 $('btnValidate').onclick=async()=>{ try{ const d=await api('/api/validate-rule',{tree:toTree(ROOT)}); $('ruleOut').textContent='OK → SEARCH '+d.search; $('ruleOut').className='text-xs text-ok ml-2'; }catch(e){ $('ruleOut').textContent=e.message; $('ruleOut').className='text-xs text-danger ml-2'; } };
 $('btnStop').onclick=async()=>{ if(SID&&curRunId){ try{ await api(`/api/stop/${SID}/${curRunId}`); log('Stop requested…'); }catch(e){} } };
 $('btnSenders').onclick=()=>{ log('Listing senders in: '+(selectedFolders.join(', ')||'INBOX')+' …'); startJob('/api/senders',{sid:SID,folders:selectedFolders.length?selectedFolders:['INBOX'],batch_size:parseInt($('batch').value)||500}); };
@@ -687,7 +687,7 @@ $('btnCount').onclick=()=>{
 setInterval(async()=>{
   if(!SID) return;
   try{ const s=await (await fetch('/api/session/'+SID)).json();
-    if(!s.connected){ SID=null; localStorage.removeItem('icw_sid'); setConnectedUI(false); setStatus(false,'session expired'); log('Session expired (idle) — reconnect to continue.'); }
+    if(!s.connected){ SID=null; localStorage.removeItem('icw_sid'); knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setConnectedUI(false); setStatus(false,'session expired'); log('Session expired (idle) — reconnect to continue.'); }
   }catch(_){}
 }, 60000);
 
