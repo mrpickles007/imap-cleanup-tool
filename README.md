@@ -54,18 +54,45 @@ most users.
 install it with the system package manager (`sudo apt install python3 python3-pip`,
 `brew install python`, etc.).
 
-```bash
-# 1. Install. The [web] extra installs BOTH the core CLI and the web UI
+**Windows** (PowerShell):
+
+```powershell
+# 1. Create and activate a virtual environment (keeps the install isolated)
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+
+# 2. Install. The [web] extra installs BOTH the core CLI and the web UI
 #    (it pulls in the base package automatically - no separate step needed).
 pip install "imap-cleanup-tool[web]"
 
-# 2. Launch. Serves http://127.0.0.1:8765 and opens the default browser.
+# 3. Launch. Serves http://127.0.0.1:8765 and opens the default browser.
 imap-cleanup-tool-web
 ```
 
+**macOS / Linux** (bash/zsh):
+
+```bash
+# 1. Create and activate a virtual environment (keeps the install isolated)
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 2. Install (core CLI + web UI in one go)
+pip install "imap-cleanup-tool[web]"
+
+# 3. Launch. Serves http://127.0.0.1:8765 and opens the default browser.
+imap-cleanup-tool-web
+```
+
+> The virtual environment is recommended but optional - you can skip steps 1 and
+> just `pip install "imap-cleanup-tool[web]"` globally. Either way, activate the
+> same environment (`.venv\Scripts\Activate.ps1` / `source .venv/bin/activate`)
+> in every new terminal before running `imap-cleanup-tool-web`.
+>
 > If `pip` is not found, use `python -m pip ...` (Windows) or `python3 -m pip ...`
-> (Linux/macOS). On some systems the command is `pip3`. To keep things isolated,
-> you can first create a virtual environment - see [Install](#install).
+> (macOS/Linux); on some systems the command is `pip3`. On Windows, if
+> `Activate.ps1` is blocked, run
+> `Set-ExecutionPolicy -Scope Process RemoteSigned` first, or use
+> `.venv\Scripts\activate.bat` from cmd.exe.
 
 Then, in the browser:
 
