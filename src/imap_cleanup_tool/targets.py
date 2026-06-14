@@ -14,7 +14,7 @@ def parse_targets_text(text: str) -> tuple[set[str], set[str], set[str]]:
     All values are lowercased. Format, one entry per line::
 
         spam@example.com     # exact sender address
-        *@newsletter.com     # exact domain ONLY — never subdomains
+        *@newsletter.com     # exact domain ONLY - never subdomains
         annoying.com         # domain; also its subdomains if include_subdomains
         mail.annoying.com    # that (sub)domain, treated like a bare domain
         # comment lines and blank lines are ignored
@@ -22,7 +22,7 @@ def parse_targets_text(text: str) -> tuple[set[str], set[str], set[str]]:
     The ``*@`` form goes into ``exact_domains`` (never expanded to subdomains);
     the bare form goes into ``domains`` (expandable with ``include_subdomains``).
     Note: the exact/no-subdomain distinction only applies to local ``full``
-    scanning — server-side ``search`` is a substring match either way.
+    scanning - server-side ``search`` is a substring match either way.
 
     Raises ``ValueError`` if no valid entries are found.
     """
@@ -71,10 +71,10 @@ def sender_matches(sender: str, addresses: set[str], domains: set[str],
                    include_subdomains: bool = False) -> bool:
     """True if sender matches an exact address or a target domain.
 
-    * ``addresses`` — exact email-address match.
-    * ``exact_domains`` (``*@domain``) — match the domain exactly, never a
+    * ``addresses`` - exact email-address match.
+    * ``exact_domains`` (``*@domain``) - match the domain exactly, never a
       subdomain (the ``include_subdomains`` flag is ignored for these).
-    * ``domains`` (bare form) — match the domain exactly, and also its
+    * ``domains`` (bare form) - match the domain exactly, and also its
       subdomains when ``include_subdomains`` is true.
     """
     if not sender:

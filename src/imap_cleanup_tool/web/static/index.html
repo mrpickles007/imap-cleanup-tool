@@ -80,7 +80,7 @@ tailwind.config = { theme: { extend: {
           <div class="text-xs text-muted mb-1">Profile</div>
           <div id="profileDD" class="relative">
             <button id="profileBtn" type="button" class="field flex items-center justify-between gap-2 text-left">
-              <span id="profileBtnLabel" class="flex items-center gap-2 truncate">— New profile —</span>
+              <span id="profileBtnLabel" class="flex items-center gap-2 truncate">- New profile -</span>
               <svg class="w-4 h-4 text-muted flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
             <div id="profileMenu" class="hidden absolute z-40 mt-1 w-full max-h-60 overflow-auto bg-panel2 border border-line rounded-lg shadow-xl py-1"></div>
@@ -136,13 +136,13 @@ tailwind.config = { theme: { extend: {
         </div>
       </div>
       <div id="folders" class="grid grid-cols-2 sm:grid-cols-3 gap-1 max-h-44 overflow-auto text-sm">
-        <p class="text-muted col-span-full text-xs">Not connected — folders will appear here. Defaults to <code>INBOX</code>.</p>
+        <p class="text-muted col-span-full text-xs">Not connected - folders will appear here. Defaults to <code>INBOX</code>.</p>
       </div>
       <div class="flex gap-2 mt-3">
         <input id="manualFolder" class="field" placeholder="Add a folder name manually…">
         <button id="btnAddFolder" class="px-3 rounded-lg border border-line text-muted hover:text-cream">Add</button>
       </div>
-      <p class="text-[11px] text-muted mt-2">⚠️ Every action — <b>Run</b>, <b>List senders</b>, <b>Empty folder</b> — applies to the <b>selected</b> folders above (hover a row and click × to remove it from the list).</p>
+      <p class="text-[11px] text-muted mt-2">⚠️ Every action - <b>Run</b>, <b>List senders</b>, <b>Empty folder</b> - applies to the <b>selected</b> folders above (hover a row and click × to remove it from the list).</p>
     </section>
 
     <!-- Match -->
@@ -156,12 +156,12 @@ tailwind.config = { theme: { extend: {
         <div class="flex items-center text-xs text-muted mb-1">Senders / domains, one per line
           <span class="tip"><span class="ic">i</span><span class="bub">
             <b>One entry per line:</b><br>
-            • <code>spam@example.com</code> — exact sender address<br>
-            • <code>*@newsletter.com</code> — that domain <b>exactly</b>, never subdomains<br>
-            • <code>annoying.com</code> — that domain, <b>plus subdomains</b> if “Include subdomains” is on<br>
-            • <code>mail.annoying.com</code> — that specific subdomain<br>
+            • <code>spam@example.com</code> - exact sender address<br>
+            • <code>*@newsletter.com</code> - that domain <b>exactly</b>, never subdomains<br>
+            • <code>annoying.com</code> - that domain, <b>plus subdomains</b> if “Include subdomains” is on<br>
+            • <code>mail.annoying.com</code> - that specific subdomain<br>
             • lines starting with <code>#</code> are comments<br>
-            <span style="color:#94a0bd">In <b>"full"</b> mode, <code>*@paypal.com</code> = <code>paypal.com</code> <i>without</i> Include-subdomains. The point: with Include-subdomains <b>on</b>, <code>*@paypal.com</code> stays exact while bare domains (e.g. <code>newsletter.com</code>) also catch their subdomains — so you can mix per-entry. (<b>"search"</b> mode is always a substring match.)</span>
+            <span style="color:#94a0bd">In <b>"full"</b> mode, <code>*@paypal.com</code> = <code>paypal.com</code> <i>without</i> Include-subdomains. The point: with Include-subdomains <b>on</b>, <code>*@paypal.com</code> stays exact while bare domains (e.g. <code>newsletter.com</code>) also catch their subdomains - so you can mix per-entry. (<b>"search"</b> mode is always a substring match.)</span>
           </span></span>
         </div>
         <textarea id="targets" rows="6" class="field console" placeholder="spam@example.com&#10;*@newsletter.com&#10;annoying.com&#10;# comment"></textarea>
@@ -175,11 +175,11 @@ tailwind.config = { theme: { extend: {
         <div id="builder"></div>
         <button id="btnValidate" class="mt-3 px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream text-sm">Validate rule</button>
         <span id="ruleOut" class="text-xs text-muted ml-2"></span>
-        <p class="text-[11px] text-muted mt-2">Rules match <b>server-side</b> (substring), so a domain also matches its subdomains and partials — and <code>*@</code> is not special here. For an <b>exact</b> domain with no subdomains, use a <b>Target list</b> with <code>*@domain.com</code> and scan mode <b>"full"</b>.</p>
+        <p class="text-[11px] text-muted mt-2">Rules match <b>server-side</b> (substring), so a domain also matches its subdomains and partials - and <code>*@</code> is not special here. For an <b>exact</b> domain with no subdomains, use a <b>Target list</b> with <code>*@domain.com</code> and scan mode <b>"full"</b>.</p>
       </div>
       <div class="mt-4 pt-3 border-t border-line flex items-center gap-3 flex-wrap">
         <button id="btnCount" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>Count matching emails</button>
-        <span class="text-[11px] text-muted">Counts how many emails match the current filter in the selected folders — makes no changes.</span>
+        <span class="text-[11px] text-muted">Counts how many emails match the current filter in the selected folders - makes no changes.</span>
       </div>
     </section>
   </div>
@@ -189,13 +189,13 @@ tailwind.config = { theme: { extend: {
       <h2 class="font-display font-semibold text-brand-light mb-3">Options</h2>
       <label class="text-xs text-muted flex items-center">Scan mode
         <span class="tip"><span class="ic">i</span><span class="bub">
-          <b>"search"</b> (default) — fast server-side IMAP SEARCH. It is a substring match on the From header, so it <b>already matches subdomains</b> (a target <code>annoying.com</code> also catches <code>x@mail.annoying.com</code>).<br><br>
-          <b>"full"</b> — downloads each header and matches the <b>exact domain</b> locally (stricter). Enable “Include subdomains” to also catch subdomains in this mode.
+          <b>"search"</b> (default) - fast server-side IMAP SEARCH. It is a substring match on the From header, so it <b>already matches subdomains</b> (a target <code>annoying.com</code> also catches <code>x@mail.annoying.com</code>).<br><br>
+          <b>"full"</b> - downloads each header and matches the <b>exact domain</b> locally (stricter). Enable “Include subdomains” to also catch subdomains in this mode.
         </span></span>
       </label>
       <select id="scanMode" class="field mt-1 mb-2">
-        <option value="search">"search" — fast, also matches subdomains</option>
-        <option value="full">"full" — strict, exact domain (local)</option>
+        <option value="search">"search" - fast, also matches subdomains</option>
+        <option value="full">"full" - strict, exact domain (local)</option>
       </select>
       <p id="scanNote" class="hidden text-[11px] text-muted mb-3">Disabled because you’re using a <b>Rule</b>: rule matching is always a fast server-side SEARCH (subdomains already included). Scan mode applies only to <b>Target lists</b>.</p>
 
@@ -219,7 +219,7 @@ tailwind.config = { theme: { extend: {
         </span>
         <input id="expunge" type="checkbox">
       </label>
-      <p id="expungeNote" class="hidden text-[11px] text-muted -mt-1 mb-1">With “Gmail: move to Trash” this has no effect — messages just go to Trash. To delete for good, then select <code>[Gmail]/Trash</code> and use <b>Empty folder</b>.</p>
+      <p id="expungeNote" class="hidden text-[11px] text-muted -mt-1 mb-1">With “Gmail: move to Trash” this has no effect - messages just go to Trash. To delete for good, then select <code>[Gmail]/Trash</code> and use <b>Empty folder</b>.</p>
 
       <label class="flex items-center justify-between text-sm py-1.5">
         <span class="flex items-center text-danger">Empty folder (delete ALL)
@@ -256,7 +256,7 @@ tailwind.config = { theme: { extend: {
       <div>
         <div class="text-[11px] uppercase tracking-wider text-muted mb-2">List senders</div>
         <button id="btnSenders" class="w-full border border-line text-cream hover:border-brand rounded-lg px-4 py-2 transition">List senders</button>
-        <p class="text-[11px] text-muted mt-1.5">Shows the senders in the selected folders ranked by how many emails each sent — use it to decide what to target.</p>
+        <p class="text-[11px] text-muted mt-1.5">Shows the senders in the selected folders ranked by how many emails each sent - use it to decide what to target.</p>
         <div class="flex gap-2 mt-2">
           <input id="sendersName" class="field" placeholder="senders_….csv">
           <button id="btnSaveSenders" class="px-4 py-2 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm flex items-center gap-2 whitespace-nowrap"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Save CSV</button>
@@ -279,11 +279,11 @@ tailwind.config = { theme: { extend: {
 <div id="tab-scheduling" class="hidden grid lg:grid-cols-2 gap-5">
   <section class="bg-panel border border-line rounded-xl p-5">
     <h2 class="font-display font-semibold text-brand-light mb-3">New scheduled job</h2>
-    <p class="text-xs text-muted mb-3">The job connects with a saved <b>profile</b>; folders, match and options come from the <b>Cleanup</b> tab. It runs the CLI on a schedule — different jobs can use different profiles (different accounts).</p>
+    <p class="text-xs text-muted mb-3">The job connects with a saved <b>profile</b>; folders, match and options come from the <b>Cleanup</b> tab. It runs the CLI on a schedule - different jobs can use different profiles (different accounts).</p>
     <div class="grid grid-cols-2 gap-3">
       <label class="text-xs text-muted col-span-2">Connection profile
         <select id="jobProfile" class="field mt-1"></select>
-        <span class="block text-[11px] text-muted mt-1">Only non-encrypted profiles appear here — a cron can't type a password to decrypt one.</span>
+        <span class="block text-[11px] text-muted mt-1">Only non-encrypted profiles appear here - a cron can't type a password to decrypt one.</span>
       </label>
       <label class="text-xs text-muted">Name <input id="jobName" class="field mt-1" value="nightly_cleanup"></label>
       <label class="text-xs text-muted">Frequency
@@ -307,14 +307,14 @@ tailwind.config = { theme: { extend: {
           <option value="SUN">Sunday</option>
         </select>
       </label>
-      <label id="wrapDom" class="text-xs text-muted hidden">Day of month (1–28) <input id="jobDom" type="number" min="1" max="28" class="field mt-1" value="1"></label>
+      <label id="wrapDom" class="text-xs text-muted hidden">Day of month (1-28) <input id="jobDom" type="number" min="1" max="28" class="field mt-1" value="1"></label>
       <span id="schedHint" class="col-span-2 text-[11px] text-muted"></span>
     </div>
     <div id="jobSummary" class="text-[11px] text-muted mt-3 border-t border-line pt-3"></div>
     <div class="flex flex-wrap gap-2 mt-3">
       <button id="btnSaveJob" class="bg-brand hover:bg-brand-light text-ink font-semibold rounded-lg px-4 py-2">Save job</button>
       <button id="btnInstallJob" class="bg-ok hover:brightness-110 text-ink font-semibold rounded-lg px-4 py-2 flex items-center">Install to system scheduler
-        <span class="tip"><span class="ic" style="background:#0b1020;color:#bfe9d4">i</span><span class="bub">Registers the job in <b>Windows Task Scheduler</b> (or <b>cron</b>). It then runs on schedule <b>even when this app is closed</b> — nothing needs to stay open. Credentials come from the selected (non-encrypted) profile.</span></span>
+        <span class="tip"><span class="ic" style="background:#0b1020;color:#bfe9d4">i</span><span class="bub">Registers the job in <b>Windows Task Scheduler</b> (or <b>cron</b>). It then runs on schedule <b>even when this app is closed</b> - nothing needs to stay open. Credentials come from the selected (non-encrypted) profile.</span></span>
       </button>
       <button id="btnExportJob" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Export command</button>
     </div>
@@ -324,7 +324,7 @@ tailwind.config = { theme: { extend: {
   <section class="bg-panel border border-line rounded-xl p-5">
     <div class="flex items-center justify-between mb-3">
       <h2 class="font-display font-semibold text-brand-light">Saved jobs</h2>
-      <span class="text-[11px] text-muted">Runs via the system scheduler (Task Scheduler / cron) — even when this app is closed.</span>
+      <span class="text-[11px] text-muted">Runs via the system scheduler (Task Scheduler / cron) - even when this app is closed.</span>
     </div>
     <div id="jobsList" class="space-y-2 text-sm"></div>
   </section>
@@ -336,7 +336,7 @@ tailwind.config = { theme: { extend: {
 <div id="logModal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
   <div class="bg-panel border border-line rounded-xl p-5 w-full max-w-2xl flex flex-col" style="max-height:85vh">
     <div class="flex items-center justify-between mb-3">
-      <h3 class="font-display font-semibold text-brand-light">Job log — <span id="logJobName"></span></h3>
+      <h3 class="font-display font-semibold text-brand-light">Job log - <span id="logJobName"></span></h3>
       <button id="logRefresh" class="text-xs text-brand-light hover:underline">refresh</button>
     </div>
     <pre id="logBody" class="console text-[12px] bg-ink border border-line rounded-lg p-3 overflow-auto whitespace-pre-wrap text-[#c4c8d4] flex-1"></pre>
@@ -372,7 +372,7 @@ tailwind.config = { theme: { extend: {
         <li data-c="sym" class="text-muted"><span class="mark">○</span> a special character</li>
         <li data-c="match" class="text-muted"><span class="mark">○</span> both passwords match</li>
       </ul>
-      <p class="text-[11px] text-muted">This password is never stored — you'll need it to load the profile.</p>
+      <p class="text-[11px] text-muted">This password is never stored - you'll need it to load the profile.</p>
     </div>
     <p id="savePlainWarn" class="text-[11px] text-warn mt-2">⚠️ Without encryption the IMAP password is stored in plain text in a local database file on this machine.</p>
     <div class="flex gap-2 justify-end mt-4">
@@ -565,7 +565,7 @@ function renderNode(node,parent,depth){
   const head=document.createElement('div'); head.className='flex items-center gap-2 mb-1';
   const lbl=document.createElement('span'); lbl.className='text-xs text-muted'; lbl.textContent='Match';
   const op=document.createElement('select'); op.className='field w-44';
-  [['ALL — all match (AND)','AND'],['ANY — any match (OR)','OR']].forEach(([t,vv])=>{const o=document.createElement('option');o.value=vv;o.textContent=t;op.appendChild(o);}); op.value=node.op; op.onchange=()=>{node.op=op.value;persistRule();};
+  [['ALL - all match (AND)','AND'],['ANY - any match (OR)','OR']].forEach(([t,vv])=>{const o=document.createElement('option');o.value=vv;o.textContent=t;op.appendChild(o);}); op.value=node.op; op.onchange=()=>{node.op=op.value;persistRule();};
   const ac=document.createElement('button'); ac.className='text-xs px-2 py-1 rounded-lg border border-line text-muted hover:text-cream'; ac.textContent='+ Condition'; ac.onclick=()=>{node.children.push(newCond());renderBuilder();};
   const ag=document.createElement('button'); ag.className='text-xs px-2 py-1 rounded-lg border border-line text-muted hover:text-cream'; ag.textContent='+ Group'; ag.onclick=()=>{node.children.push(newGroup());renderBuilder();};
   head.append(lbl,op,ac,ag);
@@ -604,7 +604,7 @@ async function pollLog(){
     if(typeof d.cursor==='number') logCursor=d.cursor;
     if(d.lines && d.lines.length) pushLines(d.lines);
     if(d.running){ poll=setTimeout(pollLog, pollDelay()); }
-    else { poll=null; if(d.status && d.status!=='running') log('— '+d.status+(d.error?(': '+d.error):'')+' —'); setBusy(false); curRunId=null; persistLog(); }
+    else { poll=null; if(d.status && d.status!=='running') log('- '+d.status+(d.error?(': '+d.error):'')+' -'); setBusy(false); curRunId=null; persistLog(); }
   }catch(e){ poll=null; setBusy(false); log('[ERROR] '+e.message); }
 }
 async function startJob(path, body){
@@ -642,7 +642,7 @@ function updateSchedInputs(){
     hourly:'Runs every hour at the minutes part of the time below.',
     daily:'Runs every day at the chosen time.',
     weekly:'Runs once a week on the chosen weekday and time.',
-    monthly:'Runs once a month on the chosen day (1–28) and time.'
+    monthly:'Runs once a month on the chosen day (1-28) and time.'
   };
   $('schedHint').textContent=hints[kind]||'';
   updateJobSummary();
@@ -665,7 +665,7 @@ function populateJobProfiles(){
   const cur=sel.value;
   const plain=PROFILES.filter(p=>!p.encrypted);
   sel.innerHTML='';
-  if(!plain.length){ const o=document.createElement('option'); o.value=''; o.textContent='— no non-encrypted profile —'; sel.appendChild(o); return; }
+  if(!plain.length){ const o=document.createElement('option'); o.value=''; o.textContent='- no non-encrypted profile -'; sel.appendChild(o); return; }
   plain.forEach(p=>{ const o=document.createElement('option'); o.value=p.name; o.textContent=p.name; sel.appendChild(o); });
   if(cur && plain.some(p=>p.name===cur)) sel.value=cur;
 }
@@ -691,7 +691,7 @@ function updateJobSummary(){
     '<b>'+escapeHtml(action)+'</b> · '+matchTxt+
     '<br>Profile: '+profTxt+' · Folders: <b>'+escapeHtml(folders)+'</b>'+
     (empty?'':' · Scan: <b>'+escapeHtml(mode)+'</b>')+
-    '<br><span class="text-warn">Runs for real — dry-run does not apply to scheduled jobs.</span> '+
+    '<br><span class="text-warn">Runs for real - dry-run does not apply to scheduled jobs.</span> '+
     'Set connection profile here; folders/match/options in the <b>Cleanup</b> tab.';
 }
 let JOBS = [];
@@ -744,7 +744,7 @@ $('btnDeselectAll').onclick=()=>{ selectedFolders=[]; renderFolders(); };
 
 $('btnConnect').onclick=async()=>{
   if(!$('host').value.trim() || !$('user').value.trim()){ setStatus(false,'failed'); log('[ERROR] Please enter at least Host and User before connecting.'); return; }
-  if(!$('password').value){ if(!(await confirmDialog({title:'No password', message:'No password entered — try connecting anyway?', okText:'Connect'}))) return; }
+  if(!$('password').value){ if(!(await confirmDialog({title:'No password', message:'No password entered - try connecting anyway?', okText:'Connect'}))) return; }
   try{ setStatus(false,'connecting…'); $('btnConnect').disabled=true; log('Connecting to '+$('host').value+' …');
     const d=await api('/api/connect',connParams()); SID=d.sid; localStorage.setItem('icw_sid',SID);
     logCursor=0; persistLog();   // fresh session log
@@ -824,7 +824,7 @@ async function refreshJobLog(){
   try{
     const d=await (await fetch('/api/jobs/'+encodeURIComponent(LOG_JOB)+'/log')).json();
     const txt=(d.log||'').trim();
-    $('logBody').textContent = txt || 'No log yet — this job has not run, or it ran before logging was added.';
+    $('logBody').textContent = txt || 'No log yet - this job has not run, or it ran before logging was added.';
     $('logBody').scrollTop=$('logBody').scrollHeight;
   }catch(e){ $('logBody').textContent='Error: '+e.message; }
 }
@@ -845,7 +845,7 @@ $('btnCount').onclick=()=>{
 setInterval(async()=>{
   if(!SID) return;
   try{ const s=await (await fetch('/api/session/'+SID)).json();
-    if(!s.connected){ SID=null; localStorage.removeItem('icw_sid'); knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setConnectedUI(false); setStatus(false,'session expired'); log('Session expired (idle) — reconnect to continue.'); }
+    if(!s.connected){ SID=null; localStorage.removeItem('icw_sid'); knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setConnectedUI(false); setStatus(false,'session expired'); log('Session expired (idle) - reconnect to continue.'); }
   }catch(_){}
 }, 60000);
 
@@ -870,7 +870,7 @@ function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<'
 function setProfileLabel(name){
   selectedProfile = name || '';
   const exp=$('btnExportProfile'); if(exp) exp.disabled = !selectedProfile;
-  if(!selectedProfile){ $('profileBtnLabel').innerHTML = '<span class="text-muted">— New profile —</span>'; return; }
+  if(!selectedProfile){ $('profileBtnLabel').innerHTML = '<span class="text-muted">- New profile -</span>'; return; }
   const p = PROFILES.find(x=>x.name===selectedProfile);
   $('profileBtnLabel').innerHTML = ((p && p.encrypted) ? LOCK_SVG : '') + '<span class="truncate">'+escapeHtml(selectedProfile)+'</span>';
 }
@@ -879,7 +879,7 @@ function renderProfileMenu(){
   const item = (name, html)=>{ const b=document.createElement('button'); b.type='button';
     b.className='w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm text-cream hover:bg-panel';
     b.innerHTML=html; b.onclick=()=>chooseProfile(name); m.appendChild(b); };
-  item('', '<span class="text-muted">— New profile —</span>');
+  item('', '<span class="text-muted">- New profile -</span>');
   PROFILES.forEach(p=> item(p.name,
     (p.encrypted ? LOCK_SVG : '<span class="w-3.5 flex-none"></span>')+'<span class="truncate">'+escapeHtml(p.name)+'</span>'));
 }
@@ -967,7 +967,7 @@ $('importFile').onchange=(e)=>{
     $('timeout').value=d.timeout||120; $('password').value=d.password||'';
     const idx=(META.providers||[]).findIndex(pr=>pr.host && pr.host===d.host); if(idx>=0) $('provider').value=String(idx);
     applyProviderTips(); refreshConditional();
-    log('Imported "'+f.name+'" — choose whether to encrypt, then Save.');
+    log('Imported "'+f.name+'" - choose whether to encrypt, then Save.');
     openSaveModal(d.name || f.name.replace(/\.json$/i,''));
   };
   r.readAsText(f); e.target.value='';
@@ -1010,7 +1010,7 @@ loadProfiles();
 loadMeta().then(()=>{ refreshConditional(); restore(); restoreUiState(); });
 
 // Blink the provider user/password tooltips at random intervals to draw the
-// eye — only while NOT connected, and only for tips that are actually shown.
+// eye - only while NOT connected, and only for tips that are actually shown.
 (function blinkTips(){
   ['userTip','passTip'].forEach(id=>{
     const t=$(id); if(!t) return;

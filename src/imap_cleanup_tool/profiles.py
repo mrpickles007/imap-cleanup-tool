@@ -3,8 +3,8 @@
 A *profile* is a saved IMAP connection (host, port, user, timeout + the
 password). The password can be stored either:
 
-* **plain** — written as-is in the local DB (the user's explicit choice), or
-* **encrypted** — with a user-chosen secret: a key is derived with PBKDF2-HMAC
+* **plain** - written as-is in the local DB (the user's explicit choice), or
+* **encrypted** - with a user-chosen secret: a key is derived with PBKDF2-HMAC
   (SHA-256, 200k iterations) over a random per-profile salt, and the password is
   sealed with Fernet (AES-128-CBC + HMAC). The secret itself is never stored, so
   loading an encrypted profile requires re-entering it.
@@ -64,7 +64,7 @@ def _derive_key(secret: str, salt: bytes) -> bytes:
 
 
 def list_profiles() -> list[dict]:
-    """Return saved profiles (metadata only — never the password)."""
+    """Return saved profiles (metadata only - never the password)."""
     conn = _connect()
     try:
         rows = conn.execute(
@@ -131,7 +131,7 @@ def load_profile(name: str, secret: str = "") -> dict:
 
     if row["encrypted"]:
         if not secret:
-            raise ProfileError("This profile is encrypted — enter its password.")
+            raise ProfileError("This profile is encrypted - enter its password.")
         key = _derive_key(secret, bytes(row["salt"]))
         from cryptography.fernet import Fernet, InvalidToken
         try:

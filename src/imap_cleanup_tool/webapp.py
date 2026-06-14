@@ -6,7 +6,7 @@ Unlike a plain request/response wrapper, the server keeps a **persistent
 session** per connected client: the IMAP connection is opened once and reused,
 so a page refresh does not drop it. Long operations (cleanup, listing senders)
 run in a **background thread** that can be **stopped**, and the page polls for
-new log lines and status — the UI never freezes.
+new log lines and status - the UI never freezes.
 
 Run it with the installed command::
 
@@ -17,7 +17,7 @@ Install the dependencies with::
     pip install "imap-cleanup-tool[web]"
 """
 
-# NOTE: deliberately no ``from __future__ import annotations`` — FastAPI must
+# NOTE: deliberately no ``from __future__ import annotations`` - FastAPI must
 # resolve the Pydantic request models (defined locally in create_app) from real
 # annotation objects, not strings.
 
@@ -542,7 +542,7 @@ def create_app():
         if info is None:
             raise HTTPException(400, f"Profile {prof!r} not found.")
         if info["encrypted"]:
-            raise HTTPException(400, "Encrypted profiles can't run unattended — "
+            raise HTTPException(400, "Encrypted profiles can't run unattended - "
                                      "use a non-encrypted profile for scheduled "
                                      "jobs.")
         args: list[str] = ["--profile", prof]
@@ -563,8 +563,8 @@ def create_app():
                 parse_targets_text(body.targets_text)  # validate
             except ValueError as exc:
                 raise HTTPException(400, "The job has no targets. In the Cleanup "
-                    "tab choose a match — fill the Target list (or switch to a "
-                    "Rule), or enable Empty folder — then save the job.") from exc
+                    "tab choose a match - fill the Target list (or switch to a "
+                    "Rule), or enable Empty folder - then save the job.") from exc
             tpath = scheduler.config_dir() / f"{name}.targets.txt"
             tpath.write_text(body.targets_text, encoding="utf-8")
             args += ["--targets", str(tpath)]

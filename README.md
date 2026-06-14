@@ -4,7 +4,7 @@
 
 <h1 align="center">IMAP Cleaner</h1>
 
-Delete or move IMAP emails in bulk — by **sender**, by **domain**, or by
+Delete or move IMAP emails in bulk - by **sender**, by **domain**, or by
 **nested rules** (a query builder). Works from the **command line** and from a
 local **web interface**. The CLI uses only the Python standard library; the web
 UI is an optional extra (FastAPI).
@@ -18,8 +18,8 @@ UI is an optional extra (FastAPI).
 - **List senders** with counts and export them to CSV (with timestamp).
 - **Stop** button / cooperative cancellation for long runs.
 - **Scheduler**: save jobs and **install** them into the system scheduler
-  (Windows Task Scheduler / cron) — once, hourly, daily, weekly, monthly, or
-  every N minutes — so they run even when the app is closed, with per-job logs.
+  (Windows Task Scheduler / cron) - once, hourly, daily, weekly, monthly, or
+  every N minutes - so they run even when the app is closed, with per-job logs.
 
 > ⚠️ Deleting email is destructive. Always do a `--dry-run` first. Without
 > `--expunge`, messages are only flagged deleted (often hidden by the client
@@ -29,9 +29,9 @@ UI is an optional extra (FastAPI).
 
 ## Table of contents
 
-- [Quick start — web interface](#quick-start--web-interface)
+- [Quick start - web interface](#quick-start--web-interface)
 - [Install](#install)
-- [Quick start — command line](#quick-start--command-line)
+- [Quick start - command line](#quick-start--command-line)
 - [Command-line usage](#command-line-usage)
 - [Rule expressions](#rule-expressions)
 - [Target file format](#target-file-format)
@@ -42,39 +42,52 @@ UI is an optional extra (FastAPI).
 
 ---
 
-## Quick start — web interface
+## Quick start - web interface
 
-The web interface is the easiest way to use the tool, and what most people want.
+The web interface is the easiest way to use the tool and the recommended path for
+most users.
+
+**Prerequisite:** Python **3.10 or newer**. Check with `python --version` (or
+`python3 --version`). If it is missing, download it from
+[python.org/downloads](https://www.python.org/downloads/) - on Windows, tick
+*"Add python.exe to PATH"* in the installer. Linux/macOS usually ship Python, or
+install it with the system package manager (`sudo apt install python3 python3-pip`,
+`brew install python`, etc.).
 
 ```bash
-# 1. Install (with the web extra)
+# 1. Install. The [web] extra installs BOTH the core CLI and the web UI
+#    (it pulls in the base package automatically - no separate step needed).
 pip install "imap-cleanup-tool[web]"
 
-# 2. Launch — serves http://127.0.0.1:8765 and opens your browser
+# 2. Launch. Serves http://127.0.0.1:8765 and opens the default browser.
 imap-cleanup-tool-web
 ```
 
+> If `pip` is not found, use `python -m pip ...` (Windows) or `python3 -m pip ...`
+> (Linux/macOS). On some systems the command is `pip3`. To keep things isolated,
+> you can first create a virtual environment - see [Install](#install).
+
 Then, in the browser:
 
-1. **Connect** — pick a provider preset (or type host/port), enter your username
-   and password (for Gmail, an **App Password** — see [Gmail notes](#gmail-notes)),
+1. **Connect** - pick a provider preset (or type host/port), enter your username
+   and password (for Gmail, an **App Password** - see [Gmail notes](#gmail-notes)),
    and click *Connect*. Optionally save it as a **connection profile** so you do
    not retype it next time.
-2. **Pick folders** — select one or more folders to scan (each shows its message
+2. **Pick folders** - select one or more folders to scan (each shows its message
    count); use *Select all* / *Deselect all* as needed.
-3. **Choose what to match** — either paste a **target list** (one sender or
+3. **Choose what to match** - either paste a **target list** (one sender or
    domain per line) or build a **rule** visually (field ▸ operator ▸ value, with
    AND/OR groups). Click **Count matching emails** to see how many would be hit.
-4. **Review, then run** — *dry-run is on by default*, so the first run only
+4. **Review, then run** - *dry-run is on by default*, so the first run only
    reports. Watch the live log; use **Stop** to cancel. When the preview looks
    right, turn off dry-run (or enable *Gmail: move to Trash* / *Expunge*) and run
    for real.
-5. *(Optional)* **Schedule it** — in the *Scheduling* tab, turn the same settings
+5. *(Optional)* **Schedule it** - in the *Scheduling* tab, turn the same settings
    into a job and install it into the system scheduler. See
    [Scheduling](#scheduling).
 
-> Running on a server with no desktop? You can still use the GUI from your laptop
-> via SSH port forwarding — see
+> On a server with no desktop, the GUI is still usable from a local browser via
+> SSH port forwarding - see
 > [Remote / headless server](#remote--headless-server-ssh-port-forwarding).
 
 > ⚠️ Deleting email is destructive. Keep dry-run on until the count and log look
@@ -85,25 +98,30 @@ Then, in the browser:
 
 ## Install
 
+Requires **Python 3.10 or newer** (`python --version`). See
+[python.org/downloads](https://www.python.org/downloads/) if you need it.
+
 ### From PyPI (recommended)
+
+A virtual environment keeps the install isolated (optional but recommended):
 
 ```bash
 python -m venv .venv
-# Windows:  .venv\Scripts\activate
+# Windows:      .venv\Scripts\activate
 # macOS/Linux:  source .venv/bin/activate
-
-pip install imap-cleanup-tool
 ```
 
-This installs the `imap-cleanup-tool` CLI. For the **web interface**
-(recommended for most users), install the extra:
+Then install. The base package is the CLI only; the `[web]` extra installs the
+**same base package plus the web UI** in one go:
 
 ```bash
-pip install "imap-cleanup-tool[web]"     # adds the imap-cleanup-tool-web command
+pip install imap-cleanup-tool            # core CLI only
+pip install "imap-cleanup-tool[web]"     # core CLI + web UI (imap-cleanup-tool-web)
 ```
 
-The CLI stays dependency-free; only the web UI pulls in FastAPI, uvicorn and
-cryptography (the last for encrypted connection profiles).
+You do not need to install the base separately before `[web]` - the extra
+includes it. The CLI stays dependency-free; only the web UI pulls in FastAPI,
+uvicorn and cryptography (the last for encrypted connection profiles).
 
 ### From source
 
@@ -119,7 +137,7 @@ pip install -e ".[dev,web]"      # editable install + dev tools + web UI
 
 ### Running the tests
 
-The test suite uses only the standard library (`unittest`) — nothing extra to
+The test suite uses only the standard library (`unittest`) - nothing extra to
 install:
 
 ```bash
@@ -128,7 +146,7 @@ python -m unittest discover -s tests -v
 
 ---
 
-## Quick start — command line
+## Quick start - command line
 
 ```bash
 # 1. See your folders (find the real Trash/Sent names)
@@ -195,7 +213,7 @@ imap-cleanup-tool --host HOST --user USER --targets targets.txt \
 
 In the **web UI** you build rules visually with the query builder (no typing).
 The text grammar below is what the **CLI** `--rule` flag accepts and what
-scheduled jobs store — the visual builder produces exactly these expressions
+scheduled jobs store - the visual builder produces exactly these expressions
 under the hood.
 
 Rules are an alternative to target files, evaluated server-side via IMAP
@@ -227,7 +245,7 @@ One entry per line; `#` starts a comment.
 
 ```text
 spam@example.com        # exact sender address
-*@newsletter.com        # that domain EXACTLY — never subdomains
+*@newsletter.com        # that domain EXACTLY - never subdomains
 annoying.com            # that domain, plus subdomains if --include-subdomains
 mail.annoying.com       # that specific (sub)domain
 ```
@@ -240,7 +258,7 @@ either way.
 So in `full` mode `*@paypal.com` is the same as `paypal.com` *without*
 `--include-subdomains`. The useful part is mixing them: with
 `--include-subdomains` **on**, `*@paypal.com` stays exact while bare domains
-expand to their subdomains — per-entry control in a single list. Example:
+expand to their subdomains - per-entry control in a single list. Example:
 
 ```text
 *@paypal.com      # exact, even with --include-subdomains
@@ -268,8 +286,8 @@ Highlights:
 
 - Many provider presets, connect-and-load-folders (with per-folder message
   counts), multi-folder selection, Select all / Deselect all.
-- **Connection profiles**: save host / user / password to a local SQLite DB —
-  optionally **encrypted** with a password — and pick one from a dropdown.
+- **Connection profiles**: save host / user / password to a local SQLite DB -
+  optionally **encrypted** with a password - and pick one from a dropdown.
 - Match by a **target list** (paste or load from a file, with inline format
   help) or a **visual nested query builder** (field ▸ operator ▸ value, AND/OR
   groups).
@@ -284,23 +302,23 @@ Highlights:
 
 ## Remote / headless server (SSH port forwarding)
 
-Yes — you can install the tool on a **remote, desktop-less server** (e.g. a VPS
-or a home server reached over SSH) and still drive the **web GUI from your local
-machine's browser**. The web server binds to the server's loopback
-(`127.0.0.1:8765`) and is **not** exposed to the network; you reach it through an
-encrypted **SSH tunnel** that maps a local port to that loopback port. This is
-the same mechanism the *VS Code Remote* extension and SSH clients like *Bitvise*
-or *PuTTY* use for "local port forwarding".
+The tool can be installed on a **remote, desktop-less server** (e.g. a VPS or a
+home server reached over SSH) and still be driven through the **web GUI in a
+local browser**. The web server binds to the server's loopback
+(`127.0.0.1:8765`) and is **not** exposed to the network; the browser reaches it
+through an encrypted **SSH tunnel** that maps a local port to that loopback port.
+This is the same "local port forwarding" mechanism used by the *VS Code Remote*
+extension and SSH clients such as *Bitvise* or *PuTTY*.
 
-**On the server** (over your SSH session) — start the web server without trying
-to open a browser it does not have:
+**On the server** (in the SSH session), start the web server without trying to
+open a browser it does not have:
 
 ```bash
 pip install "imap-cleanup-tool[web]"
 imap-cleanup-tool-web --no-browser          # listens on 127.0.0.1:8765
 ```
 
-**On your local machine** — open an SSH tunnel that forwards a local port to the
+**On the local machine**, open an SSH tunnel that forwards a local port to the
 server's `127.0.0.1:8765`:
 
 ```bash
@@ -312,11 +330,11 @@ Then open **http://localhost:8765** in your local browser. Traffic travels insid
 the SSH connection; nothing is published on the server's public interface.
 
 - **VS Code Remote-SSH**: open the folder on the server, run `imap-cleanup-tool-web
-  --no-browser` in its terminal — VS Code auto-forwards the port and offers to
+  --no-browser` in its terminal - VS Code auto-forwards the port and offers to
   open it locally. (Add it manually in the *Ports* panel if needed.)
-- **Bitvise / PuTTY**: add a *Local* (C2S) forwarding rule — listen interface
+- **Bitvise / PuTTY**: add a *Local* (C2S) forwarding rule - listen interface
   `127.0.0.1`, listen port `8765`, destination host `localhost`, destination
-  port `8765` — then browse to `http://localhost:8765`.
+  port `8765` - then browse to `http://localhost:8765`.
 - Pick a different **local** port if 8765 is busy, e.g. `-L 9000:localhost:8765`
   → open `http://localhost:9000`. To run the server on another port, use
   `imap-cleanup-tool-web --no-browser --port 8800` and forward to that.
@@ -329,7 +347,7 @@ the SSH connection; nothing is published on the server's public interface.
 > disconnect. To leave it running, start it under `tmux`/`screen`, with
 > `nohup imap-cleanup-tool-web --no-browser &`, or as a `systemd` service. For
 > *unattended* recurring cleanups you usually want a **scheduled job** instead of
-> a long-lived server — see [Scheduling](#scheduling).
+> a long-lived server - see [Scheduling](#scheduling).
 
 ---
 
@@ -337,14 +355,14 @@ the SSH connection; nothing is published on the server's public interface.
 
 Jobs are stored as JSON in your user config directory
 (`%APPDATA%\imap-cleanup-tool` on Windows, `~/.config/imap-cleanup-tool` elsewhere).
-Scheduling is handled entirely by the **operating system scheduler** — there is
+Scheduling is handled entirely by the **operating system scheduler** - there is
 no background process to keep running.
 
 Click *Install to system scheduler* to register a job directly (a `schtasks`
 task on Windows, a `crontab` line on Linux/macOS) so it runs even when the app
 is closed. *Export command* shows the equivalent line.
 
-**Frequency** — pick one in the *Scheduling* tab; the form shows only the inputs
+**Frequency** - pick one in the *Scheduling* tab; the form shows only the inputs
 that apply:
 
 | Frequency | Inputs | Windows | Linux/macOS |
@@ -354,7 +372,7 @@ that apply:
 | Hourly | minute of hour | `/SC HOURLY` | `M * * * *` |
 | Daily | time | `/SC DAILY` | `MM HH * * *` |
 | Weekly | weekday + time | `/SC WEEKLY /D` | `MM HH * * <dow>` |
-| Monthly | day 1–28 + time | `/SC MONTHLY /D` | `MM HH <dom> * *` |
+| Monthly | day 1-28 + time | `/SC MONTHLY /D` | `MM HH <dom> * *` |
 
 The time/date pickers use your system locale; the one-time date is rendered in
 the system's short-date format for `schtasks`. One-time jobs on Linux/macOS use
@@ -368,7 +386,7 @@ to *saved* (it is no longer queued).
 > not fire. On many distributions `at` is not installed by default:
 > `sudo apt install at` (Debian/Ubuntu) or `sudo dnf install at` (Fedora), then
 > enable the daemon with `sudo systemctl enable --now atd`. (macOS ships `at`,
-> but `atrun` is disabled by default — enable it with
+> but `atrun` is disabled by default - enable it with
 > `sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.atrun.plist`.)
 > Recurring jobs use cron instead and have no such requirement.
 
@@ -377,10 +395,10 @@ tab), so different jobs can target different accounts. The scheduled task runs
 the job by name (`imap-cleanup-tool --run-job NAME`) via the current interpreter
 (so it works inside your virtualenv without relying on `PATH`); at run time the
 CLI loads host / user / password from the profile's local SQLite DB. Only
-**non-encrypted** profiles can be scheduled — a cron has no way to type the
+**non-encrypted** profiles can be scheduled - a cron has no way to type the
 password to decrypt an encrypted one.
 
-**Logs** — every scheduled run appends to a rolling log file under
+**Logs** - every scheduled run appends to a rolling log file under
 `<config dir>/logs/<job>.log`. In the *Scheduling* tab, click **logs** on any
 saved job to view (or download) its run history.
 
@@ -400,11 +418,11 @@ saved job to view (or download) its run history.
 
 ## License
 
-**GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)** — see
+**GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)** - see
 [LICENSE](LICENSE).
 
 This is free, open-source software with a strong copyleft: you may use, study,
-modify, and redistribute it, but **any derivative work — including software that
+modify, and redistribute it, but **any derivative work - including software that
 reuses any part of this code, and modified versions offered over a network as a
-service — must also be released as open source under the AGPL-3.0**. You cannot
+service - must also be released as open source under the AGPL-3.0**. You cannot
 incorporate this code into a closed-source or proprietary product.

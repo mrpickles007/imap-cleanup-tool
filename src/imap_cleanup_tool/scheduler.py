@@ -1,16 +1,13 @@
-"""Scheduling: persist named jobs, run them internally, or export to the OS.
+"""Scheduling: persist named jobs and install them into the OS scheduler.
 
 A *job* is a saved scan/clean operation plus a schedule. Jobs are stored as
 JSON under a config directory so both the CLI and GUI can see them.
 
-Two execution paths:
-
-* Internal  - a lightweight background thread (APScheduler-free) that wakes up
-              every minute and runs jobs whose time has come. Works only while
-              the app is running.
-* System    - export a job to the OS scheduler: a ``schtasks`` command on
-              Windows or a crontab line on Linux/macOS, invoking the package
-              CLI. Runs even when the app is closed.
+Jobs run via the **operating system scheduler** only (there is no internal
+background scheduler): a job is exported/installed as a ``schtasks`` task on
+Windows, a crontab line on Linux/macOS (recurring), or an ``at`` job on
+Linux/macOS (one-shot), each invoking the package CLI. They run even when the
+app is closed.
 
 This module does not perform IMAP work itself; it shells out to the installed
 ``imap-cleanup-tool`` CLI so that system tasks are self-contained.
@@ -157,7 +154,7 @@ def build_schedule(kind: str, *, time: str = "03:00", date: str = "",
 
     Kinds: ``once`` (date+time), ``interval`` (every N minutes), ``hourly``
     (every hour at minute MM of ``time``), ``daily`` (HH:MM), ``weekly``
-    (weekday + HH:MM), ``monthly`` (day-of-month 1–28 + HH:MM).
+    (weekday + HH:MM), ``monthly`` (day-of-month 1-28 + HH:MM).
     """
     if kind == "once":
         if not date:
@@ -186,10 +183,10 @@ def build_schedule(kind: str, *, time: str = "03:00", date: str = "",
         try:
             dom = int(day)
         except (ValueError, TypeError) as exc:
-            raise ValueError("Choose a day of month (1–28) for a monthly job.") \
+            raise ValueError("Choose a day of month (1-28) for a monthly job.") \
                 from exc
         if not 1 <= dom <= 28:
-            # Capped at 28 so the job fires every month (29–31 skip short ones).
+            # Capped at 28 so the job fires every month (29-31 skip short ones).
             raise ValueError("Day of month must be between 1 and 28.")
         return {"kind": "monthly", "day": dom, "time": _check_time(time)}
     raise ValueError(f"Unknown schedule kind: {kind!r}.")
@@ -350,7 +347,7 @@ def _install_at(job: Job) -> str:
         upsert_job(job)
         return f"Scheduled one-time job '{job.name}' with `at` (job #{job.at_id})."
     return (f"Scheduled one-time job '{job.name}' with `at` (its id could not "
-            f"be read — manage it with 'atq'/'atrm').")
+            f"be read - manage it with 'atq'/'atrm').")
 
 
 def install_cron(job: Job) -> str:
@@ -466,7 +463,7 @@ def installed_job_names() -> set[str]:
             if marker in line:
                 names.add(line.split(marker, 1)[1].strip())
     except FileNotFoundError:
-        pass  # no cron — still check one-shot `at` jobs below
+        pass  # no cron - still check one-shot `at` jobs below
     # One-shot jobs scheduled via `at`: a recorded at_id still in the queue.
     queued = _queued_at_ids()
     if queued:

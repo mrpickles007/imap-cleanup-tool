@@ -226,7 +226,7 @@ def search_targets(conn: imaplib.IMAP4_SSL, addresses: set[str],
     """Find UIDs by sender using one IMAP 'SEARCH FROM' per target term.
 
     Note: server-side SEARCH FROM is a substring match, so the exact-domain
-    (``*@``) distinction is not enforced here — it only applies to ``full`` mode.
+    (``*@``) distinction is not enforced here - it only applies to ``full`` mode.
     """
     found: set[bytes] = set()
     terms = sorted(addresses | domains | (exact_domains or set()))
@@ -297,7 +297,7 @@ def empty_folder(conn: imaplib.IMAP4_SSL, folder: str, dry_run: bool,
     """Delete ALL messages in a folder (no filtering). Returns count removed."""
     status, _ = conn.select(_quote_mailbox(folder), readonly=dry_run)
     if status != "OK":
-        logger.error("Cannot open folder %r — skipping.", folder)
+        logger.error("Cannot open folder %r - skipping.", folder)
         return 0
     status, data = conn.uid("SEARCH", None, "ALL")
     if status != "OK" or not data or not data[0]:
@@ -310,7 +310,7 @@ def empty_folder(conn: imaplib.IMAP4_SSL, folder: str, dry_run: bool,
         return len(all_uids)
     flagged = delete_uids(conn, all_uids, should_stop=should_stop)
     conn.expunge()
-    logger.info("Expunged %r — folder emptied (%d).", folder, flagged)
+    logger.info("Expunged %r - folder emptied (%d).", folder, flagged)
     return flagged
 
 
@@ -338,7 +338,7 @@ def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
     """
     status, _ = conn.select(_quote_mailbox(folder), readonly=dry_run)
     if status != "OK":
-        logger.error("Cannot open folder %r — skipping.", folder)
+        logger.error("Cannot open folder %r - skipping.", folder)
         return 0
 
     if search_argument:
