@@ -6,8 +6,8 @@
 
 Delete or move IMAP emails in bulk — by **sender**, by **domain**, or by
 **nested rules** (a query builder). Works from the **command line** and from a
-**graphical interface** (Tkinter). No third-party runtime dependencies: it uses
-only the Python standard library.
+local **web interface**. The CLI uses only the Python standard library; the web
+UI is an optional extra (FastAPI).
 
 - Match by a target file (one sender/domain per line) **or** by a rule
   expression like `sender contains amazon.com OR (subject is Fattura AND date starts 2025-01-01)`.
@@ -32,11 +32,9 @@ only the Python standard library.
 - [Command-line usage](#command-line-usage)
 - [Rule expressions](#rule-expressions)
 - [Target file format](#target-file-format)
-- [Graphical interface](#graphical-interface)
 - [Web interface](#web-interface)
 - [Scheduling](#scheduling)
 - [Gmail notes](#gmail-notes)
-- [Building a Windows .exe](#building-a-windows-exe)
 - [Publishing to PyPI](#publishing-to-pypi)
 
 ---
@@ -53,14 +51,14 @@ python -m venv .venv
 pip install imap-cleanup-tool
 ```
 
-This installs two commands: `imap-cleanup-tool` (CLI) and `imap-cleanup-tool-gui`
-(desktop GUI). For the **web interface**, install the extra:
+This installs the `imap-cleanup-tool` CLI. For the **web interface**
+(recommended for most users), install the extra:
 
 ```bash
 pip install "imap-cleanup-tool[web]"     # adds the imap-cleanup-tool-web command
 ```
 
-The core tool and CLI stay dependency-free; only the web UI pulls FastAPI + uvicorn.
+The CLI stays dependency-free; only the web UI pulls in FastAPI + uvicorn.
 
 ### From source
 
@@ -82,17 +80,6 @@ install:
 ```bash
 python -m unittest discover -s tests -v
 ```
-
-### Tkinter (GUI) on Linux
-
-Tkinter ships with Python, but some Linux distros split it into a system
-package:
-
-```bash
-sudo apt install python3-tk      # Debian/Ubuntu
-```
-
-Windows and macOS Python installers include Tkinter already.
 
 ---
 
@@ -159,10 +146,10 @@ imap-cleanup-tool --host HOST --user USER --targets targets.txt \
 
 ## Rule expressions
 
-In the **GUI** you build rules visually with the query builder (no typing). The
-text grammar below is what the **CLI** `--rule` flag accepts and what scheduled
-jobs store — the visual builder produces exactly these expressions under the
-hood.
+In the **web UI** you build rules visually with the query builder (no typing).
+The text grammar below is what the **CLI** `--rule` flag accepts and what
+scheduled jobs store — the visual builder produces exactly these expressions
+under the hood.
 
 Rules are an alternative to target files, evaluated server-side via IMAP
 `SEARCH`. Fields and operators:
@@ -215,52 +202,34 @@ newsletter.com    # this one DOES include its subdomains
 
 ---
 
-## Graphical interface
-
-```bash
-imap-cleanup-tool-gui
-```
-
-The window has two tabs:
-
-**Cleanup** — connect once with the **Connect** button (the connection stays
-open and is reused). Pick folders by moving them from *Available* to *Selected*
-(each click **adds**; double-click or the **←** button **removes** one —
-selections no longer overwrite each other). Match either by a **target file**
-or by building a **rule visually** with the query builder — dropdowns for
-*field ▸ operator ▸ value*, **+ Condition** to add a test, and **+ Group** for
-nested AND/OR groups (no expression typing, so no syntax mistakes). Set options
-and press **Run**. **Stop** cancels a running operation at the next safe
-checkpoint.
-
-**Scheduling** — save the current form as a named job, toggle the internal
-scheduler, or export an OS command (see below).
-
----
-
 ## Web interface
 
-A local web UI (FastAPI) with the same capabilities as the desktop GUI, plus a
-nicer look and inline help. Install the extra and run:
+A local web UI (FastAPI) is the tool's graphical interface. Install the extra
+and run:
 
 ```bash
 pip install "imap-cleanup-tool[web]"
 imap-cleanup-tool-web        # serves http://127.0.0.1:8765 and opens your browser
 ```
 
-Options: `--host`, `--port`, `--no-browser`. The server is **stateless** — your
-credentials are sent with each action to the local server and never stored. It
-runs only on your machine (`127.0.0.1`) by default.
+Options: `--host`, `--port`, `--no-browser`. It runs only on your machine
+(`127.0.0.1`) by default. The IMAP connection lives on the local server and is
+reused across actions, surviving a page refresh; it is dropped automatically
+after a period of inactivity. Your password is never stored.
 
 Highlights:
 
-- Provider presets, connect-and-load-folders, multi-folder selection.
-- Match by a **target list** (paste senders/domains, with inline format help) or
-  a **visual nested query builder** (field ▸ operator ▸ value, AND/OR groups).
-- Context-aware options: *Include subdomains* enables only in **full** scan mode;
-  *Gmail: move to Trash* enables only for Gmail hosts — each with a tooltip
-  explaining what it does.
-- Dry-run by default, live log panel, and a one-click sender listing.
+- Many provider presets, connect-and-load-folders (with per-folder message
+  counts), multi-folder selection, Select all / Deselect all.
+- Match by a **target list** (paste or load from a file, with inline format
+  help) or a **visual nested query builder** (field ▸ operator ▸ value, AND/OR
+  groups).
+- **Count matching emails** before deleting; **dry-run** is on by default.
+- Context-aware options with tooltips (e.g. *Include subdomains* only in
+  `"full"` scan mode; *Gmail: move to Trash* only for Gmail).
+- Background runs with a **Stop** button and a persistent, live log panel.
+- **List senders** with counts (export to CSV), and a **Scheduling** tab to
+  create jobs and install them into the OS scheduler.
 
 ---
 
@@ -269,15 +238,16 @@ Highlights:
 Jobs are stored as JSON in your user config directory
 (`%APPDATA%\imap-cleanup-tool` on Windows, `~/.config/imap-cleanup-tool` elsewhere).
 
-- **Internal scheduler**: enable it in the GUI; jobs run while the app is open.
-- **System scheduler**: click *Export system command* to get a ready-to-run
-  line:
-  - **Windows** — a `schtasks /Create ...` command (Task Scheduler).
-  - **Linux/macOS** — a `crontab` line.
+- **Internal scheduler**: toggle it in the web UI's *Scheduling* tab; jobs run
+  while the app is open.
+- **System scheduler**: click *Install to system scheduler* to register the job
+  directly (a `schtasks` task on Windows, a `crontab` line on Linux/macOS) so it
+  runs even when the app is closed. *Export command* shows the equivalent line.
 
-Exported commands invoke the CLI through the current interpreter
-(`python -m imap_cleanup_tool.cli ...`), so they work inside your virtualenv without
-relying on `PATH`. Use `--yes` in scheduled jobs to skip the prompt.
+Scheduled tasks run a saved job by name (`imap-cleanup-tool --run-job NAME`) via
+the current interpreter, so they work inside your virtualenv without relying on
+`PATH`. For unattended jobs the password is read from the `IMAP_PASSWORD`
+environment variable (it is never stored in the job).
 
 ---
 
@@ -290,26 +260,6 @@ relying on `PATH`. Use `--yes` in scheduled jobs to skip the prompt.
    `[Gmail]/All Mail`, `[Gmail]/Spam` (localised, e.g. `[Gmail]/Cestino`).
 4. Use `--gmail-trash`: a plain delete in `INBOX` only removes the label, not
    the message. Target `[Gmail]/All Mail` to catch archived mail too.
-
----
-
-## Building a Windows .exe
-
-Locally:
-
-```bash
-pip install pyinstaller .
-pyinstaller --onefile --windowed --name imap-cleanup-tool-gui \
-    --icon assets/icon.ico --collect-data imap_cleanup_tool \
-    --collect-submodules imap_cleanup_tool src/imap_cleanup_tool/gui.py
-pyinstaller --onefile --name imap-cleanup-tool \
-    --icon assets/icon.ico \
-    --collect-submodules imap_cleanup_tool src/imap_cleanup_tool/cli.py
-```
-
-The executables appear in `dist/`. The included GitHub Actions workflow
-(`.github/workflows/build-and-release.yml`) builds them automatically and
-attaches them to a GitHub Release whenever you push a `v*` tag.
 
 ---
 

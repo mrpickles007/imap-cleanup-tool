@@ -1,15 +1,11 @@
-# Runtime: no third-party dependencies — the tool uses only the Python
-# standard library (imaplib, argparse, tkinter, threading, csv, json).
-#
-# tkinter is part of the standard library but on some Linux distros it ships
-# as a separate OS package, e.g. on Debian/Ubuntu:  sudo apt install python3-tk
+# Runtime (CLI): no third-party dependencies — uses only the Python standard
+# library (imaplib, argparse, threading, csv, json).
 #
 # Web UI (optional), install with:  pip install "imap-cleanup-tool[web]"
 # fastapi
 # uvicorn[standard]
 #
-# Development / building (optional), install with:  pip install -e ".[dev]"
+# Development / packaging (optional), install with:  pip install -e ".[dev]"
 # pylint
-# pyinstaller
 # build
 # twine

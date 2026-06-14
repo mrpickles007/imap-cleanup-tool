@@ -5,14 +5,14 @@ build-backend = "hatchling.build"
 [project]
 name = "imap-cleanup-tool"
 version = "0.1.0"
-description = "Delete or move IMAP emails by sender, domain, or nested rules — CLI, desktop GUI, and web UI."
+description = "Delete or move IMAP emails by sender, domain, or nested rules — CLI and local web UI."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "Giulio Alberello", email = "info@giulioalberello.it" }]
 keywords = ["imap", "email", "gmail", "inbox", "cleanup", "email-cleanup",
-            "inbox-cleanup", "mailbox", "imap-client", "spam", "cli", "gui",
-            "tkinter", "python"]
+            "inbox-cleanup", "mailbox", "imap-client", "spam", "cli", "web",
+            "fastapi", "python"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
@@ -22,15 +22,15 @@ classifiers = [
     "Topic :: Communications :: Email",
     "Topic :: Utilities",
 ]
-# Core + CLI + Tkinter GUI have NO third-party runtime dependencies: stdlib only
-# (imaplib, tkinter, argparse). The web UI is an optional extra (see [web]).
+# Core + CLI have NO third-party runtime dependencies: stdlib only (imaplib,
+# argparse). The web UI is an optional extra (see [web]).
 dependencies = []
 
 [project.optional-dependencies]
 # Local web UI (FastAPI + uvicorn). Install with: pip install "imap-cleanup-tool[web]"
 web = ["fastapi>=0.110", "uvicorn[standard]>=0.27"]
-# Tools for development and building the Windows executable.
-dev = ["pylint", "pyinstaller", "build", "twine"]
+# Tools for development and packaging.
+dev = ["pylint", "build", "twine"]
 
 [project.urls]
 Homepage = "https://github.com/mrpickles007/imap-cleanup-tool"
@@ -39,9 +39,6 @@ Issues = "https://github.com/mrpickles007/imap-cleanup-tool/issues"
 [project.scripts]
 imap-cleanup-tool = "imap_cleanup_tool.cli:main"
 imap-cleanup-tool-web = "imap_cleanup_tool.webapp:main"
-
-[project.gui-scripts]
-imap-cleanup-tool-gui = "imap_cleanup_tool.gui:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/imap_cleanup_tool"]
