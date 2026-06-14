@@ -116,8 +116,8 @@ Then, in the browser:
    AND/OR groups). Click **Count matching emails** to see how many would be hit.
 4. **Review, then run** - *dry-run is on by default*, so the first run only
    reports. Watch the live log; use **Stop** to cancel. When the preview looks
-   right, turn off dry-run (or enable *Gmail: move to Trash* / *Expunge*) and run
-   for real.
+   right, turn off dry-run (or pick an action - *Move to another folder*,
+   *Gmail: move to Trash*, *Expunge*) and run for real.
 5. *(Optional)* **Schedule it** - in the *Scheduling* tab, turn the same settings
    into a job and install it into the system scheduler. See
    [Scheduling](#scheduling).
