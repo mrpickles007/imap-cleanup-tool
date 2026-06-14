@@ -16,7 +16,13 @@ class FakeConn:
 
     def uid(self, *args):
         self.calls.append(args)
+        if args and args[0] == "SEARCH":
+            return ("OK", [b"1 2 3"])      # pretend the folder has 3 messages
         return ("OK", [b"1"])
+
+    def select(self, name, readonly=False):
+        self.calls.append(("SELECT", name, readonly))
+        return ("OK", [b"3"])
 
     def expunge(self):
         self.calls.append(("EXPUNGE",))
@@ -83,6 +89,24 @@ class CreateFolderTests(unittest.TestCase):
     def test_empty_name_rejected(self):
         with self.assertRaises(core.imaplib.IMAP4.error):
             core.create_folder(FakeConn(), "   ")
+
+
+class MoveAllTests(unittest.TestCase):
+    """Move with no target list / rule moves every message (search ALL)."""
+
+    def test_move_all_moves_every_message(self):
+        conn = FakeConn(capabilities=("MOVE",))
+        n = core.process_folder(conn, "INBOX", search_argument="ALL",
+                                move=True, dest_folder="Archive", dry_run=False)
+        self.assertEqual(n, 3)
+        self.assertTrue(any(c[0] == "MOVE" for c in conn.calls))
+
+    def test_move_all_dry_run_counts_without_moving(self):
+        conn = FakeConn(capabilities=("MOVE",))
+        n = core.process_folder(conn, "INBOX", search_argument="ALL",
+                                move=True, dest_folder="Archive", dry_run=True)
+        self.assertEqual(n, 3)
+        self.assertFalse(any(c[0] == "MOVE" for c in conn.calls))
 
 
 class DeleteFolderTests(unittest.TestCase):

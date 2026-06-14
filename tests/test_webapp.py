@@ -162,6 +162,27 @@ class WebApiTests(unittest.TestCase):
                     "kind": "daily"})
                 self.assertEqual(r.status_code, 400)
 
+    def test_move_all_job_builds_without_targets(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)), \
+                 mock.patch.object(profiles, "config_dir",
+                                   return_value=Path(tmp)):
+                self.client.post("/api/profiles", json={
+                    "name": "pf", "host": "h", "user": "u", "password": "pw"})
+                # move + no targets + no rule => move ALL (no --targets/--rule)
+                r = self.client.post("/api/jobs", json={
+                    "name": "mvall", "profile": "pf", "match_mode": "targets",
+                    "targets_text": "", "move": True, "dest_folder": "Archive",
+                    "kind": "daily", "time": "03:00"})
+                self.assertEqual(r.status_code, 200)
+                j = next(x for x in self.client.get("/api/jobs").json()["jobs"]
+                         if x["name"] == "mvall")
+                self.assertIn("--move", j["args"])
+                self.assertIn("Archive", j["args"])
+                self.assertNotIn("--targets", j["args"])
+                self.assertNotIn("--rule", j["args"])
+
     def test_create_folder_without_session_is_rejected(self):
         r = self.client.post("/api/create-folder",
                              json={"sid": "nope", "name": "X"})

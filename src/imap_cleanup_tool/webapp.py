@@ -489,7 +489,14 @@ def create_app():
         exact_domains: set[str] = set()
         search_argument = None
         if not body.empty_folder:
-            addresses, domains, exact_domains, search_argument = _resolve_match(body)
+            has_rule = body.match_mode == "rule" and bool(body.rule_tree)
+            has_targets = (body.match_mode != "rule"
+                           and bool((body.targets_text or "").strip()))
+            if body.move and not has_rule and not has_targets:
+                search_argument = "ALL"   # move every message (no filter)
+            else:
+                addresses, domains, exact_domains, search_argument = \
+                    _resolve_match(body)
         dest = (body.dest_folder or "").strip()
         if body.move and not body.empty_folder and not dest:
             raise HTTPException(400, "Choose a destination folder for the move.")
@@ -605,24 +612,26 @@ def create_app():
             args += ["--folder", folder]
         if body.empty_folder:
             args.append("--empty-folder")
-        elif body.match_mode == "rule":
-            if not body.rule_tree:
-                raise HTTPException(400, "No rule provided.")
+        elif body.match_mode == "rule" and body.rule_tree:
             try:
                 args += ["--rule", node_from_dict(body.rule_tree).to_expression()]
             except (RuleError, KeyError, TypeError) as exc:
                 raise HTTPException(400, f"Invalid rule: {exc}") from exc
-        else:
+        elif (body.targets_text or "").strip():
             # Persist the pasted target list to a file so the scheduled CLI can read it.
             try:
                 parse_targets_text(body.targets_text)  # validate
             except ValueError as exc:
-                raise HTTPException(400, "The job has no targets. In the Cleanup "
-                    "tab choose a match - fill the Target list (or switch to a "
-                    "Rule), or enable Empty folder - then save the job.") from exc
+                raise HTTPException(400, str(exc)) from exc
             tpath = scheduler.config_dir() / f"{name}.targets.txt"
             tpath.write_text(body.targets_text, encoding="utf-8")
             args += ["--targets", str(tpath)]
+        elif body.move:
+            pass   # move-all: no target list / rule -> the CLI moves every message
+        else:
+            raise HTTPException(400, "The job has no match. In the Cleanup tab "
+                "fill the Target list or a Rule, enable Empty folder, or enable "
+                "Move (which, with no filter, moves every message) - then save.")
         dest = (body.dest_folder or "").strip()
         if body.move and not body.empty_folder:
             if not dest:

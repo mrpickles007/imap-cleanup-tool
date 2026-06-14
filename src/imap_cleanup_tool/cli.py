@@ -130,6 +130,10 @@ def _run_operation(conn, args: argparse.Namespace, folders: list[str]) -> None:
         search_argument = compile_search(node)
     elif args.targets:
         addresses, domains, exact_domains = load_targets(args.targets)
+    elif args.move:
+        # Move with no target list / rule = move EVERY message in the folder.
+        search_argument = "ALL"
+        core.logger.info("No --targets/--rule with --move: moving ALL messages.")
     else:
         sys.exit("[ERROR] Provide --targets or --rule (or use --empty-folder).")
 

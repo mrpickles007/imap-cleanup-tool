@@ -236,7 +236,7 @@ tailwind.config = { theme: { extend: {
           <input id="moveDestNew" class="field" placeholder="new folder / label name">
           <button id="btnCreateDest" type="button" class="px-3 rounded-lg border border-brand text-brand-light hover:bg-brand hover:text-ink whitespace-nowrap" title="Create this folder/label on the server">⊕ Create</button>
         </div>
-        <p class="text-[11px] text-muted mt-1">Pick an <b>existing</b> folder, or choose <b>➕ Create new…</b> to make one (a label on Gmail).</p>
+        <p class="text-[11px] text-muted mt-1">Pick an <b>existing</b> folder, or choose <b>➕ Create new…</b> to make one (a label on Gmail). <b>Tip:</b> leave the Target list / Rule empty to move <b>every</b> message in the selected folders.</p>
       </div>
 
       <label class="flex items-center justify-between text-sm py-1.5">
@@ -725,11 +725,14 @@ function updateJobSummary(){
   const empty=$('emptyFolder').checked;
   const mode=document.querySelector('input[name=mode]:checked').value;
   const prof=$('jobProfile').value;
+  const moveOn=$('moveMode').checked && !empty;
   let warn=false, match;
   if(empty){ match='every message (empty folder)'; }
   else if(mode==='rule'){ match='messages matching the rule'; }
   else { const n=($('targets').value||'').split('\n').filter(l=>l.trim()&&!l.trim().startsWith('#')).length;
-    match = n ? ('messages from '+n+' target line(s)') : 'no targets set'; warn=!n; }
+    if(n){ match='messages from '+n+' target line(s)'; }
+    else if(moveOn){ match='every message (move all)'; }
+    else { match='no targets set'; warn=true; } }
   let action;
   if(empty) action='Delete EVERYTHING';
   else if($('moveMode').checked) action='Move to '+(moveDestValue()||'(no destination set)');
@@ -837,7 +840,13 @@ $('btnSaveSenders').onclick=async()=>{
 };
 $('btnRun').onclick=async ()=>{
   const p=Object.assign({sid:SID}, matchPayload(), optionsPayload());
-  if(!p.dry_run){ const what=p.empty_folder?'DELETE EVERYTHING in':'act on matching messages in';
+  if(!p.dry_run){
+    let what;
+    if(p.empty_folder) what='DELETE EVERYTHING in';
+    else if(p.move){
+      const moveAll = p.match_mode!=='rule' && !(($('targets').value||'').trim());
+      what=(moveAll?'MOVE EVERY message':'Move matched messages')+' to "'+(p.dest_folder||'?')+'" from';
+    } else what='act on matching messages in';
     if(!(await confirmDialog({title:'This is not a dry-run', message:'About to '+what+':\n'+p.folders.join(', ')+'\n\nContinue?', okText:'Run for real', danger:true}))) return; }
   log((p.dry_run?'[DRY-RUN] ':'')+'Starting on: '+p.folders.join(', ')); startJob('/api/run',p);
 };

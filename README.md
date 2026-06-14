@@ -221,7 +221,7 @@ land in your shell history.
 | `--save-senders CSV` | With `--list-senders`, append to a CSV. |
 | `--empty-folder` | Delete ALL messages in the folder(s); no filtering. |
 | `--gmail-trash` | Move matches to Gmail Trash via labels. |
-| `--move` | Move matches to `--dest-folder` instead of deleting them. |
+| `--move` | Move matches to `--dest-folder` (or **all** messages if no `--targets`/`--rule`). |
 | `--dest-folder NAME` | Destination folder/label for `--move`. |
 | `--create-folder NAME` | Create a folder (a label on Gmail) on the server, then exit. |
 | `--delete-folder NAME` | Delete a non-system folder/label on the server, then exit. |
@@ -338,7 +338,8 @@ Highlights:
   groups).
 - **Count matching emails** before deleting; **dry-run** is on by default.
 - **Move** matches to another folder instead of deleting (pick the destination
-  from a dropdown of your folders, or create a new one inline); plus
+  from a dropdown of your folders, or create a new one inline) - or **every**
+  message if you leave the filter empty; plus
   **create** and **delete** folders/labels on the server (system folders are
   protected). The folder box distinguishes *Add to scan* (just lists a folder to
   scan, creates nothing) from *Create on server* (really creates a folder, a
@@ -387,12 +388,23 @@ the source. The tool uses the server's `MOVE` command when available, otherwise
 `COPY` + delete + expunge. On **Gmail** a move *relabels* the messages (removes
 the source label, adds the destination one); the message itself still lives in
 *All Mail*. Move is mutually exclusive with delete / Gmail-trash / expunge; only
-*Empty folder* overrides everything. From the CLI:
+*Empty folder* overrides everything.
+
+**Move everything.** If you enable Move **without** a target list or rule, it
+moves **every** message in the selected folders into the destination (handy to
+clear out or reorganize a whole folder). From the CLI, just omit `--targets` and
+`--rule`:
 
 ```bash
 imap-cleanup-tool --host HOST --user USER --create-folder "Receipts"
+
+# Move only matches
 imap-cleanup-tool --host HOST --user USER --targets bills.txt \
     --move --dest-folder "Receipts" --dry-run
+
+# Move EVERYTHING from INBOX into Archive (no filter)
+imap-cleanup-tool --host HOST --user USER --folder INBOX \
+    --move --dest-folder "Archive" --dry-run
 ```
 
 Move jobs can be **scheduled** like any other job (the Scheduling tab carries the
