@@ -256,3 +256,42 @@ def install_system(job: Job) -> str:
     if sys.platform.startswith("win"):
         return install_windows(job)
     return install_cron(job)
+
+
+def uninstall_windows(job: Job) -> str:
+    """Remove this job's Windows Task Scheduler task. Tolerant if it's absent."""
+    result = subprocess.run(
+        ["schtasks", "/Delete", "/TN", _task_name(job), "/F"],
+        capture_output=True, text=True)
+    if result.returncode != 0:
+        err = (result.stderr or result.stdout or "").lower()
+        if "cannot find" in err or "does not exist" in err:
+            return f'No system task for "{job.name}" (already removed).'
+        raise RuntimeError(result.stderr.strip() or result.stdout.strip()
+                           or "schtasks delete failed")
+    return f'Removed Windows task "{_task_name(job)}".'
+
+
+def uninstall_cron(job: Job) -> str:
+    """Remove this job's line from the user's crontab. Tolerant if it's absent."""
+    marker = f"# imap-cleanup-tool job: {job.name}"
+    try:
+        current = subprocess.run(["crontab", "-l"], capture_output=True,
+                                 text=True).stdout
+    except FileNotFoundError as exc:
+        raise RuntimeError("crontab command not found") from exc
+    kept = [ln for ln in current.splitlines() if marker not in ln]
+    if len(kept) == len(current.splitlines()):
+        return f"No cron entry for '{job.name}' (already removed)."
+    result = subprocess.run(["crontab", "-"], input="\n".join(kept) + "\n",
+                            text=True, capture_output=True)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "crontab failed")
+    return f"Removed cron job '{job.name}'."
+
+
+def uninstall_system(job: Job) -> str:
+    """Remove the job from the OS scheduler (Task Scheduler or cron)."""
+    if sys.platform.startswith("win"):
+        return uninstall_windows(job)
+    return uninstall_cron(job)

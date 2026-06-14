@@ -248,6 +248,9 @@ def create_app():
     class SidIn(BaseModel):
         sid: str
 
+    class JobNameIn(BaseModel):
+        name: str
+
     class ProfileSaveIn(BaseModel):
         name: str
         host: str
@@ -593,8 +596,26 @@ def create_app():
 
     @app.delete("/api/jobs/{name}")
     def delete_job(name: str) -> dict[str, Any]:
+        # Removing the saved job also removes its system task (it would fail
+        # anyway once the job is gone).
+        try:
+            scheduler.uninstall_system(scheduler.Job(name=name, args=[],
+                                                     schedule={}))
+        except (RuntimeError, OSError):
+            pass
         scheduler.delete_job(name)
         return {"deleted": name}
+
+    @app.post("/api/jobs/uninstall")
+    def uninstall_job(body: JobNameIn) -> dict[str, Any]:
+        """Deregister the job from the OS scheduler, keeping the saved job."""
+        try:
+            message = scheduler.uninstall_system(
+                scheduler.Job(name=body.name, args=[], schedule={}))
+        except (RuntimeError, OSError) as exc:
+            raise HTTPException(500, f"Could not remove the system task: {exc}") \
+                from exc
+        return {"message": message}
 
     @app.post("/api/jobs/export")
     def export_job(body: JobIn) -> dict[str, Any]:

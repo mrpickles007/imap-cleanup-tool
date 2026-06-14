@@ -506,7 +506,12 @@ function renderFolders(){
 let ROOT=null;
 const newCond=()=>({kind:'cond',field:'sender',operator:'contains',value:''});
 const newGroup=()=>({kind:'group',op:'AND',children:[newCond()]});
-function buildRoot(){ ROOT=newGroup(); renderBuilder(); }
+function persistRule(){ try{ localStorage.setItem('icw_rule', JSON.stringify(ROOT)); }catch(_){} }
+function buildRoot(){
+  try{ const s=JSON.parse(localStorage.getItem('icw_rule')||'null'); ROOT=(s&&s.kind==='group')?s:newGroup(); }
+  catch(_){ ROOT=newGroup(); }
+  renderBuilder();
+}
 const opOptions=(f)=>(META.operators[f]||[['contains','contains']]);
 function renderNode(node,parent,depth){
   if(node.kind==='cond'){
@@ -519,8 +524,8 @@ function renderNode(node,parent,depth){
     const hint=document.createElement('span'); hint.className='text-[11px] text-muted';
     const fill=()=>{ op.innerHTML=''; opOptions(node.field).forEach(([l,k])=>{const o=document.createElement('option');o.value=k;o.textContent=l;op.appendChild(o);}); op.value=node.operator; hint.textContent=node.field==='date'?'YYYY-MM-DD':''; };
     fill();
-    f.onchange=()=>{node.field=f.value;node.operator=opOptions(node.field)[0][1];fill();};
-    op.onchange=()=>node.operator=op.value; v.oninput=()=>node.value=v.value;
+    f.onchange=()=>{node.field=f.value;node.operator=opOptions(node.field)[0][1];fill();persistRule();};
+    op.onchange=()=>{node.operator=op.value;persistRule();}; v.oninput=()=>{node.value=v.value;persistRule();};
     const d=document.createElement('button'); d.className='px-2 rounded-lg bg-danger/20 text-danger hover:bg-danger/30'; d.textContent='×';
     d.onclick=()=>{const i=parent.indexOf(node);if(i>=0)parent.splice(i,1);renderBuilder();};
     vWrap.append(v,hint); row.append(f,op,vWrap,d); return row;
@@ -530,7 +535,7 @@ function renderNode(node,parent,depth){
   const head=document.createElement('div'); head.className='flex items-center gap-2 mb-1';
   const lbl=document.createElement('span'); lbl.className='text-xs text-muted'; lbl.textContent='Match';
   const op=document.createElement('select'); op.className='field w-44';
-  [['ALL — all match (AND)','AND'],['ANY — any match (OR)','OR']].forEach(([t,vv])=>{const o=document.createElement('option');o.value=vv;o.textContent=t;op.appendChild(o);}); op.value=node.op; op.onchange=()=>node.op=op.value;
+  [['ALL — all match (AND)','AND'],['ANY — any match (OR)','OR']].forEach(([t,vv])=>{const o=document.createElement('option');o.value=vv;o.textContent=t;op.appendChild(o);}); op.value=node.op; op.onchange=()=>{node.op=op.value;persistRule();};
   const ac=document.createElement('button'); ac.className='text-xs px-2 py-1 rounded-lg border border-line text-muted hover:text-cream'; ac.textContent='+ Condition'; ac.onclick=()=>{node.children.push(newCond());renderBuilder();};
   const ag=document.createElement('button'); ag.className='text-xs px-2 py-1 rounded-lg border border-line text-muted hover:text-cream'; ag.textContent='+ Group'; ag.onclick=()=>{node.children.push(newGroup());renderBuilder();};
   head.append(lbl,op,ac,ag);
@@ -540,7 +545,7 @@ function renderNode(node,parent,depth){
   node.children.forEach(c=>body.append(renderNode(c,node.children,depth+1)));
   box.append(body); return box;
 }
-function renderBuilder(){ const b=$('builder'); b.innerHTML=''; b.append(renderNode(ROOT,[ROOT],0)); }
+function renderBuilder(){ const b=$('builder'); b.innerHTML=''; b.append(renderNode(ROOT,[ROOT],0)); persistRule(); }
 function toTree(n){ return n.kind==='cond' ? {type:'condition',field:n.field,operator:n.operator,value:n.value} : {type:'group',op:n.op,children:n.children.map(toTree)}; }
 
 /* ---------- payload ---------- */
@@ -619,16 +624,20 @@ async function loadJobs(){
     d.jobs.forEach(j=>{
       const row=document.createElement('div'); row.className='flex items-center justify-between bg-ink border border-line rounded-lg px-3 py-2';
       const freq=j.schedule.kind==='daily'?('daily '+(j.schedule.time||'')):('every '+(j.schedule.minutes||'?')+' min');
-      row.innerHTML=`<span><b>${j.name}</b> <span class="text-muted text-xs">· ${freq}</span></span>`;
+      row.innerHTML=`<span class="truncate"><b>${j.name}</b> <span class="text-muted text-xs">· ${freq}</span></span>`;
+      const actions=document.createElement('span'); actions.className='flex gap-3 flex-none ml-2';
+      const unins=document.createElement('button'); unins.className='text-muted text-xs hover:text-cream'; unins.textContent='uninstall';
+      unins.onclick=async()=>{ try{ const r=await api('/api/jobs/uninstall',{name:j.name}); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=r.message; }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
       const del=document.createElement('button'); del.className='text-danger text-xs hover:underline'; del.textContent='delete';
-      del.onclick=async()=>{ await api('/api/jobs/'+encodeURIComponent(j.name),null,'DELETE'); loadJobs(); };
-      row.appendChild(del); box.appendChild(row);
+      del.onclick=async()=>{ if(!(await confirmDialog({title:'Delete job', message:'Delete job "'+j.name+'" and remove its system task?', okText:'Delete', danger:true}))) return; await api('/api/jobs/'+encodeURIComponent(j.name),null,'DELETE'); loadJobs(); };
+      actions.append(unins, del); row.appendChild(actions); box.appendChild(row);
     });
   }catch(e){ $('jobsList').innerHTML='<p class="text-danger text-xs">'+e.message+'</p>'; }
 }
 
 /* ---------- events ---------- */
 document.querySelectorAll('.tab').forEach(t=> t.onclick=()=>{
+  try{ localStorage.setItem('icw_tab', t.dataset.tab); }catch(_){}
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
   $('tab-cleanup').classList.toggle('hidden', t.dataset.tab!=='cleanup');
   $('tab-scheduling').classList.toggle('hidden', t.dataset.tab!=='scheduling');
@@ -637,7 +646,8 @@ document.querySelectorAll('.tab').forEach(t=> t.onclick=()=>{
 $('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider').value)||0]; if(p){ if(p.host)$('host').value=p.host; if(p.port)$('port').value=p.port; if(p.host==='imap.gmail.com'){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} } applyProviderTips(); refreshConditional(); };
 $('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional; $('gmailTrash').onchange=refreshConditional;
 $('togglePass').onclick=()=>{ const p=$('password'); p.type=p.type==='password'?'text':'password'; $('togglePass').textContent=p.type==='password'?'show':'hide'; };
-document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const rule=document.querySelector('input[name=mode]:checked').value==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); refreshConditional(); });
+document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const mode=document.querySelector('input[name=mode]:checked').value; try{localStorage.setItem('icw_mode',mode);}catch(_){} const rule=mode==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); refreshConditional(); });
+$('targets').addEventListener('input', ()=>{ try{localStorage.setItem('icw_targets',$('targets').value);}catch(_){} });
 $('btnAddFolder').onclick=()=>{ const v=$('manualFolder').value.trim(); if(!v)return; if(!selectedFolders.includes(v))selectedFolders.push(v); if(!knownFolders.some(f=>f.name===v))knownFolders.push({name:v,count:null}); $('manualFolder').value=''; renderFolders(); };
 $('btnClear').onclick=()=>{ logLines=[]; renderLog(); persistLog(); };
 $('btnSelectAll').onclick=()=>{ const names=new Set(knownFolders.map(f=>f.name)); selectedFolders.forEach(n=>names.add(n)); selectedFolders=[...names]; renderFolders(); };
@@ -691,7 +701,7 @@ $('btnSaveJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; tr
 $('btnExportJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; try{ const d=await api('/api/jobs/export',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
 $('btnInstallJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; try{ const d=await api('/api/jobs/install',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.message+'\n\n'+d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
 function download(name, text){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href); }
-$('targetsFile').onchange=(e)=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ $('targets').value=r.result; log('Loaded target list from '+f.name+'.'); }; r.readAsText(f); e.target.value=''; };
+$('targetsFile').onchange=(e)=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ $('targets').value=r.result; try{localStorage.setItem('icw_targets',$('targets').value);}catch(_){} log('Loaded target list from '+f.name+'.'); }; r.readAsText(f); e.target.value=''; };
 async function saveTargets(){
   const text=$('targets').value;
   if(window.showSaveFilePicker){
@@ -870,11 +880,21 @@ $('btnDeleteProfile').onclick=async ()=>{
   try{ await api('/api/profiles/'+encodeURIComponent(name), null, 'DELETE'); await loadProfiles(''); log('Profile "'+name+'" deleted.'); }catch(e){ log('[ERROR] '+e.message); }
 };
 
+function restoreUiState(){
+  const t=localStorage.getItem('icw_targets'); if(t!=null) $('targets').value=t;
+  const mode=localStorage.getItem('icw_mode');
+  if(mode==='rule'||mode==='targets'){ const r=document.querySelector('input[name=mode][value="'+mode+'"]'); if(r) r.checked=true; }
+  const rule=document.querySelector('input[name=mode]:checked').value==='rule';
+  $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule);
+  refreshConditional();
+  if(localStorage.getItem('icw_tab')==='scheduling'){ const tb=document.querySelector('.tab[data-tab="scheduling"]'); if(tb) tb.click(); }
+}
+
 setConnectedUI(false);
 restoreLog();
 initTooltips();
 loadProfiles();
-loadMeta().then(()=>{ refreshConditional(); restore(); });
+loadMeta().then(()=>{ refreshConditional(); restore(); restoreUiState(); });
 
 // Blink the provider user/password tooltips at random intervals to draw the
 // eye — only while NOT connected, and only for tips that are actually shown.
