@@ -9,7 +9,7 @@ try:
     import httpx  # noqa: F401  (required by fastapi TestClient)
     from fastapi.testclient import TestClient
 
-    from imap_cleanup_tool import scheduler
+    from imap_cleanup_tool import profiles, scheduler
     from imap_cleanup_tool.webapp import create_app
     _HAVE_WEB = True
 except Exception:  # pragma: no cover - depends on optional deps
@@ -68,6 +68,25 @@ class WebApiTests(unittest.TestCase):
     def test_senders_csv_without_session_is_rejected(self):
         self.assertEqual(
             self.client.get("/api/senders.csv/nope").status_code, 440)
+
+    def test_profiles_crud(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(profiles, "config_dir",
+                                   return_value=Path(tmp)):
+                self.assertEqual(
+                    self.client.get("/api/profiles").json()["profiles"], [])
+                r = self.client.post("/api/profiles", json={
+                    "name": "p", "host": "h", "user": "u", "password": "pw"})
+                self.assertEqual(r.status_code, 200)
+                names = [p["name"]
+                         for p in self.client.get("/api/profiles").json()["profiles"]]
+                self.assertIn("p", names)
+                loaded = self.client.post("/api/profiles/load",
+                                          json={"name": "p"}).json()
+                self.assertEqual(loaded["password"], "pw")
+                self.client.delete("/api/profiles/p")
+                self.assertEqual(
+                    self.client.get("/api/profiles").json()["profiles"], [])
 
     def test_jobs_crud(self):
         with tempfile.TemporaryDirectory() as tmp:

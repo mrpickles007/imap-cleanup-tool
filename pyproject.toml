@@ -27,8 +27,9 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-# Local web UI (FastAPI + uvicorn). Install with: pip install "imap-cleanup-tool[web]"
-web = ["fastapi>=0.110", "uvicorn[standard]>=0.27"]
+# Local web UI (FastAPI + uvicorn; cryptography for encrypted connection
+# profiles). Install with: pip install "imap-cleanup-tool[web]"
+web = ["fastapi>=0.110", "uvicorn[standard]>=0.27", "cryptography>=42"]
 # Tools for development and packaging.
 dev = ["pylint", "build", "twine"]
 

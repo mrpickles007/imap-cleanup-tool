@@ -33,7 +33,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from . import __version__, core, scheduler
+from . import __version__, core, profiles, scheduler
 from .rules import RuleError, compile_search, node_from_dict
 from .targets import parse_targets_text
 
@@ -248,6 +248,20 @@ def create_app():
     class SidIn(BaseModel):
         sid: str
 
+    class ProfileSaveIn(BaseModel):
+        name: str
+        host: str
+        port: int = 993
+        user: str
+        password: str = ""
+        timeout: int = 120
+        encrypt: bool = False
+        secret: str = ""
+
+    class ProfileLoadIn(BaseModel):
+        name: str
+        secret: str = ""
+
     class JobIn(Match, Options):
         name: str = "job"
         host: str = ""
@@ -360,6 +374,33 @@ def create_app():
             return {"search": compile_search(node_from_dict(body.tree))}
         except (RuleError, KeyError, TypeError) as exc:
             raise HTTPException(400, f"Invalid rule: {exc}") from exc
+
+    # ----- connection profiles (local SQLite, optionally encrypted) -------- #
+    @app.get("/api/profiles")
+    def get_profiles() -> dict[str, Any]:
+        return {"profiles": profiles.list_profiles()}
+
+    @app.post("/api/profiles")
+    def save_profile(body: ProfileSaveIn) -> dict[str, Any]:
+        try:
+            name = profiles.save_profile(
+                body.name, body.host, body.port, body.user, body.password,
+                body.timeout, body.encrypt, body.secret)
+        except profiles.ProfileError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return {"saved": name}
+
+    @app.post("/api/profiles/load")
+    def load_profile(body: ProfileLoadIn) -> dict[str, Any]:
+        try:
+            return profiles.load_profile(body.name, body.secret)
+        except profiles.ProfileError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.delete("/api/profiles/{name}")
+    def delete_profile(name: str) -> dict[str, Any]:
+        profiles.delete_profile(name)
+        return {"deleted": name}
 
     @app.post("/api/senders")
     def senders(body: SendersIn) -> dict[str, Any]:

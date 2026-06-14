@@ -76,6 +76,13 @@ tailwind.config = { theme: { extend: {
     <section class="bg-panel border border-line rounded-xl p-5">
       <h2 class="font-display font-semibold text-brand-light mb-4">Connection</h2>
       <div class="grid grid-cols-2 gap-3">
+        <div class="col-span-2 flex items-end gap-2">
+          <label class="flex-1 text-xs text-muted">Profile
+            <select id="profileSelect" class="field mt-1"></select>
+          </label>
+          <button id="btnSaveProfile" type="button" class="px-3 py-2 rounded-lg border border-line text-cream hover:border-brand text-sm">Save…</button>
+          <button id="btnDeleteProfile" type="button" class="px-3 py-2 rounded-lg border border-line text-muted hover:text-danger text-sm">Delete</button>
+        </div>
         <label class="col-span-2 text-xs text-muted">Provider
           <select id="provider" class="field mt-1"></select>
         </label>
@@ -296,6 +303,42 @@ tailwind.config = { theme: { extend: {
 </div>
 
 </main>
+
+<!-- Save-profile modal -->
+<div id="saveModal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+  <div class="bg-panel border border-line rounded-xl p-5 w-full max-w-sm">
+    <h3 class="font-display font-semibold text-brand-light mb-3">Save connection profile</h3>
+    <label class="text-xs text-muted">Profile name
+      <input id="saveName" class="field mt-1" placeholder="e.g. My Gmail">
+    </label>
+    <label class="flex items-center gap-2 text-sm mt-3">
+      <input id="saveEncrypt" type="checkbox"> Encrypt the password
+    </label>
+    <div id="saveSecretRow" class="hidden mt-2">
+      <input id="saveSecret" type="password" class="field" placeholder="Encryption password">
+      <p class="text-[11px] text-muted mt-1">You'll need this to load the profile — it is never stored.</p>
+    </div>
+    <p id="savePlainWarn" class="text-[11px] text-warn mt-2">⚠️ Without encryption the IMAP password is stored in plain text in a local database file on this machine.</p>
+    <div class="flex gap-2 justify-end mt-4">
+      <button id="saveCancel" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Cancel</button>
+      <button id="saveConfirm" class="px-4 py-2 rounded-lg bg-brand text-ink font-semibold hover:bg-brand-light">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Unlock-profile modal -->
+<div id="unlockModal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+  <div class="bg-panel border border-line rounded-xl p-5 w-full max-w-sm">
+    <h3 class="font-display font-semibold text-brand-light mb-2">Unlock profile</h3>
+    <p id="unlockMsg" class="text-xs text-muted mb-3"></p>
+    <input id="unlockSecret" type="password" class="field" placeholder="Profile password">
+    <p id="unlockErr" class="hidden text-[11px] text-danger mt-1"></p>
+    <div class="flex gap-2 justify-end mt-4">
+      <button id="unlockCancel" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Cancel</button>
+      <button id="unlockConfirm" class="px-4 py-2 rounded-lg bg-brand text-ink font-semibold hover:bg-brand-light">Unlock</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -612,9 +655,74 @@ function initTooltips(){
   });
 }
 
+/* ---------- connection profiles (SQLite, optionally encrypted) ---------- */
+let PROFILES = [];
+async function loadProfiles(selectName){
+  try{
+    const d = await (await fetch('/api/profiles')).json();
+    PROFILES = d.profiles || [];
+    const sel = $('profileSelect'); sel.innerHTML='';
+    const o0 = document.createElement('option'); o0.value=''; o0.textContent='— New profile —'; sel.appendChild(o0);
+    PROFILES.forEach(p=>{ const o=document.createElement('option'); o.value=p.name; o.textContent=p.name+(p.encrypted?' 🔒':''); sel.appendChild(o); });
+    sel.value = selectName || '';
+  }catch(_){}
+}
+function fillConnection(p){
+  $('host').value=p.host||''; $('port').value=p.port||993; $('user').value=p.user||'';
+  $('timeout').value=p.timeout||120; $('password').value=p.password||'';
+  const idx=(META.providers||[]).findIndex(pr=>pr.host && pr.host===p.host); if(idx>=0) $('provider').value=String(idx);
+  applyProviderTips(); refreshConditional();
+}
+async function doLoadProfile(name, secret){
+  const d = await api('/api/profiles/load', {name, secret: secret||''});
+  fillConnection(d); log('Profile "'+name+'" loaded.');
+}
+$('profileSelect').onchange = async ()=>{
+  const name = $('profileSelect').value;
+  if(!name) return;
+  const p = PROFILES.find(x=>x.name===name);
+  if(p && p.encrypted){ openUnlock(name); return; }
+  try{ await doLoadProfile(name, ''); }catch(e){ log('[ERROR] '+e.message); $('profileSelect').value=''; }
+};
+let unlockName=null;
+function openUnlock(name){ unlockName=name; $('unlockSecret').value=''; $('unlockErr').classList.add('hidden');
+  $('unlockMsg').textContent='Profile "'+name+'" is encrypted. Enter its password to load it.';
+  $('unlockModal').classList.remove('hidden'); setTimeout(()=>$('unlockSecret').focus(),50); }
+function closeUnlock(){ $('unlockModal').classList.add('hidden'); }
+$('unlockCancel').onclick=()=>{ closeUnlock(); $('profileSelect').value=''; };
+$('unlockConfirm').onclick=async ()=>{
+  try{ await doLoadProfile(unlockName, $('unlockSecret').value); closeUnlock(); }
+  catch(e){ $('unlockErr').textContent=e.message; $('unlockErr').classList.remove('hidden'); }
+};
+$('unlockSecret').addEventListener('keydown', e=>{ if(e.key==='Enter') $('unlockConfirm').click(); });
+$('btnSaveProfile').onclick=()=>{
+  if(!$('host').value.trim()||!$('user').value.trim()){ log('[ERROR] Fill host and user before saving a profile.'); return; }
+  $('saveName').value = $('profileSelect').value || $('user').value || '';
+  $('saveEncrypt').checked=false; $('saveSecret').value=''; $('saveSecretRow').classList.add('hidden'); $('savePlainWarn').classList.remove('hidden');
+  $('saveModal').classList.remove('hidden'); setTimeout(()=>$('saveName').focus(),50);
+};
+$('saveEncrypt').onchange=()=>{ const on=$('saveEncrypt').checked; $('saveSecretRow').classList.toggle('hidden',!on); $('savePlainWarn').classList.toggle('hidden',on); };
+$('saveCancel').onclick=()=>$('saveModal').classList.add('hidden');
+$('saveConfirm').onclick=async ()=>{
+  const name=$('saveName').value.trim(); if(!name){ $('saveName').focus(); return; }
+  const encrypt=$('saveEncrypt').checked, secret=$('saveSecret').value;
+  if(encrypt && !secret){ $('saveSecret').focus(); return; }
+  try{
+    await api('/api/profiles', {name, host:$('host').value.trim(), port:parseInt($('port').value)||993, user:$('user').value.trim(), password:$('password').value, timeout:parseInt($('timeout').value)||120, encrypt, secret});
+    $('saveModal').classList.add('hidden'); await loadProfiles(name);
+    log('Profile "'+name+'" saved'+(encrypt?' (encrypted).':'.'));
+  }catch(e){ log('[ERROR] '+e.message); }
+};
+$('btnDeleteProfile').onclick=async ()=>{
+  const name=$('profileSelect').value; if(!name){ log('Select a saved profile to delete.'); return; }
+  if(!confirm('Delete profile "'+name+'"?')) return;
+  try{ await api('/api/profiles/'+encodeURIComponent(name), null, 'DELETE'); await loadProfiles(''); log('Profile "'+name+'" deleted.'); }catch(e){ log('[ERROR] '+e.message); }
+};
+
 setConnectedUI(false);
 restoreLog();
 initTooltips();
+loadProfiles();
 loadMeta().then(()=>{ refreshConditional(); restore(); });
 
 // Blink the provider user/password tooltips at random intervals to draw the
