@@ -29,14 +29,57 @@ UI is an optional extra (FastAPI).
 
 ## Table of contents
 
+- [Quick start — web interface](#quick-start--web-interface)
 - [Install](#install)
-- [Quick start](#quick-start)
+- [Quick start — command line](#quick-start--command-line)
 - [Command-line usage](#command-line-usage)
 - [Rule expressions](#rule-expressions)
 - [Target file format](#target-file-format)
 - [Web interface](#web-interface)
+- [Remote / headless server (SSH port forwarding)](#remote--headless-server-ssh-port-forwarding)
 - [Scheduling](#scheduling)
 - [Gmail notes](#gmail-notes)
+
+---
+
+## Quick start — web interface
+
+The web interface is the easiest way to use the tool, and what most people want.
+
+```bash
+# 1. Install (with the web extra)
+pip install "imap-cleanup-tool[web]"
+
+# 2. Launch — serves http://127.0.0.1:8765 and opens your browser
+imap-cleanup-tool-web
+```
+
+Then, in the browser:
+
+1. **Connect** — pick a provider preset (or type host/port), enter your username
+   and password (for Gmail, an **App Password** — see [Gmail notes](#gmail-notes)),
+   and click *Connect*. Optionally save it as a **connection profile** so you do
+   not retype it next time.
+2. **Pick folders** — select one or more folders to scan (each shows its message
+   count); use *Select all* / *Deselect all* as needed.
+3. **Choose what to match** — either paste a **target list** (one sender or
+   domain per line) or build a **rule** visually (field ▸ operator ▸ value, with
+   AND/OR groups). Click **Count matching emails** to see how many would be hit.
+4. **Review, then run** — *dry-run is on by default*, so the first run only
+   reports. Watch the live log; use **Stop** to cancel. When the preview looks
+   right, turn off dry-run (or enable *Gmail: move to Trash* / *Expunge*) and run
+   for real.
+5. *(Optional)* **Schedule it** — in the *Scheduling* tab, turn the same settings
+   into a job and install it into the system scheduler. See
+   [Scheduling](#scheduling).
+
+> Running on a server with no desktop? You can still use the GUI from your laptop
+> via SSH port forwarding — see
+> [Remote / headless server](#remote--headless-server-ssh-port-forwarding).
+
+> ⚠️ Deleting email is destructive. Keep dry-run on until the count and log look
+> right. Without *Expunge*, messages are only flagged deleted (often hidden by
+> the client but recoverable until expunged).
 
 ---
 
@@ -85,7 +128,7 @@ python -m unittest discover -s tests -v
 
 ---
 
-## Quick start
+## Quick start — command line
 
 ```bash
 # 1. See your folders (find the real Trash/Sent names)
@@ -236,6 +279,57 @@ Highlights:
 - Background runs with a **Stop** button and a persistent, live log panel.
 - **List senders** with counts (export to CSV), and a **Scheduling** tab to
   create jobs and install them into the OS scheduler.
+
+---
+
+## Remote / headless server (SSH port forwarding)
+
+Yes — you can install the tool on a **remote, desktop-less server** (e.g. a VPS
+or a home server reached over SSH) and still drive the **web GUI from your local
+machine's browser**. The web server binds to the server's loopback
+(`127.0.0.1:8765`) and is **not** exposed to the network; you reach it through an
+encrypted **SSH tunnel** that maps a local port to that loopback port. This is
+the same mechanism the *VS Code Remote* extension and SSH clients like *Bitvise*
+or *PuTTY* use for "local port forwarding".
+
+**On the server** (over your SSH session) — start the web server without trying
+to open a browser it does not have:
+
+```bash
+pip install "imap-cleanup-tool[web]"
+imap-cleanup-tool-web --no-browser          # listens on 127.0.0.1:8765
+```
+
+**On your local machine** — open an SSH tunnel that forwards a local port to the
+server's `127.0.0.1:8765`:
+
+```bash
+# Forward local 8765  ->  server's localhost:8765
+ssh -N -L 8765:localhost:8765 user@your-server
+```
+
+Then open **http://localhost:8765** in your local browser. Traffic travels inside
+the SSH connection; nothing is published on the server's public interface.
+
+- **VS Code Remote-SSH**: open the folder on the server, run `imap-cleanup-tool-web
+  --no-browser` in its terminal — VS Code auto-forwards the port and offers to
+  open it locally. (Add it manually in the *Ports* panel if needed.)
+- **Bitvise / PuTTY**: add a *Local* (C2S) forwarding rule — listen interface
+  `127.0.0.1`, listen port `8765`, destination host `localhost`, destination
+  port `8765` — then browse to `http://localhost:8765`.
+- Pick a different **local** port if 8765 is busy, e.g. `-L 9000:localhost:8765`
+  → open `http://localhost:9000`. To run the server on another port, use
+  `imap-cleanup-tool-web --no-browser --port 8800` and forward to that.
+
+> **Keep it on loopback.** Prefer the SSH tunnel over `--host 0.0.0.0` (which
+> would expose the unauthenticated UI to the whole network). The tunnel gives you
+> SSH's authentication and encryption for free.
+
+> **Keep it running after logout.** A plain SSH session stops the server when you
+> disconnect. To leave it running, start it under `tmux`/`screen`, with
+> `nohup imap-cleanup-tool-web --no-browser &`, or as a `systemd` service. For
+> *unattended* recurring cleanups you usually want a **scheduled job** instead of
+> a long-lived server — see [Scheduling](#scheduling).
 
 ---
 
