@@ -875,12 +875,13 @@ function download(name, text){ const a=document.createElement('a'); a.href=URL.c
 $('targetsFile').onchange=(e)=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ $('targets').value=r.result; try{localStorage.setItem('icw_targets',$('targets').value);}catch(_){} log('Loaded target list from '+f.name+'.'); }; r.readAsText(f); e.target.value=''; };
 async function saveTargets(){
   const text=$('targets').value;
+  const fname='targets_'+humanStamp()+'.txt';
   if(window.showSaveFilePicker){
     try{
-      const h=await window.showSaveFilePicker({suggestedName:'targets.txt', types:[{description:'Text file',accept:{'text/plain':['.txt']}}]});
+      const h=await window.showSaveFilePicker({suggestedName:fname, types:[{description:'Text file',accept:{'text/plain':['.txt']}}]});
       const w=await h.createWritable(); await w.write(text); await w.close(); log('Target list saved to '+h.name+'.');
     }catch(err){ if(err && err.name!=='AbortError') log('[ERROR] '+err.message); }
-  } else { download('targets.txt', text); }   // fallback: browser download dialog
+  } else { download(fname, text); }   // fallback: browser download dialog
 }
 $('btnSaveTargets').onclick=saveTargets;
 $('btnRefreshFolders').onclick=async()=>{
