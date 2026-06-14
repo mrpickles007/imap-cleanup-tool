@@ -582,11 +582,12 @@ def create_app():
 
     @app.get("/api/jobs")
     def list_jobs() -> dict[str, Any]:
+        installed = scheduler.installed_job_names()
         return {"jobs": [{"name": j.name, "schedule": j.schedule,
-                          "args": j.args, "last_run": j.last_run}
+                          "args": j.args, "last_run": j.last_run,
+                          "installed": j.name in installed}
                          for j in scheduler.load_jobs()],
-                "scheduler_running": internal.is_running()
-                if hasattr(internal, "is_running") else False}
+                "scheduler_running": internal.is_running()}
 
     @app.post("/api/jobs")
     def save_job(body: JobIn) -> dict[str, Any]:
@@ -616,6 +617,19 @@ def create_app():
             raise HTTPException(500, f"Could not remove the system task: {exc}") \
                 from exc
         return {"message": message}
+
+    @app.post("/api/jobs/install-saved")
+    def install_saved_job(body: JobNameIn) -> dict[str, Any]:
+        """Install an already-saved job into the OS scheduler."""
+        job = next((j for j in scheduler.load_jobs() if j.name == body.name),
+                   None)
+        if job is None:
+            raise HTTPException(404, f"No saved job named {body.name!r}.")
+        try:
+            message = scheduler.install_system(job)
+        except (RuntimeError, OSError) as exc:
+            raise HTTPException(500, f"Could not install the job: {exc}") from exc
+        return {"message": message, "command": scheduler.export_system(job)}
 
     @app.post("/api/jobs/export")
     def export_job(body: JobIn) -> dict[str, Any]:

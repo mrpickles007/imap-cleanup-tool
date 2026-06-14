@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -295,3 +296,28 @@ def uninstall_system(job: Job) -> str:
     if sys.platform.startswith("win"):
         return uninstall_windows(job)
     return uninstall_cron(job)
+
+
+def installed_job_names() -> set[str]:
+    """Return the set of job names currently registered in the OS scheduler."""
+    names: set[str] = set()
+    if sys.platform.startswith("win"):
+        result = subprocess.run(["schtasks", "/Query", "/FO", "CSV", "/NH"],
+                                capture_output=True, text=True)
+        if result.returncode != 0:
+            return names
+        for line in result.stdout.splitlines():
+            match = re.match(r'"\\?ImapCleanupTool_(.+?)"', line)
+            if match:
+                names.add(match.group(1))
+        return names
+    try:
+        current = subprocess.run(["crontab", "-l"], capture_output=True,
+                                 text=True).stdout
+    except FileNotFoundError:
+        return names
+    marker = "# imap-cleanup-tool job: "
+    for line in current.splitlines():
+        if marker in line:
+            names.add(line.split(marker, 1)[1].strip())
+    return names

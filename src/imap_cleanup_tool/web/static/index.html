@@ -636,13 +636,20 @@ async function loadJobs(){
     d.jobs.forEach(j=>{
       const row=document.createElement('div'); row.className='flex items-center justify-between bg-ink border border-line rounded-lg px-3 py-2';
       const freq=j.schedule.kind==='daily'?('daily '+(j.schedule.time||'')):('every '+(j.schedule.minutes||'?')+' min');
-      row.innerHTML=`<span class="truncate"><b>${j.name}</b> <span class="text-muted text-xs">· ${freq}</span></span>`;
+      const status = j.installed ? '<span class="text-ok text-xs">· installed</span>' : '<span class="text-muted text-xs">· saved</span>';
+      row.innerHTML=`<span class="truncate"><b>${j.name}</b> <span class="text-muted text-xs">· ${freq}</span> ${status}</span>`;
       const actions=document.createElement('span'); actions.className='flex gap-3 flex-none ml-2';
-      const unins=document.createElement('button'); unins.className='text-muted text-xs hover:text-cream'; unins.textContent='uninstall';
-      unins.onclick=async()=>{ try{ const r=await api('/api/jobs/uninstall',{name:j.name}); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=r.message; }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
+      const toggle=document.createElement('button');
+      if(j.installed){
+        toggle.className='text-muted text-xs hover:text-cream'; toggle.textContent='uninstall';
+        toggle.onclick=async()=>{ try{ const r=await api('/api/jobs/uninstall',{name:j.name}); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=r.message; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
+      } else {
+        toggle.className='text-brand-light text-xs hover:underline'; toggle.textContent='install';
+        toggle.onclick=async()=>{ try{ const r=await api('/api/jobs/install-saved',{name:j.name}); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=r.message+'\n\n'+r.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
+      }
       const del=document.createElement('button'); del.className='text-danger text-xs hover:underline'; del.textContent='delete';
       del.onclick=async()=>{ if(!(await confirmDialog({title:'Delete job', message:'Delete job "'+j.name+'" and remove its system task?', okText:'Delete', danger:true}))) return; await api('/api/jobs/'+encodeURIComponent(j.name),null,'DELETE'); loadJobs(); };
-      actions.append(unins, del); row.appendChild(actions); box.appendChild(row);
+      actions.append(toggle, del); row.appendChild(actions); box.appendChild(row);
     });
   }catch(e){ $('jobsList').innerHTML='<p class="text-danger text-xs">'+e.message+'</p>'; }
 }
