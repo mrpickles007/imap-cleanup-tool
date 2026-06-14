@@ -167,10 +167,11 @@ tailwind.config = { theme: { extend: {
           <b>full</b> — downloads each header and matches the <b>exact domain</b> locally (stricter). Enable “Include subdomains” to also catch subdomains in this mode.
         </span></span>
       </label>
-      <select id="scanMode" class="field mt-1 mb-3">
+      <select id="scanMode" class="field mt-1 mb-2">
         <option value="search">search — fast, also matches subdomains</option>
         <option value="full">full — strict, exact domain (local)</option>
       </select>
+      <p id="scanNote" class="hidden text-[11px] text-muted mb-3">Disabled because you’re using a <b>Rule</b>: rule matching is always a fast server-side SEARCH (subdomains already included). Scan mode applies only to <b>Target lists</b>.</p>
 
       <label class="flex items-center justify-between text-sm py-1.5" id="rowSub">
         <span class="flex items-center">Include subdomains
@@ -359,8 +360,11 @@ function applyProviderTips(){
 }
 function gmailHost(){ return $('host').value.trim()==='imap.gmail.com'; }
 function refreshConditional(){
+  const rule=document.querySelector('input[name=mode]:checked').value==='rule';
+  $('scanMode').disabled=rule;
+  $('scanNote').classList.toggle('hidden', !rule);
   const full=$('scanMode').value==='full';
-  $('subdomains').disabled=!full; if(!full)$('subdomains').checked=false;
+  $('subdomains').disabled = rule || !full; if(rule || !full) $('subdomains').checked=false;
   const gmail=gmailHost();
   $('gmailTrash').disabled=!gmail; if(!gmail)$('gmailTrash').checked=false;
   const empty=$('emptyFolder').checked;
@@ -499,7 +503,7 @@ document.querySelectorAll('.tab').forEach(t=> t.onclick=()=>{
 $('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider').value)||0]; if(p){ if(p.host)$('host').value=p.host; if(p.port)$('port').value=p.port; if(p.host==='imap.gmail.com'){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} } applyProviderTips(); refreshConditional(); };
 $('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional;
 $('togglePass').onclick=()=>{ const p=$('password'); p.type=p.type==='password'?'text':'password'; $('togglePass').textContent=p.type==='password'?'show':'hide'; };
-document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const rule=document.querySelector('input[name=mode]:checked').value==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); });
+document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const rule=document.querySelector('input[name=mode]:checked').value==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); refreshConditional(); });
 $('btnAddFolder').onclick=()=>{ const v=$('manualFolder').value.trim(); if(!v)return; if(!selectedFolders.includes(v))selectedFolders.push(v); if(!knownFolders.some(f=>f.name===v))knownFolders.push({name:v,count:null}); $('manualFolder').value=''; renderFolders(); };
 $('btnClear').onclick=()=>{ logLines=[]; renderLog(); persistLog(); };
 $('btnSelectAll').onclick=()=>{ const names=new Set(knownFolders.map(f=>f.name)); selectedFolders.forEach(n=>names.add(n)); selectedFolders=[...names]; renderFolders(); };
