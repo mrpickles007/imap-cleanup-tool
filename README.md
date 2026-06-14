@@ -364,13 +364,23 @@ Two different actions in the app are easy to confuse, so they are kept distinct:
 - **Create on server** actually creates a new folder/label on your mailbox (via
   IMAP `CREATE`). Use it to make a destination before moving.
 - **Delete on server** (the 🗑 on a folder row, or `--delete-folder`) removes a
-  folder/label from your mailbox. **System folders** (INBOX and special-use ones
-  like Trash, Sent, Drafts, All Mail) are protected and cannot be deleted - only
-  folders you created.
+  folder/label from your mailbox. Only folders **you** created can be deleted;
+  **system folders are protected** (see below).
+
+**How "system folders" are detected.** The app does **not** use a hardcoded list
+of names (that would break on Gmail and on non-English mailboxes). Instead it
+reads each folder's IMAP attributes from the `LIST` response and protects any
+folder the server marks as **special-use** (RFC 6154): `\All`, `\Archive`,
+`\Drafts`, `\Flagged`, `\Junk`, `\Sent`, `\Trash`, `\Important`, or `\Noselect`
+(a non-selectable container like `[Gmail]`) - plus **INBOX**, always. So
+`[Gmail]/Trash`, the localized `[Gmail]/Cestino`, *Sent Mail*, Drafts, etc. are
+recognized automatically by their flags, not their names. (Backstop: even if a
+server failed to flag a special folder, its own `DELETE` would still refuse it.)
+In the web UI those protected folders simply don't show the 🗑 button.
 
 When you choose **Move**, the destination is a **dropdown of your existing
-folders**; pick one, or choose *➕ Create new…* to make a new folder/label on the
-spot.
+folders** - pick one, or choose *➕ Create new…* to make a new folder/label on the
+spot (no typing the name unless you are creating one).
 
 **Moving** copies the matched messages into the destination and removes them from
 the source. The tool uses the server's `MOVE` command when available, otherwise

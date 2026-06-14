@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "imap-cleanup-tool"
-version = "0.3.0"
+version = "0.3.1"
 description = "Delete or move IMAP emails by sender, domain, or nested rules - CLI and local web UI."
 readme = "README.md"
 requires-python = ">=3.10"
