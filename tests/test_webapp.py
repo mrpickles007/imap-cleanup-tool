@@ -167,6 +167,11 @@ class WebApiTests(unittest.TestCase):
                              json={"sid": "nope", "name": "X"})
         self.assertEqual(r.status_code, 440)
 
+    def test_delete_folder_without_session_is_rejected(self):
+        r = self.client.post("/api/delete-folder",
+                             json={"sid": "nope", "name": "X"})
+        self.assertEqual(r.status_code, 440)
+
 
 if __name__ == "__main__":
     unittest.main()

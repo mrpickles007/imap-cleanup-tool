@@ -224,6 +224,7 @@ land in your shell history.
 | `--move` | Move matches to `--dest-folder` instead of deleting them. |
 | `--dest-folder NAME` | Destination folder/label for `--move`. |
 | `--create-folder NAME` | Create a folder (a label on Gmail) on the server, then exit. |
+| `--delete-folder NAME` | Delete a non-system folder/label on the server, then exit. |
 | `--dry-run` | Report only; make no changes. |
 | `--expunge` | Permanently remove after flagging. |
 | `--yes` | Skip the confirmation prompt (for scripts/cron). |
@@ -336,9 +337,10 @@ Highlights:
   help) or a **visual nested query builder** (field ▸ operator ▸ value, AND/OR
   groups).
 - **Count matching emails** before deleting; **dry-run** is on by default.
-- **Move** matches to another folder instead of deleting (an option that
-  excludes delete / Gmail-trash / expunge), and **create folders/labels** on the
-  server. The folder box distinguishes *Add to scan* (just lists a folder to
+- **Move** matches to another folder instead of deleting (pick the destination
+  from a dropdown of your folders, or create a new one inline); plus
+  **create** and **delete** folders/labels on the server (system folders are
+  protected). The folder box distinguishes *Add to scan* (just lists a folder to
   scan, creates nothing) from *Create on server* (really creates a folder, a
   **label** on Gmail) - see [Folders vs labels](#folders-vs-labels-and-moving).
 - Context-aware options with tooltips (e.g. *Include subdomains* only in
@@ -361,6 +363,14 @@ Two different actions in the app are easy to confuse, so they are kept distinct:
   folder that was not auto-listed.
 - **Create on server** actually creates a new folder/label on your mailbox (via
   IMAP `CREATE`). Use it to make a destination before moving.
+- **Delete on server** (the 🗑 on a folder row, or `--delete-folder`) removes a
+  folder/label from your mailbox. **System folders** (INBOX and special-use ones
+  like Trash, Sent, Drafts, All Mail) are protected and cannot be deleted - only
+  folders you created.
+
+When you choose **Move**, the destination is a **dropdown of your existing
+folders**; pick one, or choose *➕ Create new…* to make a new folder/label on the
+spot.
 
 **Moving** copies the matched messages into the destination and removes them from
 the source. The tool uses the server's `MOVE` command when available, otherwise

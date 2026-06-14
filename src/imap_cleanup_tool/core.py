@@ -345,6 +345,56 @@ def create_folder(conn: imaplib.IMAP4_SSL, name: str) -> str:
     raise imaplib.IMAP4.error(detail or "CREATE failed")
 
 
+# Special-use / system flags (RFC 6154) plus \Noselect: folders carrying any of
+# these are system folders we refuse to delete.
+_PROTECTED_FLAGS = {"\\noselect", "\\all", "\\archive", "\\drafts",
+                    "\\flagged", "\\junk", "\\sent", "\\trash", "\\important"}
+
+
+def folder_attributes(conn: imaplib.IMAP4_SSL) -> dict[str, list[str]]:
+    """Return ``{folder_name: [LIST flags]}`` (e.g. ``\\HasNoChildren``, ``\\Trash``)."""
+    status, data = conn.list()
+    result: dict[str, list[str]] = {}
+    if status != "OK":
+        return result
+    for item in data:
+        if not item:
+            continue
+        line = item.decode(errors="replace")
+        flags = re.match(r"\(([^)]*)\)", line)
+        name = re.search(r'"([^"]*)"\s*$', line)
+        result[name.group(1) if name else line.split()[-1]] = (
+            flags.group(1).split() if flags else [])
+    return result
+
+
+def protected_folder_names(conn: imaplib.IMAP4_SSL) -> set[str]:
+    """Names of system folders that must not be deleted (INBOX + special-use)."""
+    names = {n for n, flags in folder_attributes(conn).items()
+             if {f.lower() for f in flags} & _PROTECTED_FLAGS}
+    names.add("INBOX")
+    return names
+
+
+def delete_folder(conn: imaplib.IMAP4_SSL, name: str) -> str:
+    """Delete a (non-system) folder/label. Raises ValueError for protected ones."""
+    name = name.strip()
+    if not name:
+        raise ValueError("Empty folder name.")
+    if name.upper() == "INBOX" or name in protected_folder_names(conn):
+        raise ValueError(f"{name!r} is a system folder and cannot be deleted.")
+    try:
+        conn.unsubscribe(_quote_mailbox(name))
+    except (OSError, imaplib.IMAP4.error):
+        pass
+    status, data = conn.delete(_quote_mailbox(name))
+    if status == "OK":
+        logger.info("Deleted folder/label %r.", name)
+        return f"Deleted folder {name!r}."
+    raise imaplib.IMAP4.error(
+        (data[0].decode(errors="replace") if data and data[0] else "DELETE failed"))
+
+
 def move_uids(conn: imaplib.IMAP4_SSL, uids: list[bytes], dest: str,
               batch_size: int = UID_CHUNK_SIZE,
               should_stop: StopCheck | None = None) -> int:

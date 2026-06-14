@@ -231,11 +231,12 @@ tailwind.config = { theme: { extend: {
         <input id="moveMode" type="checkbox">
       </label>
       <div id="moveDestRow" class="hidden pb-1.5">
-        <div class="flex gap-2">
-          <input id="moveDest" class="field" list="folderOptions" placeholder="destination folder / label">
-          <button id="btnCreateDest" type="button" class="px-3 rounded-lg border border-brand text-brand-light hover:bg-brand hover:text-ink whitespace-nowrap" title="Create this destination folder/label on the server">⊕ Create</button>
+        <select id="moveDest" class="field"></select>
+        <div id="moveNewRow" class="hidden flex gap-2 mt-2">
+          <input id="moveDestNew" class="field" placeholder="new folder / label name">
+          <button id="btnCreateDest" type="button" class="px-3 rounded-lg border border-brand text-brand-light hover:bg-brand hover:text-ink whitespace-nowrap" title="Create this folder/label on the server">⊕ Create</button>
         </div>
-        <p class="text-[11px] text-muted mt-1">Pick an existing folder or type a new name and click <b>Create</b> (a label on Gmail). The destination must exist before moving.</p>
+        <p class="text-[11px] text-muted mt-1">Pick an <b>existing</b> folder, or choose <b>➕ Create new…</b> to make one (a label on Gmail).</p>
       </div>
 
       <label class="flex items-center justify-between text-sm py-1.5">
@@ -544,15 +545,34 @@ function renderFolders(){
     const name=f.name, id='cb'+idx;
     const w=document.createElement('div');
     w.className='group flex items-center gap-2 px-2 py-1 rounded hover:bg-panel2';
+    const delBtn = f.protected ? '' : `<button data-act="del" class="opacity-0 group-hover:opacity-100 text-muted hover:text-danger text-sm leading-none" title="Delete this folder/label on the server">🗑</button>`;
     w.innerHTML=`<input id="${id}" type="checkbox" ${selectedFolders.includes(name)?'checked':''}>
       <label for="${id}" class="truncate flex-1 cursor-pointer" title="${name}">${name}<span class="text-muted text-xs">${fmtCount(f.count)}</span></label>
-      <button class="opacity-0 group-hover:opacity-100 text-muted hover:text-danger text-sm leading-none" title="remove from list">×</button>`;
+      ${delBtn}
+      <button data-act="unlist" class="opacity-0 group-hover:opacity-100 text-muted hover:text-cream text-sm leading-none" title="Remove from this list (does NOT delete on the server)">×</button>`;
     w.querySelector('input').onchange=(e)=>{ if(e.target.checked){ if(!selectedFolders.includes(name))selectedFolders.push(name);} else selectedFolders=selectedFolders.filter(x=>x!==name); };
-    w.querySelector('button').onclick=()=>{ knownFolders=knownFolders.filter(x=>x.name!==name); selectedFolders=selectedFolders.filter(x=>x!==name); renderFolders(); };
+    w.querySelector('[data-act=unlist]').onclick=()=>{ knownFolders=knownFolders.filter(x=>x.name!==name); selectedFolders=selectedFolders.filter(x=>x!==name); renderFolders(); };
+    const db=w.querySelector('[data-act=del]');
+    if(db) db.onclick=async()=>{
+      if(!(await confirmDialog({title:'Delete folder on server', message:'Permanently delete the folder/label "'+name+'" on your mail server? Any messages still inside it may be lost.', okText:'Delete', danger:true}))) return;
+      try{ const d=await api('/api/delete-folder',{sid:SID,name:name}); knownFolders=d.folders||knownFolders; selectedFolders=selectedFolders.filter(x=>x!==name); renderFolders(); log(d.message); }
+      catch(e){ log('[ERROR] '+e.message); }
+    };
     box.appendChild(w);
   });
   renderFolderOptions();
+  populateMoveDest();
 }
+function populateMoveDest(){
+  const sel=$('moveDest'); if(!sel) return;
+  const cur=sel.value;
+  sel.innerHTML='';
+  knownFolders.forEach(f=>{ const o=document.createElement('option'); o.value=f.name; o.textContent=f.name; sel.appendChild(o); });
+  const o=document.createElement('option'); o.value='__new__'; o.textContent='➕ Create a new folder / label…'; sel.appendChild(o);
+  if(cur && [...sel.options].some(x=>x.value===cur)) sel.value=cur;
+  const nr=$('moveNewRow'); if(nr) nr.classList.toggle('hidden', sel.value!=='__new__');
+}
+function moveDestValue(){ const md=$('moveDest').value; return md==='__new__' ? $('moveDestNew').value.trim() : md; }
 function renderFolderOptions(){
   const dl=$('folderOptions'); if(!dl) return;
   dl.innerHTML='';
@@ -614,7 +634,7 @@ function optionsPayload(){
   return { folders:selectedFolders.length?selectedFolders:['INBOX'], scan_mode:$('scanMode').value,
     include_subdomains:$('subdomains').checked, batch_size:parseInt($('batch').value)||500,
     gmail_trash:$('gmailTrash').checked, expunge:$('expunge').checked,
-    move:$('moveMode').checked, dest_folder:$('moveDest').value.trim(),
+    move:$('moveMode').checked, dest_folder:moveDestValue(),
     empty_folder:$('emptyFolder').checked, dry_run:$('dryRun').checked };
 }
 
@@ -710,7 +730,7 @@ function updateJobSummary(){
     match = n ? ('messages from '+n+' target line(s)') : 'no targets set'; warn=!n; }
   let action;
   if(empty) action='Delete EVERYTHING';
-  else if($('moveMode').checked) action='Move to '+($('moveDest').value.trim()||'(no destination set)');
+  else if($('moveMode').checked) action='Move to '+(moveDestValue()||'(no destination set)');
   else if($('gmailTrash').checked) action='Move to Gmail Trash';
   else if($('expunge').checked) action='Permanently delete (expunge)';
   else action='Flag as deleted';
@@ -762,7 +782,10 @@ document.querySelectorAll('.tab').forEach(t=> t.onclick=()=>{
   if(t.dataset.tab==='scheduling'){ populateJobProfiles(); updateSchedInputs(); loadJobs(); }
 });
 $('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider').value)||0]; if(p){ if(p.host)$('host').value=p.host; if(p.port)$('port').value=p.port; if(p.host==='imap.gmail.com'){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} } applyProviderTips(); refreshConditional(); };
-$('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional; $('gmailTrash').onchange=refreshConditional; $('moveMode').onchange=refreshConditional; $('moveDest').oninput=updateJobSummary;
+$('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional; $('gmailTrash').onchange=refreshConditional;
+$('moveMode').onchange=()=>{ refreshConditional(); populateMoveDest(); updateJobSummary(); };
+$('moveDest').onchange=()=>{ const nr=$('moveNewRow'); if(nr) nr.classList.toggle('hidden',$('moveDest').value!=='__new__'); updateJobSummary(); };
+$('moveDestNew').oninput=updateJobSummary;
 $('togglePass').onclick=()=>{ const p=$('password'); p.type=p.type==='password'?'text':'password'; $('togglePass').textContent=p.type==='password'?'show':'hide'; };
 document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const mode=document.querySelector('input[name=mode]:checked').value; try{localStorage.setItem('icw_mode',mode);}catch(_){} const rule=mode==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); refreshConditional(); });
 $('targets').addEventListener('input', ()=>{ try{localStorage.setItem('icw_targets',$('targets').value);}catch(_){} });
@@ -774,7 +797,7 @@ async function createServerFolder(name){
   catch(e){ log('[ERROR] '+e.message); return false; }
 }
 $('btnCreateFolder').onclick=async()=>{ if(await createServerFolder($('manualFolder').value)) $('manualFolder').value=''; };
-$('btnCreateDest').onclick=()=>createServerFolder($('moveDest').value);
+$('btnCreateDest').onclick=async()=>{ const v=$('moveDestNew').value.trim(); if(await createServerFolder(v)){ populateMoveDest(); $('moveDest').value=v; const nr=$('moveNewRow'); if(nr) nr.classList.add('hidden'); $('moveDestNew').value=''; updateJobSummary(); } };
 $('btnClear').onclick=()=>{ logLines=[]; renderLog(); persistLog(); };
 $('btnSelectAll').onclick=()=>{ const names=new Set(knownFolders.map(f=>f.name)); selectedFolders.forEach(n=>names.add(n)); selectedFolders=[...names]; renderFolders(); };
 $('btnDeselectAll').onclick=()=>{ selectedFolders=[]; renderFolders(); };

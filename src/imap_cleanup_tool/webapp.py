@@ -65,6 +65,17 @@ def _safe_job_name(name: str) -> str:
     """Sanitise a job name so it is safe in a scheduler command line / task id."""
     return re.sub(r"[^A-Za-z0-9_-]+", "_", (name or "job").strip()) or "job"
 
+
+def _folder_dicts(conn) -> list[dict]:
+    """Folder rows for the UI: name, message count, and a ``protected`` flag
+    (system folders the user must not delete)."""
+    names = core.list_folders(conn)
+    counts = core.folder_message_counts(conn, names)
+    protected = core.protected_folder_names(conn)
+    return [{"name": n, "count": counts.get(n),
+             "protected": n in protected or n.upper() == "INBOX"}
+            for n in names]
+
 FIELD_OPERATORS = {
     "sender": [["contains", "contains"], ["is exactly", "is"]],
     "subject": [["contains", "contains"], ["is exactly", "is"]],
@@ -329,9 +340,7 @@ def create_app():
         sid = uuid.uuid4().hex
         sess = Session(sid, conn, body.host, body.port, body.user)
         try:
-            names = core.list_folders(conn)
-            counts = core.folder_message_counts(conn, names)
-            sess.folders = [{"name": n, "count": counts.get(n)} for n in names]
+            sess.folders = _folder_dicts(conn)
         except (OSError, core.imaplib.IMAP4.error):
             sess.folders = []
         _SESSIONS[sid] = sess
@@ -358,11 +367,9 @@ def create_app():
                                      "it finishes.")
         with sess.lock:
             try:
-                names = core.list_folders(sess.conn)
-                counts = core.folder_message_counts(sess.conn, names)
+                sess.folders = _folder_dicts(sess.conn)
             except (OSError, core.imaplib.IMAP4.error) as exc:
                 raise HTTPException(502, f"IMAP error: {exc}") from exc
-        sess.folders = [{"name": n, "count": counts.get(n)} for n in names]
         return {"folders": sess.folders}
 
     @app.post("/api/create-folder")
@@ -378,12 +385,30 @@ def create_app():
         with sess.lock:
             try:
                 message = core.create_folder(sess.conn, name)
-                names = core.list_folders(sess.conn)
-                counts = core.folder_message_counts(sess.conn, names)
+                sess.folders = _folder_dicts(sess.conn)
             except (OSError, core.imaplib.IMAP4.error) as exc:
                 raise HTTPException(502, f"IMAP error: {exc}") from exc
-        sess.folders = [{"name": n, "count": counts.get(n)} for n in names]
         return {"message": message, "created": name, "folders": sess.folders}
+
+    @app.post("/api/delete-folder")
+    def delete_folder(body: CreateFolderIn) -> dict[str, Any]:
+        """Delete a non-system folder/label on the server, then reload the list."""
+        sess = _session(body.sid)
+        name = (body.name or "").strip()
+        if not name:
+            raise HTTPException(400, "Provide a folder/label name.")
+        if sess.run and sess.run.status == "running":
+            raise HTTPException(409, "An operation is running; try again after "
+                                     "it finishes.")
+        with sess.lock:
+            try:
+                message = core.delete_folder(sess.conn, name)
+                sess.folders = _folder_dicts(sess.conn)
+            except ValueError as exc:                # protected / system folder
+                raise HTTPException(400, str(exc)) from exc
+            except (OSError, core.imaplib.IMAP4.error) as exc:
+                raise HTTPException(502, f"IMAP error: {exc}") from exc
+        return {"message": message, "deleted": name, "folders": sess.folders}
 
     @app.post("/api/disconnect/{sid}")
     def disconnect(sid: str) -> dict[str, Any]:

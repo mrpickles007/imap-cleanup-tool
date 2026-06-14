@@ -12,6 +12,7 @@ from .core import (
     StopRequested,
     connect,
     create_folder,
+    delete_folder,
     delete_uids,
     empty_folder,
     fetch_from_headers,
@@ -28,7 +29,7 @@ from .targets import load_targets, parse_targets_text, sender_matches
 from .rules import Condition, Group, compile_search, node_from_dict
 from .rule_parser import parse_rule_expression
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "__version__",
@@ -44,6 +45,7 @@ __all__ = [
     "delete_uids",
     "move_uids",
     "create_folder",
+    "delete_folder",
     "empty_folder",
     "process_folder",
     "load_targets",

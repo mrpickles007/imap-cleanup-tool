@@ -30,6 +30,21 @@ class FakeConn:
         self.calls.append(("SUBSCRIBE", name))
         return ("OK", [b""])
 
+    def unsubscribe(self, name):
+        self.calls.append(("UNSUBSCRIBE", name))
+        return ("OK", [b""])
+
+    def delete(self, name):
+        self.calls.append(("DELETE", name))
+        return ("OK", [b"deleted"])
+
+    def list(self):
+        return ("OK", [
+            rb'(\HasNoChildren) "/" "INBOX"',
+            rb'(\HasNoChildren \Trash) "/" "[Gmail]/Trash"',
+            rb'(\HasNoChildren) "/" "Archive2025"',
+        ])
+
 
 class MoveUidsTests(unittest.TestCase):
     def test_uses_move_when_capability_present(self):
@@ -70,6 +85,28 @@ class CreateFolderTests(unittest.TestCase):
             core.create_folder(FakeConn(), "   ")
 
 
+class DeleteFolderTests(unittest.TestCase):
+    def test_protected_set_detection(self):
+        prot = core.protected_folder_names(FakeConn())
+        self.assertIn("INBOX", prot)
+        self.assertIn("[Gmail]/Trash", prot)        # has \Trash special-use flag
+        self.assertNotIn("Archive2025", prot)
+
+    def test_delete_normal_ok(self):
+        conn = FakeConn()
+        msg = core.delete_folder(conn, "Archive2025")
+        self.assertIn("Deleted", msg)
+        self.assertIn(("DELETE", '"Archive2025"'), conn.calls)
+
+    def test_delete_protected_refused(self):
+        with self.assertRaises(ValueError):
+            core.delete_folder(FakeConn(), "[Gmail]/Trash")
+
+    def test_delete_inbox_refused(self):
+        with self.assertRaises(ValueError):
+            core.delete_folder(FakeConn(), "INBOX")
+
+
 class CliArgsTests(unittest.TestCase):
     def test_move_flags_parse(self):
         args = cli.parse_args(["--move", "--dest-folder", "Archive",
@@ -80,6 +117,10 @@ class CliArgsTests(unittest.TestCase):
     def test_create_folder_flag_parses(self):
         args = cli.parse_args(["--create-folder", "Receipts"])
         self.assertEqual(args.create_folder, "Receipts")
+
+    def test_delete_folder_flag_parses(self):
+        args = cli.parse_args(["--delete-folder", "Receipts"])
+        self.assertEqual(args.delete_folder, "Receipts")
 
 
 if __name__ == "__main__":

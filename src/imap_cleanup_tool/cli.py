@@ -70,6 +70,9 @@ def _add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--create-folder", metavar="NAME",
                         help="Create a folder (a label on Gmail) on the server "
                              "and exit.")
+    parser.add_argument("--delete-folder", metavar="NAME",
+                        help="Delete a non-system folder/label on the server "
+                             "and exit.")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--expunge", action="store_true")
     parser.add_argument("--yes", action="store_true")
@@ -212,6 +215,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.create_folder:
             print(core.create_folder(conn, args.create_folder))
+            return 0
+        if args.delete_folder:
+            try:
+                print(core.delete_folder(conn, args.delete_folder))
+            except ValueError as exc:
+                print(f"[ERROR] {exc}")
+                return 2
             return 0
         if args.list_folders:
             for name in core.list_folders(conn):
