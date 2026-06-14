@@ -263,9 +263,11 @@ that apply:
 | Monthly | day 1–28 + time | `/SC MONTHLY /D` | `MM HH <dom> * *` |
 
 The time/date pickers use your system locale; the one-time date is rendered in
-the system's short-date format for `schtasks`. (One-time POSIX jobs use `at`,
-which is not tracked in the install/uninstall list — manage them with
-`atq`/`atrm`.)
+the system's short-date format for `schtasks`. One-time jobs on Linux/macOS use
+`at`: the tool records the `at` job number on install, so they show as
+*installed* (via `atq`) and can be uninstalled from the panel (via `atrm`),
+just like recurring cron jobs — `at`/`atq`/`atrm` must be installed. A one-time
+job that has already fired drops back to *saved* (it is no longer queued).
 
 Each job connects with a saved **connection profile** (chosen in the Scheduling
 tab), so different jobs can target different accounts. The scheduled task runs

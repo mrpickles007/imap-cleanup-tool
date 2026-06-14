@@ -1,5 +1,6 @@
 """Unit tests for scheduling: schedule building, OS export, persistence, logs."""
 
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -156,6 +157,68 @@ class JobLogTests(unittest.TestCase):
             {"kind": "weekly", "day": "MON", "time": "07:30"}))
         self.assertIn("Once", scheduler.describe_schedule(
             {"kind": "once", "date": "2026-07-01", "time": "09:05"}))
+
+
+class AtJobTests(unittest.TestCase):
+    """One-shot POSIX jobs are tracked via `at`/`atq`/`atrm`."""
+
+    def test_install_at_records_job_number(self):
+        def fake_run(cmd, *a, **k):
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout="",
+                stderr="warning: commands will be executed using /bin/sh\n"
+                       "job 7 at Wed Jul  1 09:05:00 2026\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)), \
+                 mock.patch.object(scheduler.subprocess, "run",
+                                   side_effect=fake_run):
+                job = Job("oneoff", schedule={"kind": "once",
+                          "date": "2026-07-01", "time": "09:05"})
+                msg = scheduler.install_cron(job)
+                self.assertIn("#7", msg)
+                saved = next(j for j in scheduler.load_jobs()
+                             if j.name == "oneoff")
+                self.assertEqual(saved.at_id, 7)
+
+    def test_installed_names_includes_queued_at_job(self):
+        def fake_run(cmd, *a, **k):
+            if cmd[0] == "crontab":
+                raise FileNotFoundError
+            if cmd[0] == "atq":
+                return subprocess.CompletedProcess(
+                    cmd, 0, stdout="7\tWed Jul  1 09:05:00 2026 a user\n",
+                    stderr="")
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)), \
+                 mock.patch.object(scheduler.sys, "platform", "linux"), \
+                 mock.patch.object(scheduler.subprocess, "run",
+                                   side_effect=fake_run):
+                scheduler.upsert_job(Job("oneoff", schedule={"kind": "once",
+                    "date": "2026-07-01", "time": "09:05"}, at_id=7))
+                self.assertIn("oneoff", scheduler.installed_job_names())
+
+    def test_uninstall_at_runs_atrm_and_clears_id(self):
+        calls = []
+        def fake_run(cmd, *a, **k):
+            calls.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)), \
+                 mock.patch.object(scheduler.subprocess, "run",
+                                   side_effect=fake_run):
+                scheduler.upsert_job(Job("oneoff", schedule={"kind": "once",
+                    "date": "2026-07-01", "time": "09:05"}, at_id=7))
+                msg = scheduler.uninstall_cron(Job("oneoff", schedule={}))
+                self.assertIn("#7", msg)
+                self.assertTrue(any(c[0] == "atrm" and c[1] == "7"
+                                    for c in calls))
+                saved = next(j for j in scheduler.load_jobs()
+                             if j.name == "oneoff")
+                self.assertIsNone(saved.at_id)
 
 
 class RunJobCliTests(unittest.TestCase):

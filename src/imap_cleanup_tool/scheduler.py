@@ -65,6 +65,7 @@ class Job:
     schedule: dict = field(default_factory=dict)
     enabled: bool = True
     last_run: str | None = None
+    at_id: int | None = None   # POSIX `at` job number, set when a one-shot is installed
 
     def to_dict(self) -> dict:
         """Return the job as a plain dict."""
@@ -323,7 +324,11 @@ def install_windows(job: Job) -> str:
 
 
 def _install_at(job: Job) -> str:
-    """Schedule a one-time job via the POSIX ``at`` command."""
+    """Schedule a one-time job via the POSIX ``at`` command.
+
+    Records the ``at`` job number on the job (so it can be listed via ``atq``
+    and removed via ``atrm`` from the panel, like recurring cron jobs).
+    """
     when = job.schedule
     hh, mm = (int(x) for x in str(when.get("time", "03:00")).split(":"))
     try:
@@ -337,8 +342,15 @@ def _install_at(job: Job) -> str:
                            "schedule.") from exc
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or "at failed")
-    return (f"Scheduled one-time job '{job.name}' with `at` "
-            f"(use 'atq'/'atrm' to manage it).")
+    # `at` prints e.g. "job 42 at Wed Jul  1 09:05:00 2026" (usually on stderr).
+    match = re.search(r"job\s+(\d+)\s+at",
+                      (result.stderr or "") + "\n" + (result.stdout or ""))
+    if match:
+        job.at_id = int(match.group(1))
+        upsert_job(job)
+        return f"Scheduled one-time job '{job.name}' with `at` (job #{job.at_id})."
+    return (f"Scheduled one-time job '{job.name}' with `at` (its id could not "
+            f"be read — manage it with 'atq'/'atrm').")
 
 
 def install_cron(job: Job) -> str:
@@ -381,8 +393,35 @@ def uninstall_windows(job: Job) -> str:
     return f'Removed Windows task "{_task_name(job)}".'
 
 
+def _uninstall_at(job: Job) -> str:
+    """Cancel a one-time ``at`` job via ``atrm`` and clear its recorded id."""
+    if job.at_id is None:
+        return (f"No `at` job recorded for '{job.name}' "
+                f"(already ran, already removed, or never installed).")
+    try:
+        result = subprocess.run(["atrm", str(job.at_id)],
+                                capture_output=True, text=True)
+    except FileNotFoundError as exc:
+        raise RuntimeError("The `atrm` command was not found.") from exc
+    err = (result.stderr or "").lower()
+    tolerated = "cannot find" in err or "no atjob" in err or "no such" in err
+    if result.returncode != 0 and not tolerated:
+        raise RuntimeError(result.stderr.strip() or "atrm failed")
+    # Clear the stored id on the persisted job (the at-job is gone either way).
+    saved = next((j for j in load_jobs() if j.name == job.name), None)
+    if saved is not None:
+        saved.at_id = None
+        upsert_job(saved)
+    return f"Removed one-time `at` job '{job.name}' (#{job.at_id})."
+
+
 def uninstall_cron(job: Job) -> str:
-    """Remove this job's line from the user's crontab. Tolerant if it's absent."""
+    """Remove this job from cron (recurring) or ``at`` (one-shot)."""
+    # The caller may pass a bare Job (no schedule); consult the saved copy to
+    # tell a one-shot `at` job from a recurring cron line.
+    saved = next((j for j in load_jobs() if j.name == job.name), None)
+    if saved is not None and saved.schedule.get("kind") == "once":
+        return _uninstall_at(saved)
     marker = f"# imap-cleanup-tool job: {job.name}"
     try:
         current = subprocess.run(["crontab", "-l"], capture_output=True,
@@ -422,10 +461,32 @@ def installed_job_names() -> set[str]:
     try:
         current = subprocess.run(["crontab", "-l"], capture_output=True,
                                  text=True).stdout
+        marker = "# imap-cleanup-tool job: "
+        for line in current.splitlines():
+            if marker in line:
+                names.add(line.split(marker, 1)[1].strip())
     except FileNotFoundError:
-        return names
-    marker = "# imap-cleanup-tool job: "
-    for line in current.splitlines():
-        if marker in line:
-            names.add(line.split(marker, 1)[1].strip())
+        pass  # no cron — still check one-shot `at` jobs below
+    # One-shot jobs scheduled via `at`: a recorded at_id still in the queue.
+    queued = _queued_at_ids()
+    if queued:
+        for job in load_jobs():
+            if job.schedule.get("kind") == "once" and job.at_id in queued:
+                names.add(job.name)
     return names
+
+
+def _queued_at_ids() -> set[int]:
+    """Return the set of job numbers currently queued in ``at`` (via ``atq``)."""
+    try:
+        result = subprocess.run(["atq"], capture_output=True, text=True)
+    except FileNotFoundError:
+        return set()
+    if result.returncode != 0:
+        return set()
+    ids: set[int] = set()
+    for line in result.stdout.splitlines():
+        match = re.match(r"\s*(\d+)", line)
+        if match:
+            ids.add(int(match.group(1)))
+    return ids
