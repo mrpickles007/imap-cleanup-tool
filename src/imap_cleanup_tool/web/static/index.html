@@ -77,9 +77,16 @@ tailwind.config = { theme: { extend: {
       <h2 class="font-display font-semibold text-brand-light mb-4">Connection</h2>
       <div class="grid grid-cols-2 gap-3">
         <div class="col-span-2 flex items-end gap-2">
-          <label class="flex-1 text-xs text-muted">Profile
-            <select id="profileSelect" class="field mt-1"></select>
-          </label>
+          <div class="flex-1 min-w-0">
+            <div class="text-xs text-muted mb-1">Profile</div>
+            <div id="profileDD" class="relative">
+              <button id="profileBtn" type="button" class="field flex items-center justify-between gap-2 text-left">
+                <span id="profileBtnLabel" class="flex items-center gap-2 truncate">— New profile —</span>
+                <svg class="w-4 h-4 text-muted flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div id="profileMenu" class="hidden absolute z-40 mt-1 w-full max-h-60 overflow-auto bg-panel2 border border-line rounded-lg shadow-xl py-1"></div>
+            </div>
+          </div>
           <button id="btnSaveProfile" type="button" class="px-3 py-2 rounded-lg border border-line text-cream hover:border-brand text-sm">Save…</button>
           <button id="btnDeleteProfile" type="button" class="px-3 py-2 rounded-lg border border-line text-muted hover:text-danger text-sm">Delete</button>
         </div>
@@ -668,15 +675,31 @@ function initTooltips(){
 }
 
 /* ---------- connection profiles (SQLite, optionally encrypted) ---------- */
+const LOCK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5 text-warn flex-none"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
 let PROFILES = [];
+let selectedProfile = '';
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function setProfileLabel(name){
+  selectedProfile = name || '';
+  if(!selectedProfile){ $('profileBtnLabel').innerHTML = '<span class="text-muted">— New profile —</span>'; return; }
+  const p = PROFILES.find(x=>x.name===selectedProfile);
+  $('profileBtnLabel').innerHTML = ((p && p.encrypted) ? LOCK_SVG : '') + '<span class="truncate">'+escapeHtml(selectedProfile)+'</span>';
+}
+function renderProfileMenu(){
+  const m = $('profileMenu'); m.innerHTML='';
+  const item = (name, html)=>{ const b=document.createElement('button'); b.type='button';
+    b.className='w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm text-cream hover:bg-panel';
+    b.innerHTML=html; b.onclick=()=>chooseProfile(name); m.appendChild(b); };
+  item('', '<span class="text-muted">— New profile —</span>');
+  PROFILES.forEach(p=> item(p.name,
+    (p.encrypted ? LOCK_SVG : '<span class="w-3.5 flex-none"></span>')+'<span class="truncate">'+escapeHtml(p.name)+'</span>'));
+}
 async function loadProfiles(selectName){
   try{
     const d = await (await fetch('/api/profiles')).json();
     PROFILES = d.profiles || [];
-    const sel = $('profileSelect'); sel.innerHTML='';
-    const o0 = document.createElement('option'); o0.value=''; o0.textContent='— New profile —'; sel.appendChild(o0);
-    PROFILES.forEach(p=>{ const o=document.createElement('option'); o.value=p.name; o.textContent=p.name+(p.encrypted?' 🔒':''); sel.appendChild(o); });
-    sel.value = selectName || '';
+    renderProfileMenu();
+    setProfileLabel(selectName || '');
   }catch(_){}
 }
 function fillConnection(p){
@@ -689,19 +712,22 @@ async function doLoadProfile(name, secret){
   const d = await api('/api/profiles/load', {name, secret: secret||''});
   fillConnection(d); log('Profile "'+name+'" loaded.');
 }
-$('profileSelect').onchange = async ()=>{
-  const name = $('profileSelect').value;
+async function chooseProfile(name){
+  $('profileMenu').classList.add('hidden');
+  setProfileLabel(name);
   if(!name) return;
   const p = PROFILES.find(x=>x.name===name);
   if(p && p.encrypted){ openUnlock(name); return; }
-  try{ await doLoadProfile(name, ''); }catch(e){ log('[ERROR] '+e.message); $('profileSelect').value=''; }
-};
+  try{ await doLoadProfile(name, ''); }catch(e){ log('[ERROR] '+e.message); setProfileLabel(''); }
+}
+$('profileBtn').onclick=(e)=>{ e.stopPropagation(); $('profileMenu').classList.toggle('hidden'); };
+document.addEventListener('click', (e)=>{ if(!$('profileDD').contains(e.target)) $('profileMenu').classList.add('hidden'); });
 let unlockName=null;
 function openUnlock(name){ unlockName=name; $('unlockSecret').value=''; $('unlockErr').classList.add('hidden');
   $('unlockMsg').textContent='Profile "'+name+'" is encrypted. Enter its password to load it.';
   $('unlockModal').classList.remove('hidden'); setTimeout(()=>$('unlockSecret').focus(),50); }
 function closeUnlock(){ $('unlockModal').classList.add('hidden'); }
-$('unlockCancel').onclick=()=>{ closeUnlock(); $('profileSelect').value=''; };
+$('unlockCancel').onclick=()=>{ closeUnlock(); setProfileLabel(''); };
 $('unlockConfirm').onclick=async ()=>{
   try{ await doLoadProfile(unlockName, $('unlockSecret').value); closeUnlock(); }
   catch(e){ $('unlockErr').textContent=e.message; $('unlockErr').classList.remove('hidden'); }
@@ -725,7 +751,7 @@ $('saveSecret2').addEventListener('input', updateSaveBtn);
 $('saveSecretEye').onclick=()=>{ const t=$('saveSecret').type==='password'?'text':'password'; $('saveSecret').type=t; $('saveSecret2').type=t; $('saveSecretEye').textContent= t==='password'?'show':'hide'; };
 $('btnSaveProfile').onclick=()=>{
   if(!$('host').value.trim()||!$('user').value.trim()){ log('[ERROR] Fill host and user before saving a profile.'); return; }
-  $('saveName').value = $('profileSelect').value || $('user').value || '';
+  $('saveName').value = selectedProfile || $('user').value || '';
   $('saveEncrypt').checked=false; $('saveSecret').value=''; $('saveSecret2').value='';
   $('saveSecret').type='password'; $('saveSecret2').type='password'; $('saveSecretEye').textContent='show';
   $('saveSecretRow').classList.add('hidden'); $('savePlainWarn').classList.remove('hidden');
@@ -745,7 +771,7 @@ $('saveConfirm').onclick=async ()=>{
   }catch(e){ log('[ERROR] '+e.message); }
 };
 $('btnDeleteProfile').onclick=async ()=>{
-  const name=$('profileSelect').value; if(!name){ log('Select a saved profile to delete.'); return; }
+  const name=selectedProfile; if(!name){ log('Select a saved profile to delete.'); return; }
   if(!confirm('Delete profile "'+name+'"?')) return;
   try{ await api('/api/profiles/'+encodeURIComponent(name), null, 'DELETE'); await loadProfiles(''); log('Profile "'+name+'" deleted.'); }catch(e){ log('[ERROR] '+e.message); }
 };
