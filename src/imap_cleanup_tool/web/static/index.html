@@ -528,9 +528,9 @@ function refreshConditional(){
   $('moveMode').disabled=empty; if(empty)$('moveMode').checked=false;
   const move=$('moveMode').checked && !empty;
   $('moveDestRow').classList.toggle('hidden', !move);
-  $('gmailTrash').disabled = !gmail || move; if(!gmail||move)$('gmailTrash').checked=false;
+  $('gmailTrash').disabled = !gmail || move || empty; if(!gmail||move||empty)$('gmailTrash').checked=false;
   const gtrash=$('gmailTrash').checked;
-  $('expunge').disabled = gtrash || move; if(gtrash||move)$('expunge').checked=false;
+  $('expunge').disabled = gtrash || move || empty; if(gtrash||move||empty)$('expunge').checked=false;
   $('expungeNote').classList.toggle('hidden', !gtrash);
   $('paneTargets').classList.toggle('dim',empty); $('paneRule').classList.toggle('dim',empty);
 }
