@@ -10,14 +10,15 @@ local **web interface**. The CLI uses only the Python standard library; the web
 UI is an optional extra (FastAPI).
 
 - Match by a target file (one sender/domain per line) **or** by a rule
-  expression like `sender contains amazon.com OR (subject is Fattura AND date starts 2025-01-01)`.
+  expression like `sender contains amazon.com OR (subject is Invoice AND date starts 2025-01-01)`.
 - Fast **server-side search** for huge folders, or strict **local matching**.
+- **Count** how many emails a filter matches before deleting anything.
 - **Gmail mode**: moves matches to Trash (the only way to truly delete on Gmail).
 - **Empty a whole folder** (e.g. Trash) without scanning.
 - **List senders** with counts and export them to CSV (with timestamp).
 - **Stop** button / cooperative cancellation for long runs.
-- **Scheduler**: save jobs and run them internally, or export a Windows Task
-  Scheduler / cron command to run them even when the app is closed.
+- **Scheduler**: save jobs and run them while the app is open, or **install**
+  them into Windows Task Scheduler / cron to run even when it is closed.
 
 > ⚠️ Deleting email is destructive. Always do a `--dry-run` first. Without
 > `--expunge`, messages are only flagged deleted (often hidden by the client
@@ -68,7 +69,7 @@ cd imap-cleanup-tool
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 
-pip install -e ".[dev]"          # editable install + dev tools
+pip install -e ".[dev,web]"      # editable install + dev tools + web UI
 ```
 
 ### Running the tests
