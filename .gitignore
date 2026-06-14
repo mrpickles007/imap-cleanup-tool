@@ -27,10 +27,9 @@ Thumbs.db
 .vscode/
 
 # App data that may be created locally
-senders.csv
+*.csv
 targets.txt
 jobs.json
-.csv
 
 # AI assistant working files (kept local, not published)
 CLAUDE.md
