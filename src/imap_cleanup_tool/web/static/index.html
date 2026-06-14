@@ -279,10 +279,12 @@ tailwind.config = { theme: { extend: {
 <div id="tab-scheduling" class="hidden grid lg:grid-cols-2 gap-5">
   <section class="bg-panel border border-line rounded-xl p-5">
     <h2 class="font-display font-semibold text-brand-light mb-3">New scheduled job</h2>
-    <p class="text-xs text-muted mb-3">A job reuses the current <b>Cleanup</b> tab (connection, folders, match, options). It runs the CLI on a schedule.
-      <span class="tip"><span class="ic">i</span><span class="bub">For security the password is <b>not</b> stored. Scheduled jobs read it from the <code>IMAP_PASSWORD</code> environment variable when they run.</span></span>
-    </p>
+    <p class="text-xs text-muted mb-3">The job connects with a saved <b>profile</b>; folders, match and options come from the <b>Cleanup</b> tab. It runs the CLI on a schedule — different jobs can use different profiles (different accounts).</p>
     <div class="grid grid-cols-2 gap-3">
+      <label class="text-xs text-muted col-span-2">Connection profile
+        <select id="jobProfile" class="field mt-1"></select>
+        <span class="block text-[11px] text-muted mt-1">Only non-encrypted profiles appear here — a cron can't type a password to decrypt one.</span>
+      </label>
       <label class="text-xs text-muted">Name <input id="jobName" class="field mt-1" value="nightly_cleanup"></label>
       <label class="text-xs text-muted">Frequency
         <select id="jobKind" class="field mt-1"><option value="daily">daily</option><option value="interval">every N minutes</option></select>
@@ -324,6 +326,7 @@ tailwind.config = { theme: { extend: {
     <label class="flex items-center gap-2 text-sm mt-3">
       <input id="saveEncrypt" type="checkbox"> Encrypt the password
     </label>
+    <p class="text-[11px] text-muted mt-1">Note: an encrypted profile <b>can't be used by scheduled jobs</b> (a cron can't type the password to decrypt it).</p>
     <div id="saveSecretRow" class="hidden mt-3 space-y-2">
       <div class="flex gap-2">
         <input id="saveSecret" type="password" class="field" placeholder="Encryption password" autocomplete="new-password">
@@ -577,10 +580,19 @@ async function startJob(path, body){
 /* ---------- scheduling ---------- */
 function jobPayload(){
   return Object.assign({}, matchPayload(), optionsPayload(), {
-    name:$('jobName').value.trim()||'job', host:$('host').value.trim(),
-    port:parseInt($('port').value)||993, user:$('user').value.trim(),
+    name:$('jobName').value.trim()||'job',
+    profile:$('jobProfile').value,
     kind:$('jobKind').value, time:$('jobTime').value.trim()||'03:00',
     minutes:parseInt($('jobMinutes').value)||60 });
+}
+function populateJobProfiles(){
+  const sel=$('jobProfile'); if(!sel) return;
+  const cur=sel.value;
+  const plain=PROFILES.filter(p=>!p.encrypted);
+  sel.innerHTML='';
+  if(!plain.length){ const o=document.createElement('option'); o.value=''; o.textContent='— no non-encrypted profile —'; sel.appendChild(o); return; }
+  plain.forEach(p=>{ const o=document.createElement('option'); o.value=p.name; o.textContent=p.name; sel.appendChild(o); });
+  if(cur && plain.some(p=>p.name===cur)) sel.value=cur;
 }
 async function loadJobs(){
   try{
@@ -604,7 +616,7 @@ document.querySelectorAll('.tab').forEach(t=> t.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
   $('tab-cleanup').classList.toggle('hidden', t.dataset.tab!=='cleanup');
   $('tab-scheduling').classList.toggle('hidden', t.dataset.tab!=='scheduling');
-  if(t.dataset.tab==='scheduling') loadJobs();
+  if(t.dataset.tab==='scheduling'){ populateJobProfiles(); loadJobs(); }
 });
 $('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider').value)||0]; if(p){ if(p.host)$('host').value=p.host; if(p.port)$('port').value=p.port; if(p.host==='imap.gmail.com'){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} } applyProviderTips(); refreshConditional(); };
 $('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional; $('gmailTrash').onchange=refreshConditional;
@@ -730,6 +742,7 @@ async function loadProfiles(selectName){
     const d = await (await fetch('/api/profiles')).json();
     PROFILES = d.profiles || [];
     renderProfileMenu();
+    populateJobProfiles();
     setProfileLabel(selectName || '');
   }catch(_){}
 }

@@ -128,6 +128,7 @@ land in your shell history.
 | `--yes` | Skip the confirmation prompt (for scripts/cron). |
 | `--verbose`, `-v` | Debug logging with per-batch progress. |
 | `--run-job NAME` | Run a saved scheduled job by name (used by the OS scheduler). |
+| `--profile NAME` | Load host/user/password from a saved, non-encrypted profile. |
 
 Examples:
 
@@ -248,10 +249,13 @@ Jobs are stored as JSON in your user config directory
   directly (a `schtasks` task on Windows, a `crontab` line on Linux/macOS) so it
   runs even when the app is closed. *Export command* shows the equivalent line.
 
-Scheduled tasks run a saved job by name (`imap-cleanup-tool --run-job NAME`) via
-the current interpreter, so they work inside your virtualenv without relying on
-`PATH`. For unattended jobs the password is read from the `IMAP_PASSWORD`
-environment variable (it is never stored in the job).
+Each job connects with a saved **connection profile** (chosen in the Scheduling
+tab), so different jobs can target different accounts. The scheduled task runs
+the job by name (`imap-cleanup-tool --run-job NAME`) via the current interpreter
+(so it works inside your virtualenv without relying on `PATH`); at run time the
+CLI loads host / user / password from the profile's local SQLite DB. Only
+**non-encrypted** profiles can be scheduled — a cron has no way to type the
+password to decrypt an encrypted one.
 
 ---
 

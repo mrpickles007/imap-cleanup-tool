@@ -69,6 +69,9 @@ def _add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--run-job", metavar="NAME",
                         help="Run a saved scheduled job by name (used by the "
                              "OS scheduler / cron).")
+    parser.add_argument("--profile", metavar="NAME",
+                        help="Load the connection (host/user/password) from a "
+                             "saved, non-encrypted profile.")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -142,6 +145,17 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[ERROR] No saved job named {args.run_job!r}.")
             return 4
         return main(job.args)
+
+    if args.profile:
+        from .profiles import ProfileError, load_profile
+        try:
+            prof = load_profile(args.profile)
+        except ProfileError as exc:
+            print(f"[ERROR] {exc}")
+            return 2
+        args.host, args.port = prof["host"], prof["port"]
+        args.user, args.password = prof["user"], prof["password"]
+        args.timeout = prof["timeout"]
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,

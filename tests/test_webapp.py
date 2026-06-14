@@ -88,25 +88,37 @@ class WebApiTests(unittest.TestCase):
                 self.assertEqual(
                     self.client.get("/api/profiles").json()["profiles"], [])
 
+    def test_job_requires_profile(self):
+        r = self.client.post("/api/jobs", json={
+            "name": "x", "match_mode": "rule", "rule_tree": _RULE})
+        self.assertEqual(r.status_code, 400)
+
     def test_jobs_crud(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)), \
+                 mock.patch.object(profiles, "config_dir",
                                    return_value=Path(tmp)):
+                # scheduled jobs connect via a non-encrypted profile
+                self.client.post("/api/profiles", json={
+                    "name": "prof1", "host": "imap.gmail.com",
+                    "user": "u", "password": "pw"})
                 save = self.client.post("/api/jobs", json={
-                    "name": "t1", "host": "imap.gmail.com", "user": "u",
+                    "name": "t1", "profile": "prof1",
                     "match_mode": "rule", "rule_tree": _RULE,
                     "kind": "daily", "time": "03:00"})
                 self.assertEqual(save.status_code, 200)
-                # The OS command runs the job by name; the rule lives in job.args.
+                # The OS command runs the job by name; details live in job.args.
                 self.assertIn("--run-job", save.json()["command"])
                 self.assertIn("t1", save.json()["command"])
                 jobs = self.client.get("/api/jobs").json()["jobs"]
-                self.assertIn("t1", [j["name"] for j in jobs])
                 t1 = next(j for j in jobs if j["name"] == "t1")
+                self.assertIn("--profile", t1["args"])
+                self.assertIn("prof1", t1["args"])
                 self.assertIn("--rule", t1["args"])
                 self.client.delete("/api/jobs/t1")
-                jobs = self.client.get("/api/jobs").json()["jobs"]
-                self.assertNotIn("t1", [j["name"] for j in jobs])
+                self.assertNotIn("t1", [j["name"]
+                                        for j in self.client.get("/api/jobs").json()["jobs"]])
 
 
 if __name__ == "__main__":

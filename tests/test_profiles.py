@@ -71,6 +71,18 @@ class ProfilesTests(unittest.TestCase):
             profiles.save_profile("e", "h", 993, "u", "pw",
                                   encrypt=True, secret="")
 
+    def test_cli_profile_unknown_fails(self):
+        from imap_cleanup_tool import cli
+        self.assertEqual(cli.main(["--profile", "nope", "--list-folders"]), 2)
+
+    @unittest.skipUnless(_HAVE_CRYPTO, "cryptography not installed")
+    def test_cli_profile_encrypted_fails(self):
+        from imap_cleanup_tool import cli
+        profiles.save_profile("enc", "h", 993, "u", "pw",
+                              encrypt=True, secret="master")
+        # an encrypted profile can't be loaded unattended → error exit code
+        self.assertEqual(cli.main(["--profile", "enc", "--list-folders"]), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

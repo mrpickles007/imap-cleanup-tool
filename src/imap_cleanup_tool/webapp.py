@@ -264,9 +264,7 @@ def create_app():
 
     class JobIn(Match, Options):
         name: str = "job"
-        host: str = ""
-        port: int = 993
-        user: str = ""
+        profile: str = ""                    # connection profile (non-encrypted)
         kind: str = "daily"                  # "daily" | "interval"
         time: str = "03:00"
         minutes: int = 60
@@ -535,11 +533,19 @@ def create_app():
     # ----- scheduling ------------------------------------------------------ #
     def _job_from(body: JobIn) -> scheduler.Job:
         name = _safe_job_name(body.name)
-        args: list[str] = []
-        if body.host:
-            args += ["--host", body.host, "--port", str(body.port)]
-        if body.user:
-            args += ["--user", body.user]
+        prof = (body.profile or "").strip()
+        if not prof:
+            raise HTTPException(400, "Choose a (non-encrypted) connection "
+                                     "profile for the job.")
+        info = next((p for p in profiles.list_profiles()
+                     if p["name"] == prof), None)
+        if info is None:
+            raise HTTPException(400, f"Profile {prof!r} not found.")
+        if info["encrypted"]:
+            raise HTTPException(400, "Encrypted profiles can't run unattended — "
+                                     "use a non-encrypted profile for scheduled "
+                                     "jobs.")
+        args: list[str] = ["--profile", prof]
         for folder in (body.folders or ["INBOX"]):
             args += ["--folder", folder]
         if body.empty_folder:
