@@ -11,12 +11,12 @@ from imap_cleanup_tool.targets import (
 
 class ParseTargetsTextTests(unittest.TestCase):
     def test_classifies_entries(self):
-        addresses, domains = parse_targets_text(
+        addresses, domains, exact = parse_targets_text(
             "spam@example.com\n*@newsletter.com\nannoying.com\n"
             "mail.annoying.com\n# comment\n\n  UPPER@Example.COM  ")
         self.assertEqual(addresses, {"spam@example.com", "upper@example.com"})
-        self.assertEqual(
-            domains, {"newsletter.com", "annoying.com", "mail.annoying.com"})
+        self.assertEqual(domains, {"annoying.com", "mail.annoying.com"})
+        self.assertEqual(exact, {"newsletter.com"})
 
     def test_empty_text_raises(self):
         with self.assertRaises(ValueError):
@@ -41,11 +41,11 @@ class LoadTargetsTests(unittest.TestCase):
             "# a comment\n"
             "\n"
             "  UPPER@Example.COM  \n")
-        addresses, domains = load_targets(path)
+        addresses, domains, exact = load_targets(path)
         self.assertEqual(
             addresses, {"spam@example.com", "upper@example.com"})
-        self.assertEqual(
-            domains, {"newsletter.com", "annoying.com", "mail.annoying.com"})
+        self.assertEqual(domains, {"annoying.com", "mail.annoying.com"})
+        self.assertEqual(exact, {"newsletter.com"})
 
     def test_missing_file_raises(self):
         with self.assertRaises(FileNotFoundError):
@@ -78,6 +78,14 @@ class SenderMatchesTests(unittest.TestCase):
 
     def test_empty_sender(self):
         self.assertFalse(sender_matches("", {"a@b.com"}, {"b.com"}))
+
+    def test_wildcard_exact_domain_never_matches_subdomain(self):
+        # *@b.com -> exact_domains: matches the domain exactly but never a
+        # subdomain, even when include_subdomains is on.
+        self.assertTrue(sender_matches("a@b.com", set(), set(), {"b.com"}))
+        self.assertFalse(
+            sender_matches("a@sub.b.com", set(), set(), {"b.com"},
+                           include_subdomains=True))
 
 
 if __name__ == "__main__":

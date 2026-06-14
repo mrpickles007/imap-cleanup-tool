@@ -133,10 +133,11 @@ tailwind.config = { theme: { extend: {
           <span class="tip"><span class="ic">i</span><span class="bub">
             <b>One entry per line:</b><br>
             • <code>spam@example.com</code> — exact sender address<br>
-            • <code>*@newsletter.com</code> — a whole domain (wildcard)<br>
-            • <code>annoying.com</code> — a whole domain (bare form)<br>
-            • <code>mail.annoying.com</code> — only that subdomain<br>
-            • lines starting with <code>#</code> are comments
+            • <code>*@newsletter.com</code> — that domain <b>exactly</b>, never subdomains<br>
+            • <code>annoying.com</code> — that domain, <b>plus subdomains</b> if “Include subdomains” is on<br>
+            • <code>mail.annoying.com</code> — that specific subdomain<br>
+            • lines starting with <code>#</code> are comments<br>
+            <span style="color:#94a0bd">The exact-vs-subdomain difference applies in <b>full</b> scan mode; <b>search</b> mode is a substring match.</span>
           </span></span>
         </div>
         <textarea id="targets" rows="6" class="field console" placeholder="spam@example.com&#10;*@newsletter.com&#10;annoying.com&#10;# comment"></textarea>
@@ -175,7 +176,7 @@ tailwind.config = { theme: { extend: {
 
       <label class="flex items-center justify-between text-sm py-1.5" id="rowSub">
         <span class="flex items-center">Include subdomains
-          <span class="tip"><span class="ic">i</span><span class="bub">Affects <b>full</b> mode only — in <b>search</b> mode subdomains are matched anyway. In full mode, a target <code>annoying.com</code> will then also match <code>mail.annoying.com</code>.</span></span>
+          <span class="tip"><span class="ic">i</span><span class="bub">Affects <b>full</b> mode only. It expands <b>bare-form</b> domains (e.g. <code>annoying.com</code> → also <code>mail.annoying.com</code>). The <code>*@domain</code> form is always exact and is never expanded. In <b>search</b> mode subdomains match anyway (substring).</span></span>
         </span>
         <input id="subdomains" type="checkbox" disabled>
       </label>
@@ -193,6 +194,7 @@ tailwind.config = { theme: { extend: {
         </span>
         <input id="expunge" type="checkbox">
       </label>
+      <p id="expungeNote" class="hidden text-[11px] text-muted -mt-1 mb-1">With “Gmail: move to Trash” this has no effect — messages just go to Trash. To delete for good, then select <code>[Gmail]/Trash</code> and use <b>Empty folder</b>.</p>
 
       <label class="flex items-center justify-between text-sm py-1.5">
         <span class="flex items-center text-danger">Empty folder (delete ALL)
@@ -367,6 +369,9 @@ function refreshConditional(){
   $('subdomains').disabled = rule || !full; if(rule || !full) $('subdomains').checked=false;
   const gmail=gmailHost();
   $('gmailTrash').disabled=!gmail; if(!gmail)$('gmailTrash').checked=false;
+  const gtrash=$('gmailTrash').checked;
+  $('expunge').disabled=gtrash; if(gtrash)$('expunge').checked=false;
+  $('expungeNote').classList.toggle('hidden', !gtrash);
   const empty=$('emptyFolder').checked;
   $('paneTargets').classList.toggle('dim',empty); $('paneRule').classList.toggle('dim',empty);
 }
@@ -501,7 +506,7 @@ document.querySelectorAll('.tab').forEach(t=> t.onclick=()=>{
   if(t.dataset.tab==='scheduling') loadJobs();
 });
 $('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider').value)||0]; if(p){ if(p.host)$('host').value=p.host; if(p.port)$('port').value=p.port; if(p.host==='imap.gmail.com'){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} } applyProviderTips(); refreshConditional(); };
-$('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional;
+$('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional; $('gmailTrash').onchange=refreshConditional;
 $('togglePass').onclick=()=>{ const p=$('password'); p.type=p.type==='password'?'text':'password'; $('togglePass').textContent=p.type==='password'?'show':'hide'; };
 document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const rule=document.querySelector('input[name=mode]:checked').value==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); refreshConditional(); });
 $('btnAddFolder').onclick=()=>{ const v=$('manualFolder').value.trim(); if(!v)return; if(!selectedFolders.includes(v))selectedFolders.push(v); if(!knownFolders.some(f=>f.name===v))knownFolders.push({name:v,count:null}); $('manualFolder').value=''; renderFolders(); };

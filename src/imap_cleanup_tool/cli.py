@@ -107,12 +107,13 @@ def _run_operation(conn, args: argparse.Namespace, folders: list[str]) -> None:
     search_argument = None
     addresses: set[str] = set()
     domains: set[str] = set()
+    exact_domains: set[str] = set()
 
     if args.rule:
         node = parse_rule_expression(args.rule)
         search_argument = compile_search(node)
     elif args.targets:
-        addresses, domains = load_targets(args.targets)
+        addresses, domains, exact_domains = load_targets(args.targets)
     else:
         sys.exit("[ERROR] Provide --targets or --rule (or use --empty-folder).")
 
@@ -120,8 +121,9 @@ def _run_operation(conn, args: argparse.Namespace, folders: list[str]) -> None:
     for folder in folders:
         total += core.process_folder(
             conn, folder, addresses=addresses, domains=domains,
-            search_argument=search_argument, dry_run=args.dry_run,
-            expunge=args.expunge, include_subdomains=args.include_subdomains,
+            exact_domains=exact_domains, search_argument=search_argument,
+            dry_run=args.dry_run, expunge=args.expunge,
+            include_subdomains=args.include_subdomains,
             batch_size=args.batch_size, scan_mode=args.scan_mode,
             gmail_trash=args.gmail_trash)
     verb = "would be acted on" if args.dry_run else "acted on"

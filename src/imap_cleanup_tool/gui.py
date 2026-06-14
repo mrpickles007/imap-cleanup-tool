@@ -656,8 +656,9 @@ class ImapCleanupToolGUI:
         path = self.targets_var.get().strip()
         if not path or not os.path.isfile(path):
             raise FileNotFoundError("Target file missing or invalid.")
-        addresses, domains = load_targets(path)
-        return {"addresses": addresses, "domains": domains}
+        addresses, domains, exact_domains = load_targets(path)
+        return {"addresses": addresses, "domains": domains,
+                "exact_domains": exact_domains}
 
     def _on_run(self) -> None:
         if not self._require_conn():

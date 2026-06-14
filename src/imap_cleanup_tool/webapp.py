@@ -269,19 +269,21 @@ def create_app():
         return sess
 
     def _resolve_match(match: "Match"):
-        """Return (addresses, domains, search_argument) or raise HTTPException."""
+        """Return (addresses, domains, exact_domains, search_argument)."""
         if match.match_mode == "rule":
             if not match.rule_tree:
                 raise HTTPException(400, "No rule provided.")
             try:
-                return set(), set(), compile_search(node_from_dict(match.rule_tree))
+                arg = compile_search(node_from_dict(match.rule_tree))
+                return set(), set(), set(), arg
             except (RuleError, KeyError, TypeError) as exc:
                 raise HTTPException(400, f"Invalid rule: {exc}") from exc
         try:
-            addresses, domains = parse_targets_text(match.targets_text)
+            addresses, domains, exact_domains = parse_targets_text(
+                match.targets_text)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
-        return addresses, domains, None
+        return addresses, domains, exact_domains, None
 
     # ----- app ------------------------------------------------------------- #
     app = FastAPI(title="imap-cleanup-tool", docs_url="/api/docs")
@@ -394,9 +396,10 @@ def create_app():
             raise HTTPException(409, "An operation is already running.")
         addresses: set[str] = set()
         domains: set[str] = set()
+        exact_domains: set[str] = set()
         search_argument = None
         if not body.empty_folder:
-            addresses, domains, search_argument = _resolve_match(body)
+            addresses, domains, exact_domains, search_argument = _resolve_match(body)
         folders = body.folders or ["INBOX"]
 
         def work(rs: RunState) -> None:
@@ -409,6 +412,7 @@ def create_app():
                 for folder in folders:
                     total += core.process_folder(
                         sess.conn, folder, addresses=addresses, domains=domains,
+                        exact_domains=exact_domains,
                         search_argument=search_argument, dry_run=body.dry_run,
                         expunge=body.expunge,
                         include_subdomains=body.include_subdomains,
@@ -427,7 +431,7 @@ def create_app():
         sess = _session(body.sid)
         if sess.run and sess.run.status == "running":
             raise HTTPException(409, "An operation is already running.")
-        addresses, domains, search_argument = _resolve_match(body)
+        addresses, domains, exact_domains, search_argument = _resolve_match(body)
         folders = body.folders or ["INBOX"]
 
         def work(rs: RunState) -> None:
@@ -435,8 +439,8 @@ def create_app():
             for folder in folders:
                 total += core.process_folder(
                     sess.conn, folder, addresses=addresses, domains=domains,
-                    search_argument=search_argument, dry_run=True,
-                    include_subdomains=body.include_subdomains,
+                    exact_domains=exact_domains, search_argument=search_argument,
+                    dry_run=True, include_subdomains=body.include_subdomains,
                     batch_size=body.batch_size, scan_mode=body.scan_mode,
                     should_stop=rs.stop.is_set)
             core.logger.info("=> %d matching message(s) across %d folder(s).",

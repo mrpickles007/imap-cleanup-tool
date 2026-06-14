@@ -193,10 +193,15 @@ One entry per line; `#` starts a comment.
 
 ```text
 spam@example.com        # exact sender address
-*@newsletter.com        # whole domain (wildcard form)
-annoying.com            # whole domain (bare form)
-mail.annoying.com       # a specific subdomain only
+*@newsletter.com        # that domain EXACTLY — never subdomains
+annoying.com            # that domain, plus subdomains if --include-subdomains
+mail.annoying.com       # that specific (sub)domain
 ```
+
+The `*@domain` form always matches the domain exactly; the bare `domain` form
+also matches subdomains when `--include-subdomains` is given. This distinction
+applies to local `--scan-mode full`; server-side `search` is a substring match
+either way.
 
 ---
 

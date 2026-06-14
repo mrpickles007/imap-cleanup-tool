@@ -221,11 +221,15 @@ def list_senders(conn: imaplib.IMAP4_SSL, folder: str,
 # Searching for messages to act on
 # --------------------------------------------------------------------------- #
 def search_targets(conn: imaplib.IMAP4_SSL, addresses: set[str],
-                   domains: set[str],
+                   domains: set[str], exact_domains: set[str] | None = None,
                    should_stop: StopCheck | None = None) -> set[bytes]:
-    """Find UIDs by sender using one IMAP 'SEARCH FROM' per target term."""
+    """Find UIDs by sender using one IMAP 'SEARCH FROM' per target term.
+
+    Note: server-side SEARCH FROM is a substring match, so the exact-domain
+    (``*@``) distinction is not enforced here — it only applies to ``full`` mode.
+    """
     found: set[bytes] = set()
-    terms = sorted(addresses | domains)
+    terms = sorted(addresses | domains | (exact_domains or set()))
     total = len(terms)
     logger.info("Searching server-side for %d sender term(s) ...", total)
     for num, term in enumerate(terms, start=1):
@@ -316,6 +320,7 @@ def empty_folder(conn: imaplib.IMAP4_SSL, folder: str, dry_run: bool,
 def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
                    addresses: set[str] | None = None,
                    domains: set[str] | None = None,
+                   exact_domains: set[str] | None = None,
                    search_argument: str | None = None,
                    dry_run: bool = True, expunge: bool = False,
                    include_subdomains: bool = False,
@@ -340,7 +345,8 @@ def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
         matched = sorted(search_rule(conn, search_argument), key=int)
     elif scan_mode == "search":
         matched = sorted(search_targets(conn, addresses or set(),
-                                        domains or set(), should_stop),
+                                        domains or set(), exact_domains or set(),
+                                        should_stop),
                          key=int)
     else:
         status, data = conn.uid("SEARCH", None, "ALL")
@@ -354,7 +360,7 @@ def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
         for uid, value in headers.items():
             sender = extract_sender_email(value)
             if sender_matches(sender, addresses or set(), domains or set(),
-                              include_subdomains):
+                              exact_domains or set(), include_subdomains):
                 matched.append(uid)
                 logger.info("  MATCH  uid=%s  <%s>", uid.decode(), sender)
 
