@@ -116,9 +116,16 @@ class WebApiTests(unittest.TestCase):
                 self.assertIn("--profile", t1["args"])
                 self.assertIn("prof1", t1["args"])
                 self.assertIn("--rule", t1["args"])
+                # the job's log can be fetched (empty until it runs)
+                log = self.client.get("/api/jobs/t1/log")
+                self.assertEqual(log.status_code, 200)
+                self.assertEqual(log.json()["log"], "")
                 self.client.delete("/api/jobs/t1")
                 self.assertNotIn("t1", [j["name"]
                                         for j in self.client.get("/api/jobs").json()["jobs"]])
+                # log endpoint for a missing job is a 404
+                self.assertEqual(
+                    self.client.get("/api/jobs/t1/log").status_code, 404)
 
 
 if __name__ == "__main__":

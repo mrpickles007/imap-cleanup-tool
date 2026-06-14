@@ -1,44 +1,52 @@
-"""Unit tests for scheduling: due logic, OS export, and job persistence."""
+"""Unit tests for scheduling: schedule building, OS export, persistence, logs."""
 
 import sys
 import tempfile
 import unittest
-from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
 from imap_cleanup_tool import scheduler
 from imap_cleanup_tool.scheduler import (
-    Job, _due, export_cron, export_windows,
+    Job, build_schedule, export_cron, export_windows,
 )
 
 
-class DueTests(unittest.TestCase):
-    def test_daily_due_at_exact_time_when_never_run(self):
-        job = Job("j", schedule={"kind": "daily", "time": "03:00"})
-        now = datetime(2025, 1, 1, 3, 0)
-        self.assertTrue(_due(job, now, last=None))
+class BuildScheduleTests(unittest.TestCase):
+    def test_once_requires_date(self):
+        with self.assertRaises(ValueError):
+            build_schedule("once", time="10:00", date="")
 
-    def test_daily_not_due_at_other_time(self):
-        job = Job("j", schedule={"kind": "daily", "time": "03:00"})
-        now = datetime(2025, 1, 1, 4, 0)
-        self.assertFalse(_due(job, now, last=None))
+    def test_once_normalises(self):
+        s = build_schedule("once", time="9:5", date="2026-07-01")
+        self.assertEqual(s, {"kind": "once", "date": "2026-07-01",
+                             "time": "09:05"})
 
-    def test_daily_not_due_twice_same_day(self):
-        job = Job("j", schedule={"kind": "daily", "time": "03:00"})
-        now = datetime(2025, 1, 1, 3, 0)
-        last = datetime(2025, 1, 1, 3, 0)
-        self.assertFalse(_due(job, now, last))
+    def test_interval_minimum(self):
+        with self.assertRaises(ValueError):
+            build_schedule("interval", minutes=0)
+        self.assertEqual(build_schedule("interval", minutes=15),
+                         {"kind": "interval", "minutes": 15})
 
-    def test_interval_due_when_never_run(self):
-        job = Job("j", schedule={"kind": "interval", "minutes": 60})
-        self.assertTrue(_due(job, datetime(2025, 1, 1, 0, 0), last=None))
+    def test_hourly_takes_minute_from_time(self):
+        self.assertEqual(build_schedule("hourly", time="00:20"),
+                         {"kind": "hourly", "minute": 20})
 
-    def test_interval_respects_elapsed(self):
-        job = Job("j", schedule={"kind": "interval", "minutes": 60})
-        now = datetime(2025, 1, 1, 2, 0)
-        self.assertFalse(_due(job, now, datetime(2025, 1, 1, 1, 30)))
-        self.assertTrue(_due(job, now, datetime(2025, 1, 1, 0, 30)))
+    def test_weekly_validates_day(self):
+        self.assertEqual(build_schedule("weekly", day="mon", time="07:30"),
+                         {"kind": "weekly", "day": "MON", "time": "07:30"})
+        with self.assertRaises(ValueError):
+            build_schedule("weekly", day="", time="07:30")
+
+    def test_monthly_range(self):
+        self.assertEqual(build_schedule("monthly", day="5", time="01:00"),
+                         {"kind": "monthly", "day": 5, "time": "01:00"})
+        with self.assertRaises(ValueError):
+            build_schedule("monthly", day="31", time="01:00")
+
+    def test_unknown_kind(self):
+        with self.assertRaises(ValueError):
+            build_schedule("yearly")
 
 
 class ExportTests(unittest.TestCase):
@@ -53,6 +61,25 @@ class ExportTests(unittest.TestCase):
         job = Job("j", schedule={"kind": "interval", "minutes": 15})
         self.assertTrue(export_cron(job).startswith("*/15 * * * *"))
 
+    def test_cron_hourly(self):
+        job = Job("j", schedule={"kind": "hourly", "minute": 20})
+        self.assertTrue(export_cron(job).startswith("20 * * * *"))
+
+    def test_cron_weekly(self):
+        job = Job("j", schedule={"kind": "weekly", "day": "MON",
+                                 "time": "07:30"})
+        self.assertTrue(export_cron(job).startswith("30 7 * * 1"))
+
+    def test_cron_monthly(self):
+        job = Job("j", schedule={"kind": "monthly", "day": 5, "time": "01:00"})
+        self.assertTrue(export_cron(job).startswith("0 1 5 * *"))
+
+    def test_cron_once_uses_at(self):
+        job = Job("j", schedule={"kind": "once", "date": "2026-07-01",
+                                 "time": "09:05"})
+        line = export_cron(job)
+        self.assertIn("at 09:05 2026-07-01", line)
+
     def test_windows_daily(self):
         job = Job("nightly", schedule={"kind": "daily", "time": "03:00"})
         cmd = export_windows(job)
@@ -62,6 +89,15 @@ class ExportTests(unittest.TestCase):
     def test_windows_interval(self):
         job = Job("j", schedule={"kind": "interval", "minutes": 30})
         self.assertIn("/SC MINUTE /MO 30", export_windows(job))
+
+    def test_windows_weekly(self):
+        job = Job("j", schedule={"kind": "weekly", "day": "MON",
+                                 "time": "07:30"})
+        self.assertIn("/SC WEEKLY /D MON /ST 07:30", export_windows(job))
+
+    def test_windows_monthly(self):
+        job = Job("j", schedule={"kind": "monthly", "day": 5, "time": "01:00"})
+        self.assertIn("/SC MONTHLY /D 5 /ST 01:00", export_windows(job))
 
     def test_export_runs_job_by_name(self):
         # The exported OS command must invoke the job by name (quote-safe), not
@@ -98,6 +134,28 @@ class PersistenceTests(unittest.TestCase):
                 scheduler.delete_job("a")
                 self.assertEqual(
                     {j.name for j in scheduler.load_jobs()}, {"b"})
+
+
+class JobLogTests(unittest.TestCase):
+    def test_read_missing_log_is_empty(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)):
+                self.assertEqual(scheduler.read_job_log("nope"), "")
+
+    def test_write_then_read_log(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)):
+                scheduler.job_log_path("j").write_text("hello\n",
+                                                       encoding="utf-8")
+                self.assertIn("hello", scheduler.read_job_log("j"))
+
+    def test_describe_schedule(self):
+        self.assertIn("Weekly", scheduler.describe_schedule(
+            {"kind": "weekly", "day": "MON", "time": "07:30"}))
+        self.assertIn("Once", scheduler.describe_schedule(
+            {"kind": "once", "date": "2026-07-01", "time": "09:05"}))
 
 
 class RunJobCliTests(unittest.TestCase):

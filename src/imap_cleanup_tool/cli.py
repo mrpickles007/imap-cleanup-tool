@@ -133,6 +133,35 @@ def _run_operation(conn, args: argparse.Namespace, folders: list[str]) -> None:
     core.logger.info("Done. %d message(s) %s in total.", total, verb)
 
 
+def _run_saved_job(job) -> int:
+    """Execute a saved job, mirroring all output to its rolling log file."""
+    from logging.handlers import RotatingFileHandler
+    from .scheduler import job_log_path
+
+    handler = RotatingFileHandler(job_log_path(job.name), maxBytes=512_000,
+                                  backupCount=2, encoding="utf-8")
+    handler.setFormatter(logging.Formatter(
+        "%(asctime)s %(levelname)-7s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    # A file handler plus a console handler (the latter is harmless when the OS
+    # scheduler runs us with no terminal attached). Their presence makes the
+    # nested basicConfig() call a no-op, so output is not duplicated.
+    root.addHandler(handler)
+    root.addHandler(logging.StreamHandler())
+    root.info("=== Job %r started ===", job.name)
+    try:
+        code = main(job.args)
+        root.info("=== Job %r finished (exit code %s) ===", job.name, code)
+        return code
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        root.exception("Job %r crashed: %s", job.name, exc)
+        return 1
+    finally:
+        root.removeHandler(handler)
+        handler.close()
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns a process exit code."""
     # pylint: disable=too-many-return-statements
@@ -144,7 +173,7 @@ def main(argv: list[str] | None = None) -> int:
         if job is None:
             print(f"[ERROR] No saved job named {args.run_job!r}.")
             return 4
-        return main(job.args)
+        return _run_saved_job(job)
 
     if args.profile:
         from .profiles import ProfileError, load_profile

@@ -17,8 +17,9 @@ UI is an optional extra (FastAPI).
 - **Empty a whole folder** (e.g. Trash) without scanning.
 - **List senders** with counts and export them to CSV (with timestamp).
 - **Stop** button / cooperative cancellation for long runs.
-- **Scheduler**: save jobs and run them while the app is open, or **install**
-  them into Windows Task Scheduler / cron to run even when it is closed.
+- **Scheduler**: save jobs and **install** them into the system scheduler
+  (Windows Task Scheduler / cron) — once, hourly, daily, weekly, monthly, or
+  every N minutes — so they run even when the app is closed, with per-job logs.
 
 > ⚠️ Deleting email is destructive. Always do a `--dry-run` first. Without
 > `--expunge`, messages are only flagged deleted (often hidden by the client
@@ -242,12 +243,29 @@ Highlights:
 
 Jobs are stored as JSON in your user config directory
 (`%APPDATA%\imap-cleanup-tool` on Windows, `~/.config/imap-cleanup-tool` elsewhere).
+Scheduling is handled entirely by the **operating system scheduler** — there is
+no background process to keep running.
 
-- **Internal scheduler**: toggle it in the web UI's *Scheduling* tab; jobs run
-  while the app is open.
-- **System scheduler**: click *Install to system scheduler* to register the job
-  directly (a `schtasks` task on Windows, a `crontab` line on Linux/macOS) so it
-  runs even when the app is closed. *Export command* shows the equivalent line.
+Click *Install to system scheduler* to register a job directly (a `schtasks`
+task on Windows, a `crontab` line on Linux/macOS) so it runs even when the app
+is closed. *Export command* shows the equivalent line.
+
+**Frequency** — pick one in the *Scheduling* tab; the form shows only the inputs
+that apply:
+
+| Frequency | Inputs | Windows | Linux/macOS |
+| --- | --- | --- | --- |
+| Run once | date + time | `schtasks /SC ONCE` | `at` (must be installed) |
+| Every N minutes | minutes | `/SC MINUTE /MO N` | `*/N * * * *` |
+| Hourly | minute of hour | `/SC HOURLY` | `M * * * *` |
+| Daily | time | `/SC DAILY` | `MM HH * * *` |
+| Weekly | weekday + time | `/SC WEEKLY /D` | `MM HH * * <dow>` |
+| Monthly | day 1–28 + time | `/SC MONTHLY /D` | `MM HH <dom> * *` |
+
+The time/date pickers use your system locale; the one-time date is rendered in
+the system's short-date format for `schtasks`. (One-time POSIX jobs use `at`,
+which is not tracked in the install/uninstall list — manage them with
+`atq`/`atrm`.)
 
 Each job connects with a saved **connection profile** (chosen in the Scheduling
 tab), so different jobs can target different accounts. The scheduled task runs
@@ -256,6 +274,10 @@ the job by name (`imap-cleanup-tool --run-job NAME`) via the current interpreter
 CLI loads host / user / password from the profile's local SQLite DB. Only
 **non-encrypted** profiles can be scheduled — a cron has no way to type the
 password to decrypt an encrypted one.
+
+**Logs** — every scheduled run appends to a rolling log file under
+`<config dir>/logs/<job>.log`. In the *Scheduling* tab, click **logs** on any
+saved job to view (or download) its run history.
 
 ---
 

@@ -287,10 +287,28 @@ tailwind.config = { theme: { extend: {
       </label>
       <label class="text-xs text-muted">Name <input id="jobName" class="field mt-1" value="nightly_cleanup"></label>
       <label class="text-xs text-muted">Frequency
-        <select id="jobKind" class="field mt-1"><option value="daily">daily</option><option value="interval">every N minutes</option></select>
+        <select id="jobKind" class="field mt-1">
+          <option value="once">run once</option>
+          <option value="interval">every N minutes</option>
+          <option value="hourly">hourly</option>
+          <option value="daily" selected>daily</option>
+          <option value="weekly">weekly</option>
+          <option value="monthly">monthly</option>
+        </select>
       </label>
-      <label class="text-xs text-muted">Time (HH:MM) <input id="jobTime" class="field mt-1" value="03:00"></label>
-      <label class="text-xs text-muted">Interval (minutes) <input id="jobMinutes" class="field mt-1" value="60"></label>
+      <label id="wrapDate" class="text-xs text-muted hidden">Date <input id="jobDate" type="date" class="field mt-1"></label>
+      <label id="wrapTime" class="text-xs text-muted">Time <input id="jobTime" type="time" class="field mt-1" value="03:00"></label>
+      <label id="wrapMinutes" class="text-xs text-muted hidden">Interval (minutes) <input id="jobMinutes" type="number" min="1" class="field mt-1" value="60"></label>
+      <label id="wrapWeekday" class="text-xs text-muted hidden">Weekday
+        <select id="jobWeekday" class="field mt-1">
+          <option value="MON">Monday</option><option value="TUE">Tuesday</option>
+          <option value="WED">Wednesday</option><option value="THU">Thursday</option>
+          <option value="FRI">Friday</option><option value="SAT">Saturday</option>
+          <option value="SUN">Sunday</option>
+        </select>
+      </label>
+      <label id="wrapDom" class="text-xs text-muted hidden">Day of month (1–28) <input id="jobDom" type="number" min="1" max="28" class="field mt-1" value="1"></label>
+      <span id="schedHint" class="col-span-2 text-[11px] text-muted"></span>
     </div>
     <div id="jobSummary" class="text-[11px] text-muted mt-3 border-t border-line pt-3"></div>
     <div class="flex flex-wrap gap-2 mt-3">
@@ -306,16 +324,28 @@ tailwind.config = { theme: { extend: {
   <section class="bg-panel border border-line rounded-xl p-5">
     <div class="flex items-center justify-between mb-3">
       <h2 class="font-display font-semibold text-brand-light">Saved jobs</h2>
-      <label class="flex items-center gap-2 text-xs text-muted">
-        <input id="schedToggle" type="checkbox"> internal scheduler
-        <span class="tip"><span class="ic">i</span><span class="bub">Runs due jobs while this web app is open. For jobs that run even when the app is closed, use “Export system command” (Task Scheduler / cron).</span></span>
-      </label>
+      <span class="text-[11px] text-muted">Runs via the system scheduler (Task Scheduler / cron) — even when this app is closed.</span>
     </div>
     <div id="jobsList" class="space-y-2 text-sm"></div>
   </section>
 </div>
 
 </main>
+
+<!-- Job-log modal -->
+<div id="logModal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+  <div class="bg-panel border border-line rounded-xl p-5 w-full max-w-2xl flex flex-col" style="max-height:85vh">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-display font-semibold text-brand-light">Job log — <span id="logJobName"></span></h3>
+      <button id="logRefresh" class="text-xs text-brand-light hover:underline">refresh</button>
+    </div>
+    <pre id="logBody" class="console text-[12px] bg-ink border border-line rounded-lg p-3 overflow-auto whitespace-pre-wrap text-[#c4c8d4] flex-1"></pre>
+    <div class="flex justify-end gap-2 mt-3">
+      <button id="logDownload" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Download</button>
+      <button id="logClose" class="bg-brand hover:bg-brand-light text-ink font-semibold rounded-lg px-4 py-2">Close</button>
+    </div>
+  </div>
+</div>
 
 <!-- Save-profile modal -->
 <div id="saveModal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
@@ -584,12 +614,51 @@ async function startJob(path, body){
 }
 
 /* ---------- scheduling ---------- */
+const WEEKDAY_NAMES={MON:'Monday',TUE:'Tuesday',WED:'Wednesday',THU:'Thursday',FRI:'Friday',SAT:'Saturday',SUN:'Sunday'};
 function jobPayload(){
+  const kind=$('jobKind').value;
+  let day='';
+  if(kind==='weekly') day=$('jobWeekday').value;
+  else if(kind==='monthly') day=$('jobDom').value;
   return Object.assign({}, matchPayload(), optionsPayload(), {
     name:$('jobName').value.trim()||'job',
     profile:$('jobProfile').value,
-    kind:$('jobKind').value, time:$('jobTime').value.trim()||'03:00',
-    minutes:parseInt($('jobMinutes').value)||60 });
+    kind:kind, time:$('jobTime').value.trim()||'03:00',
+    date:$('jobDate').value, minutes:parseInt($('jobMinutes').value)||60,
+    day:day });
+}
+/* Show only the inputs relevant to the chosen frequency. */
+function updateSchedInputs(){
+  const kind=$('jobKind').value;
+  const show=(id,on)=>$(id).classList.toggle('hidden',!on);
+  show('wrapDate', kind==='once');
+  show('wrapTime', kind!=='interval');   // once/hourly/daily/weekly/monthly use a time
+  show('wrapMinutes', kind==='interval');
+  show('wrapWeekday', kind==='weekly');
+  show('wrapDom', kind==='monthly');
+  const hints={
+    once:'Runs a single time at the chosen date and time.',
+    interval:'Runs repeatedly every N minutes.',
+    hourly:'Runs every hour at the minutes part of the time below.',
+    daily:'Runs every day at the chosen time.',
+    weekly:'Runs once a week on the chosen weekday and time.',
+    monthly:'Runs once a month on the chosen day (1–28) and time.'
+  };
+  $('schedHint').textContent=hints[kind]||'';
+  updateJobSummary();
+}
+/* Mirror of scheduler.describe_schedule for the saved-jobs list. */
+function describeSchedule(s){
+  if(!s) return '';
+  switch(s.kind){
+    case 'once': return 'once on '+(s.date||'?')+' at '+(s.time||'?');
+    case 'interval': return 'every '+(s.minutes||'?')+' min';
+    case 'hourly': return 'hourly at :'+String(s.minute||0).padStart(2,'0');
+    case 'daily': return 'daily '+(s.time||'');
+    case 'weekly': return 'weekly '+(WEEKDAY_NAMES[s.day]||s.day||'')+' '+(s.time||'');
+    case 'monthly': return 'monthly day '+(s.day||'?')+' '+(s.time||'');
+    default: return s.kind||'';
+  }
 }
 function populateJobProfiles(){
   const sel=$('jobProfile'); if(!sel) return;
@@ -630,12 +699,11 @@ async function loadJobs(){
   try{
     const d=await (await fetch('/api/jobs')).json();
     JOBS = d.jobs || [];
-    $('schedToggle').checked=!!d.scheduler_running;
     const box=$('jobsList'); box.innerHTML='';
     if(!d.jobs.length){ box.innerHTML='<p class="text-muted text-xs">No saved jobs.</p>'; return; }
     d.jobs.forEach(j=>{
       const row=document.createElement('div'); row.className='flex items-center justify-between bg-ink border border-line rounded-lg px-3 py-2';
-      const freq=j.schedule.kind==='daily'?('daily '+(j.schedule.time||'')):('every '+(j.schedule.minutes||'?')+' min');
+      const freq=describeSchedule(j.schedule);
       const status = j.installed ? '<span class="text-ok text-xs">· installed</span>' : '<span class="text-muted text-xs">· saved</span>';
       row.innerHTML=`<span class="truncate"><b>${j.name}</b> <span class="text-muted text-xs">· ${freq}</span> ${status}</span>`;
       const actions=document.createElement('span'); actions.className='flex gap-3 flex-none ml-2';
@@ -647,9 +715,11 @@ async function loadJobs(){
         toggle.className='text-brand-light text-xs hover:underline'; toggle.textContent='install';
         toggle.onclick=async()=>{ try{ const r=await api('/api/jobs/install-saved',{name:j.name}); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=r.message+'\n\n'+r.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
       }
+      const logs=document.createElement('button'); logs.className='text-muted text-xs hover:text-cream'; logs.textContent='logs';
+      logs.onclick=()=>openJobLog(j.name);
       const del=document.createElement('button'); del.className='text-danger text-xs hover:underline'; del.textContent='delete';
       del.onclick=async()=>{ if(!(await confirmDialog({title:'Delete job', message:'Delete job "'+j.name+'" and remove its system task?', okText:'Delete', danger:true}))) return; await api('/api/jobs/'+encodeURIComponent(j.name),null,'DELETE'); loadJobs(); };
-      actions.append(toggle, del); row.appendChild(actions); box.appendChild(row);
+      actions.append(toggle, logs, del); row.appendChild(actions); box.appendChild(row);
     });
   }catch(e){ $('jobsList').innerHTML='<p class="text-danger text-xs">'+e.message+'</p>'; }
 }
@@ -660,7 +730,7 @@ document.querySelectorAll('.tab').forEach(t=> t.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
   $('tab-cleanup').classList.toggle('hidden', t.dataset.tab!=='cleanup');
   $('tab-scheduling').classList.toggle('hidden', t.dataset.tab!=='scheduling');
-  if(t.dataset.tab==='scheduling'){ populateJobProfiles(); updateJobSummary(); loadJobs(); }
+  if(t.dataset.tab==='scheduling'){ populateJobProfiles(); updateSchedInputs(); loadJobs(); }
 });
 $('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider').value)||0]; if(p){ if(p.host)$('host').value=p.host; if(p.port)$('port').value=p.port; if(p.host==='imap.gmail.com'){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} } applyProviderTips(); refreshConditional(); };
 $('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional; $('gmailTrash').onchange=refreshConditional;
@@ -738,7 +808,30 @@ $('btnRefreshFolders').onclick=async()=>{
     setStatus(true,'connected · '+knownFolders.length+' folders'); log('Folders refreshed ('+knownFolders.length+').');
   }catch(e){ log('[ERROR] '+e.message); }
 };
-$('schedToggle').onchange=async(e)=>{ try{ await api('/api/scheduler',{enabled:e.target.checked}); }catch(err){ log('[ERROR] '+err.message); } };
+/* ---------- scheduling inputs + job logs ---------- */
+$('jobKind').onchange=updateSchedInputs;
+['jobTime','jobDate','jobMinutes','jobWeekday','jobDom','jobName'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('input', updateJobSummary); });
+let LOG_JOB=null;
+async function openJobLog(name){
+  LOG_JOB=name;
+  $('logJobName').textContent=name;
+  $('logBody').textContent='Loading…';
+  $('logModal').classList.remove('hidden');
+  await refreshJobLog();
+}
+async function refreshJobLog(){
+  if(!LOG_JOB) return;
+  try{
+    const d=await (await fetch('/api/jobs/'+encodeURIComponent(LOG_JOB)+'/log')).json();
+    const txt=(d.log||'').trim();
+    $('logBody').textContent = txt || 'No log yet — this job has not run, or it ran before logging was added.';
+    $('logBody').scrollTop=$('logBody').scrollHeight;
+  }catch(e){ $('logBody').textContent='Error: '+e.message; }
+}
+$('logRefresh').onclick=refreshJobLog;
+$('logClose').onclick=()=>{ $('logModal').classList.add('hidden'); LOG_JOB=null; };
+$('logModal').onclick=(e)=>{ if(e.target.id==='logModal'){ $('logModal').classList.add('hidden'); LOG_JOB=null; } };
+$('logDownload').onclick=()=>{ if(LOG_JOB) download(LOG_JOB+'.log', $('logBody').textContent); };
 
 $('btnCount').onclick=()=>{
   if(!SID){ log('[ERROR] Not connected.'); return; }

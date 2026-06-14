@@ -25,7 +25,6 @@ import re
 import shlex
 import subprocess
 import sys
-import threading
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -105,71 +104,113 @@ def delete_job(name: str) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Schedule evaluation
+# Job run logs
 # --------------------------------------------------------------------------- #
-def _due(job: Job, now: datetime, last: datetime | None) -> bool:
-    """Return True if the job should run at ``now``."""
-    kind = job.schedule.get("kind")
+def logs_dir() -> Path:
+    """Directory holding per-job run logs (created on demand)."""
+    path = config_dir() / "logs"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def job_log_path(name: str) -> Path:
+    """Path to the rolling log file for a job."""
+    return logs_dir() / f"{name}.log"
+
+
+def read_job_log(name: str, max_bytes: int = 200_000) -> str:
+    """Return the tail of a job's log file (empty string if it never ran)."""
+    path = job_log_path(name)
+    if not path.exists():
+        return ""
+    data = path.read_text(encoding="utf-8", errors="replace")
+    if len(data) > max_bytes:
+        data = "...(truncated)...\n" + data[-max_bytes:]
+    return data
+
+
+# --------------------------------------------------------------------------- #
+# Schedule construction
+# --------------------------------------------------------------------------- #
+# Weekday codes shared by the UI and schtasks (/D MON..SUN); cron uses numbers
+# (0 = Sunday).
+WEEKDAYS = ("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
+_CRON_DOW = {"SUN": 0, "MON": 1, "TUE": 2, "WED": 3,
+             "THU": 4, "FRI": 5, "SAT": 6}
+
+
+def _check_time(value: str) -> str:
+    """Validate/normalise an ``HH:MM`` string."""
+    try:
+        hh, mm = (int(x) for x in str(value).split(":"))
+    except ValueError as exc:
+        raise ValueError(f"Invalid time {value!r} (use HH:MM).") from exc
+    if not (0 <= hh < 24 and 0 <= mm < 60):
+        raise ValueError(f"Time out of range: {value!r}.")
+    return f"{hh:02d}:{mm:02d}"
+
+
+def build_schedule(kind: str, *, time: str = "03:00", date: str = "",
+                   minutes: int = 60, day: str = "") -> dict:
+    """Validate the UI's scheduling inputs and return a normalised dict.
+
+    Kinds: ``once`` (date+time), ``interval`` (every N minutes), ``hourly``
+    (every hour at minute MM of ``time``), ``daily`` (HH:MM), ``weekly``
+    (weekday + HH:MM), ``monthly`` (day-of-month 1–28 + HH:MM).
+    """
+    if kind == "once":
+        if not date:
+            raise ValueError("Choose a date for a one-time job.")
+        try:
+            datetime.strptime(date, "%Y-%m-%d")
+        except ValueError as exc:
+            raise ValueError(f"Invalid date {date!r} (use YYYY-MM-DD).") from exc
+        return {"kind": "once", "date": date, "time": _check_time(time)}
     if kind == "interval":
-        minutes = int(job.schedule.get("minutes", 60))
-        if last is None:
-            return True
-        return (now - last).total_seconds() >= minutes * 60
+        num = int(minutes)
+        if num < 1:
+            raise ValueError("Interval minutes must be at least 1.")
+        return {"kind": "interval", "minutes": num}
+    if kind == "hourly":
+        minute = int(_check_time(time).split(":")[1])
+        return {"kind": "hourly", "minute": minute}
     if kind == "daily":
-        target = job.schedule.get("time", "03:00")
-        hh, mm = (int(x) for x in target.split(":"))
-        if now.hour != hh or now.minute != mm:
-            return False
-        return last is None or last.date() != now.date()
-    return False
+        return {"kind": "daily", "time": _check_time(time)}
+    if kind == "weekly":
+        code = str(day).upper()[:3]
+        if code not in WEEKDAYS:
+            raise ValueError("Choose a weekday for a weekly job.")
+        return {"kind": "weekly", "day": code, "time": _check_time(time)}
+    if kind == "monthly":
+        try:
+            dom = int(day)
+        except (ValueError, TypeError) as exc:
+            raise ValueError("Choose a day of month (1–28) for a monthly job.") \
+                from exc
+        if not 1 <= dom <= 28:
+            # Capped at 28 so the job fires every month (29–31 skip short ones).
+            raise ValueError("Day of month must be between 1 and 28.")
+        return {"kind": "monthly", "day": dom, "time": _check_time(time)}
+    raise ValueError(f"Unknown schedule kind: {kind!r}.")
 
 
-# --------------------------------------------------------------------------- #
-# Internal runner
-# --------------------------------------------------------------------------- #
-class InternalScheduler:
-    """A minute-resolution background scheduler thread."""
-
-    def __init__(self, runner) -> None:
-        """``runner`` is a callable taking a Job and executing it."""
-        self._runner = runner
-        self._thread: threading.Thread | None = None
-        self._stop = threading.Event()
-
-    def start(self) -> None:
-        """Start the background scheduler thread (idempotent)."""
-        if self._thread and self._thread.is_alive():
-            return
-        self._stop.clear()
-        self._thread = threading.Thread(target=self._loop, daemon=True)
-        self._thread.start()
-        logger.info("Internal scheduler started.")
-
-    def stop(self) -> None:
-        """Signal the scheduler thread to stop."""
-        self._stop.set()
-        logger.info("Internal scheduler stopped.")
-
-    def is_running(self) -> bool:
-        """True if the background scheduler thread is alive."""
-        return bool(self._thread and self._thread.is_alive())
-
-    def _loop(self) -> None:
-        while not self._stop.wait(timeout=20):
-            now = datetime.now()
-            for job in load_jobs():
-                if not job.enabled:
-                    continue
-                last = (datetime.fromisoformat(job.last_run)
-                        if job.last_run else None)
-                if _due(job, now, last):
-                    logger.info("Running scheduled job %r ...", job.name)
-                    try:
-                        self._runner(job)
-                    except Exception as exc:  # pylint: disable=broad-exception-caught
-                        logger.error("Job %r failed: %s", job.name, exc)
-                    job.last_run = now.isoformat(timespec="seconds")
-                    upsert_job(job)
+def describe_schedule(when: dict) -> str:
+    """Human-readable one-line summary of a schedule dict."""
+    kind = when.get("kind")
+    if kind == "once":
+        return f"Once on {when.get('date', '?')} at {when.get('time', '?')}"
+    if kind == "interval":
+        return f"Every {int(when.get('minutes', 60))} minute(s)"
+    if kind == "hourly":
+        return f"Hourly at minute {int(when.get('minute', 0)):02d}"
+    if kind == "daily":
+        return f"Daily at {when.get('time', '03:00')}"
+    if kind == "weekly":
+        return f"Weekly on {when.get('day', 'MON')} at {when.get('time', '03:00')}"
+    if kind == "monthly":
+        return (f"Monthly on day {int(when.get('day', 1))} "
+                f"at {when.get('time', '03:00')}")
+    return "Unknown schedule"
 
 
 # --------------------------------------------------------------------------- #
@@ -192,11 +233,42 @@ def _runjob_windows(name: str) -> str:
     return f'"{sys.executable}" -m imap_cleanup_tool.cli --run-job {name}'
 
 
+def _win_date(iso: str) -> str:
+    """Format an ISO date (YYYY-MM-DD) for ``schtasks /SD`` in system locale."""
+    parsed = datetime.strptime(iso, "%Y-%m-%d")
+    pattern = "MM/dd/yyyy"
+    try:
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "(Get-Culture).DateTimeFormat.ShortDatePattern"],
+            capture_output=True, text=True, timeout=10)
+        if out.returncode == 0 and out.stdout.strip():
+            pattern = out.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    tokens = {"dddd": "%A", "ddd": "%a", "dd": "%d", "d": "%d",
+              "MMMM": "%B", "MMM": "%b", "MM": "%m", "M": "%m",
+              "yyyy": "%Y", "yy": "%y", "y": "%Y"}
+    strf = re.sub(r"dddd|ddd|dd|d|MMMM|MMM|MM|M|yyyy|yy|y",
+                  lambda m: tokens[m.group(0)], pattern)
+    return parsed.strftime(strf)
+
+
 def _windows_schedule(job: Job) -> list[str]:
     when = job.schedule
-    if when.get("kind") == "daily":
-        return ["/SC", "DAILY", "/ST", str(when.get("time", "03:00"))]
-    return ["/SC", "MINUTE", "/MO", str(int(when.get("minutes", 60)))]
+    kind = when.get("kind")
+    time = str(when.get("time", "03:00"))
+    if kind == "once":
+        return ["/SC", "ONCE", "/SD", _win_date(when["date"]), "/ST", time]
+    if kind == "interval":
+        return ["/SC", "MINUTE", "/MO", str(int(when.get("minutes", 60)))]
+    if kind == "hourly":
+        return ["/SC", "HOURLY", "/ST", f"00:{int(when.get('minute', 0)):02d}"]
+    if kind == "weekly":
+        return ["/SC", "WEEKLY", "/D", str(when.get("day", "MON")), "/ST", time]
+    if kind == "monthly":
+        return ["/SC", "MONTHLY", "/D", str(int(when.get("day", 1))), "/ST", time]
+    return ["/SC", "DAILY", "/ST", time]
 
 
 def export_windows(job: Job) -> str:
@@ -206,14 +278,29 @@ def export_windows(job: Job) -> str:
             f'/TR "{_runjob_windows(job.name)}" {sched} /F')
 
 
+def _cron_spec(when: dict) -> str:
+    """Return the five-field cron timing spec for a recurring schedule."""
+    kind = when.get("kind")
+    if kind == "interval":
+        return f"*/{int(when.get('minutes', 60))} * * * *"
+    if kind == "hourly":
+        return f"{int(when.get('minute', 0))} * * * *"
+    hh, mm = (int(x) for x in str(when.get("time", "03:00")).split(":"))
+    if kind == "weekly":
+        return f"{mm} {hh} * * {_CRON_DOW.get(when.get('day', 'MON'), 1)}"
+    if kind == "monthly":
+        return f"{mm} {hh} {int(when.get('day', 1))} * *"
+    return f"{mm} {hh} * * *"  # daily
+
+
 def export_cron(job: Job) -> str:
-    """Return a crontab line that runs this job on Linux/macOS."""
+    """Return the crontab line (recurring) or ``at`` command (one-shot)."""
     when = job.schedule
-    if when.get("kind") == "daily":
-        hh, mm = (int(x) for x in when.get("time", "03:00").split(":"))
-        spec = f"{mm} {hh} * * *"
-    else:
-        spec = f"*/{int(when.get('minutes', 60))} * * * *"
+    if when.get("kind") == "once":
+        hh, mm = (int(x) for x in str(when.get("time", "03:00")).split(":"))
+        piped = f"echo {shlex.quote(_runjob_posix(job.name))} | "
+        return f"{piped}at {hh:02d}:{mm:02d} {when.get('date', '')}".strip()
+    spec = _cron_spec(when)
     return f"{spec} {_runjob_posix(job.name)}  # imap-cleanup-tool job: {job.name}"
 
 
@@ -235,8 +322,29 @@ def install_windows(job: Job) -> str:
     return f'Registered Windows task "{_task_name(job)}".'
 
 
+def _install_at(job: Job) -> str:
+    """Schedule a one-time job via the POSIX ``at`` command."""
+    when = job.schedule
+    hh, mm = (int(x) for x in str(when.get("time", "03:00")).split(":"))
+    try:
+        result = subprocess.run(
+            ["at", f"{hh:02d}:{mm:02d}", when.get("date", "")],
+            input=_runjob_posix(job.name) + "\n",
+            text=True, capture_output=True)
+    except FileNotFoundError as exc:
+        raise RuntimeError("The `at` command is required for one-time jobs but "
+                           "was not found. Install 'at' or pick a recurring "
+                           "schedule.") from exc
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "at failed")
+    return (f"Scheduled one-time job '{job.name}' with `at` "
+            f"(use 'atq'/'atrm' to manage it).")
+
+
 def install_cron(job: Job) -> str:
     """Add (or replace) this job's line in the user's crontab. Returns a status."""
+    if job.schedule.get("kind") == "once":
+        return _install_at(job)
     marker = f"# imap-cleanup-tool job: {job.name}"
     try:
         current = subprocess.run(["crontab", "-l"], capture_output=True,

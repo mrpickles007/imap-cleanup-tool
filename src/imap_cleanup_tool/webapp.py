@@ -268,12 +268,11 @@ def create_app():
     class JobIn(Match, Options):
         name: str = "job"
         profile: str = ""                    # connection profile (non-encrypted)
-        kind: str = "daily"                  # "daily" | "interval"
-        time: str = "03:00"
-        minutes: int = 60
-
-    class SchedulerIn(BaseModel):
-        enabled: bool
+        kind: str = "daily"   # once|interval|hourly|daily|weekly|monthly
+        time: str = "03:00"   # HH:MM (once/hourly/daily/weekly/monthly)
+        date: str = ""        # YYYY-MM-DD (once only)
+        minutes: int = 60     # interval only
+        day: str = ""         # weekly: MON..SUN; monthly: day-of-month 1..31
 
     # ----- helpers --------------------------------------------------------- #
     def _session(sid: str) -> "Session":
@@ -302,8 +301,6 @@ def create_app():
 
     # ----- app ------------------------------------------------------------- #
     app = FastAPI(title="imap-cleanup-tool", docs_url="/api/docs")
-    internal = scheduler.InternalScheduler(
-        lambda job: __import__("imap_cleanup_tool.cli", fromlist=["main"]).main(job.args))
 
     @app.get("/api/meta")
     def meta() -> dict[str, Any]:
@@ -576,8 +573,12 @@ def create_app():
         if body.expunge:
             args.append("--expunge")
         args += ["--scan-mode", body.scan_mode, "--yes"]
-        sched = ({"kind": "daily", "time": body.time} if body.kind == "daily"
-                 else {"kind": "interval", "minutes": body.minutes})
+        try:
+            sched = scheduler.build_schedule(
+                body.kind, time=body.time, date=body.date,
+                minutes=body.minutes, day=body.day)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
         return scheduler.Job(name=name, args=args, schedule=sched)
 
     @app.get("/api/jobs")
@@ -586,8 +587,7 @@ def create_app():
         return {"jobs": [{"name": j.name, "schedule": j.schedule,
                           "args": j.args, "last_run": j.last_run,
                           "installed": j.name in installed}
-                         for j in scheduler.load_jobs()],
-                "scheduler_running": internal.is_running()}
+                         for j in scheduler.load_jobs()]}
 
     @app.post("/api/jobs")
     def save_job(body: JobIn) -> dict[str, Any]:
@@ -649,13 +649,11 @@ def create_app():
         return {"name": job.name, "message": message,
                 "command": scheduler.export_system(job)}
 
-    @app.post("/api/scheduler")
-    def set_scheduler(body: SchedulerIn) -> dict[str, Any]:
-        if body.enabled:
-            internal.start()
-        else:
-            internal.stop()
-        return {"enabled": body.enabled}
+    @app.get("/api/jobs/{name}/log")
+    def job_log(name: str) -> dict[str, Any]:
+        if not any(j.name == name for j in scheduler.load_jobs()):
+            raise HTTPException(404, f"No saved job named {name!r}.")
+        return {"name": name, "log": scheduler.read_job_log(name)}
 
     # ----- static ---------------------------------------------------------- #
     @app.get("/")
