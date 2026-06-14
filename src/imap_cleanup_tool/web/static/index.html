@@ -847,13 +847,17 @@ $('btnRun').onclick=async ()=>{
   if(!(await ensureFolderChosen())) return;
   const p=Object.assign({sid:SID}, matchPayload(), optionsPayload());
   if(!p.dry_run){
-    let what;
+    let what, note='';
     if(p.empty_folder) what='DELETE EVERYTHING in';
     else if(p.move){
       const moveAll = p.match_mode!=='rule' && !(($('targets').value||'').trim());
       what=(moveAll?'MOVE EVERY message':'Move matched messages')+' to "'+(p.dest_folder||'?')+'" from';
-    } else what='act on matching messages in';
-    if(!(await confirmDialog({title:'This is not a dry-run', message:'About to '+what+':\n'+p.folders.join(', ')+'\n\nContinue?', okText:'Run for real', danger:true}))) return; }
+    }
+    else if(p.gmail_trash) what='Move matched messages to Gmail Trash in';
+    else if(p.expunge) what='PERMANENTLY delete (expunge) matched messages in';
+    else { what='Flag matched messages as deleted in';
+      note='\n\nNote: without Expunge, messages are only flagged \\Deleted (hidden but recoverable) - they are NOT permanently removed. Enable Expunge to delete for good.'; }
+    if(!(await confirmDialog({title:'This is not a dry-run', message:'About to '+what+':\n'+p.folders.join(', ')+note+'\n\nContinue?', okText:'Run for real', danger:true}))) return; }
   log((p.dry_run?'[DRY-RUN] ':'')+'Starting on: '+p.folders.join(', ')); startJob('/api/run',p);
 };
 async function confirmJobOverwrite(){
