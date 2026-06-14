@@ -58,7 +58,8 @@ This installs the `imap-cleanup-tool` CLI. For the **web interface**
 pip install "imap-cleanup-tool[web]"     # adds the imap-cleanup-tool-web command
 ```
 
-The CLI stays dependency-free; only the web UI pulls in FastAPI + uvicorn.
+The CLI stays dependency-free; only the web UI pulls in FastAPI, uvicorn and
+cryptography (the last for encrypted connection profiles).
 
 ### From source
 
@@ -222,6 +223,8 @@ Highlights:
 
 - Many provider presets, connect-and-load-folders (with per-folder message
   counts), multi-folder selection, Select all / Deselect all.
+- **Connection profiles**: save host / user / password to a local SQLite DB —
+  optionally **encrypted** with a password — and pick one from a dropdown.
 - Match by a **target list** (paste or load from a file, with inline format
   help) or a **visual nested query builder** (field ▸ operator ▸ value, AND/OR
   groups).
