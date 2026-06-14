@@ -24,7 +24,7 @@ tailwind.config = { theme: { extend: {
   .tip{position:relative;display:inline-flex;align-items:center;cursor:help}
   .tip > .ic{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:9999px;
     background:#27324a;color:#cdd6ee;font-size:10px;font-weight:700;margin-left:6px;flex:none}
-  .tip .bub{position:absolute;bottom:140%;left:50%;transform:translateX(-50%);width:max-content;max-width:300px;
+  .tip .bub{position:absolute;bottom:140%;left:50%;transform:translateX(-50%);width:max-content;max-width:min(300px,92vw);
     background:#0a0f1a;color:#dfe5f3;border:1px solid #33415c;border-radius:8px;padding:9px 11px;font-size:12px;
     line-height:1.5;box-shadow:0 12px 34px rgba(0,0,0,.6);opacity:0;visibility:hidden;transition:.12s;z-index:60;text-align:left;font-weight:400}
   .tip:hover .bub{opacity:1 !important;visibility:visible !important}
@@ -591,6 +591,21 @@ setInterval(async()=>{
     if(!s.connected){ SID=null; localStorage.removeItem('icw_sid'); setConnectedUI(false); setStatus(false,'session expired'); log('Session expired (idle) — reconnect to continue.'); }
   }catch(_){}
 }, 60000);
+
+// Keep tooltips inside the viewport: nudge horizontally if they'd overflow.
+document.addEventListener('mouseover', (e)=>{
+  const tip = e.target.closest && e.target.closest('.tip');
+  if(!tip) return;
+  const bub = tip.querySelector('.bub'); if(!bub) return;
+  bub.style.transform = 'translateX(-50%)';
+  requestAnimationFrame(()=>{
+    const r = bub.getBoundingClientRect(), m = 8;
+    let shift = 0;
+    if(r.left < m) shift = m - r.left;
+    else if(r.right > window.innerWidth - m) shift = (window.innerWidth - m) - r.right;
+    if(shift) bub.style.transform = `translateX(calc(-50% + ${Math.round(shift)}px))`;
+  });
+});
 
 setConnectedUI(false);
 restoreLog();
