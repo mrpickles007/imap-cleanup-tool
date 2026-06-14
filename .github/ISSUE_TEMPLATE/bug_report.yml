@@ -1,0 +1,82 @@
+name: Bug report
+description: Report a problem with imap-cleanup-tool
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report.
+
+        **Never include passwords, app passwords, or full email addresses** in
+        this report. Redact them from any logs you paste.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight checklist
+      options:
+        - label: I searched existing issues and this has not been reported yet.
+          required: true
+        - label: I removed passwords, app passwords, and personal data from the logs below.
+          required: true
+        - label: When applicable, I reproduced it with `--dry-run` so nothing was deleted unexpectedly.
+          required: false
+  - type: dropdown
+    id: interface
+    attributes:
+      label: Which interface?
+      options:
+        - CLI (imap-cleanup-tool)
+        - Web UI (imap-cleanup-tool-web)
+        - Scheduler / system jobs
+        - Other / not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: From `pip show imap-cleanup-tool` (the Version field).
+      placeholder: "0.1.2"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "Windows 11 / macOS 14 / Ubuntu 24.04"
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: From `python --version`.
+      placeholder: "3.12.4"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `imap-cleanup-tool ...`
+        2. ...
+        3. See the error
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / output
+      description: Paste relevant output. REMEMBER to redact credentials and email addresses.
+      render: shell
+    validations:
+      required: false
