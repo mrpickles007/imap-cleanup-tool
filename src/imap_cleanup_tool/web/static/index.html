@@ -292,10 +292,11 @@ tailwind.config = { theme: { extend: {
       <label class="text-xs text-muted">Time (HH:MM) <input id="jobTime" class="field mt-1" value="03:00"></label>
       <label class="text-xs text-muted">Interval (minutes) <input id="jobMinutes" class="field mt-1" value="60"></label>
     </div>
-    <div class="flex flex-wrap gap-2 mt-4">
+    <div id="jobSummary" class="text-[11px] text-muted mt-3 border-t border-line pt-3"></div>
+    <div class="flex flex-wrap gap-2 mt-3">
       <button id="btnSaveJob" class="bg-brand hover:bg-brand-light text-ink font-semibold rounded-lg px-4 py-2">Save job</button>
       <button id="btnInstallJob" class="bg-ok hover:brightness-110 text-ink font-semibold rounded-lg px-4 py-2 flex items-center">Install to system scheduler
-        <span class="tip"><span class="ic" style="background:#0b1020;color:#bfe9d4">i</span><span class="bub">Registers the job in <b>Windows Task Scheduler</b> (or <b>cron</b>). It then runs on schedule <b>even when this app is closed</b> — nothing needs to stay open. The password is read from the <code>IMAP_PASSWORD</code> environment variable at run time.</span></span>
+        <span class="tip"><span class="ic" style="background:#0b1020;color:#bfe9d4">i</span><span class="bub">Registers the job in <b>Windows Task Scheduler</b> (or <b>cron</b>). It then runs on schedule <b>even when this app is closed</b> — nothing needs to stay open. Credentials come from the selected (non-encrypted) profile.</span></span>
       </button>
       <button id="btnExportJob" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Export command</button>
     </div>
@@ -594,9 +595,24 @@ function populateJobProfiles(){
   plain.forEach(p=>{ const o=document.createElement('option'); o.value=p.name; o.textContent=p.name; sel.appendChild(o); });
   if(cur && plain.some(p=>p.name===cur)) sel.value=cur;
 }
+function updateJobSummary(){
+  const el=$('jobSummary'); if(!el) return;
+  const folders=(selectedFolders.length?selectedFolders:['INBOX']).join(', ');
+  const empty=$('emptyFolder').checked;
+  const mode=document.querySelector('input[name=mode]:checked').value;
+  let match='', warn=false;
+  if(empty){ match='empty folder(s) — delete EVERYTHING'; }
+  else if(mode==='rule'){ match='rule'; }
+  else { const n=($('targets').value||'').split('\n').filter(l=>l.trim()&&!l.trim().startsWith('#')).length;
+    if(n){ match=n+' target line(s)'; } else { match='no targets set'; warn=true; } }
+  el.innerHTML='Acts on <b>'+escapeHtml(folders)+'</b> · match: '+(warn?'<span class="text-warn">⚠️ ':'<b>')+escapeHtml(match)+(warn?'</span>':'</b>')+
+    ' · <span class="text-warn">runs for real (dry-run does not apply)</span>. Set folders/match/options in the <b>Cleanup</b> tab.';
+}
+let JOBS = [];
 async function loadJobs(){
   try{
     const d=await (await fetch('/api/jobs')).json();
+    JOBS = d.jobs || [];
     $('schedToggle').checked=!!d.scheduler_running;
     const box=$('jobsList'); box.innerHTML='';
     if(!d.jobs.length){ box.innerHTML='<p class="text-muted text-xs">No saved jobs.</p>'; return; }
@@ -616,7 +632,7 @@ document.querySelectorAll('.tab').forEach(t=> t.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
   $('tab-cleanup').classList.toggle('hidden', t.dataset.tab!=='cleanup');
   $('tab-scheduling').classList.toggle('hidden', t.dataset.tab!=='scheduling');
-  if(t.dataset.tab==='scheduling'){ populateJobProfiles(); loadJobs(); }
+  if(t.dataset.tab==='scheduling'){ populateJobProfiles(); updateJobSummary(); loadJobs(); }
 });
 $('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider').value)||0]; if(p){ if(p.host)$('host').value=p.host; if(p.port)$('port').value=p.port; if(p.host==='imap.gmail.com'){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} } applyProviderTips(); refreshConditional(); };
 $('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional; $('gmailTrash').onchange=refreshConditional;
@@ -664,9 +680,16 @@ $('btnRun').onclick=async ()=>{
     if(!(await confirmDialog({title:'This is not a dry-run', message:'About to '+what+':\n'+p.folders.join(', ')+'\n\nContinue?', okText:'Run for real', danger:true}))) return; }
   log((p.dry_run?'[DRY-RUN] ':'')+'Starting on: '+p.folders.join(', ')); startJob('/api/run',p);
 };
-$('btnSaveJob').onclick=async()=>{ try{ const d=await api('/api/jobs',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Saved. System command:\n'+d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
-$('btnExportJob').onclick=async()=>{ try{ const d=await api('/api/jobs/export',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
-$('btnInstallJob').onclick=async()=>{ try{ const d=await api('/api/jobs/install',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.message+'\n\n'+d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
+async function confirmJobOverwrite(){
+  const safe=($('jobName').value.trim()||'job').replace(/[^A-Za-z0-9_-]+/g,'_')||'job';
+  if(JOBS.some(j=>j.name===safe)){
+    return await confirmDialog({title:'Overwrite job', message:'A scheduled job named "'+safe+'" already exists. Overwrite it (and re-register its system task)?', okText:'Overwrite', danger:true});
+  }
+  return true;
+}
+$('btnSaveJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; try{ const d=await api('/api/jobs',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Saved. System command:\n'+d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
+$('btnExportJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; try{ const d=await api('/api/jobs/export',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
+$('btnInstallJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; try{ const d=await api('/api/jobs/install',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.message+'\n\n'+d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
 function download(name, text){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href); }
 $('targetsFile').onchange=(e)=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ $('targets').value=r.result; log('Loaded target list from '+f.name+'.'); }; r.readAsText(f); e.target.value=''; };
 async function saveTargets(){

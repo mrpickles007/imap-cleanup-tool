@@ -562,7 +562,9 @@ def create_app():
             try:
                 parse_targets_text(body.targets_text)  # validate
             except ValueError as exc:
-                raise HTTPException(400, str(exc)) from exc
+                raise HTTPException(400, "The job has no targets. In the Cleanup "
+                    "tab choose a match — fill the Target list (or switch to a "
+                    "Rule), or enable Empty folder — then save the job.") from exc
             tpath = scheduler.config_dir() / f"{name}.targets.txt"
             tpath.write_text(body.targets_text, encoding="utf-8")
             args += ["--targets", str(tpath)]
