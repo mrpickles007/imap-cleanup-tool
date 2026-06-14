@@ -266,8 +266,17 @@ The time/date pickers use your system locale; the one-time date is rendered in
 the system's short-date format for `schtasks`. One-time jobs on Linux/macOS use
 `at`: the tool records the `at` job number on install, so they show as
 *installed* (via `atq`) and can be uninstalled from the panel (via `atrm`),
-just like recurring cron jobs — `at`/`atq`/`atrm` must be installed. A one-time
-job that has already fired drops back to *saved* (it is no longer queued).
+just like recurring cron jobs. A one-time job that has already fired drops back
+to *saved* (it is no longer queued).
+
+> **Linux/macOS one-time jobs need `at`.** The `at`/`atq`/`atrm` commands must
+> be installed **and** the `atd` daemon must be running, otherwise the job will
+> not fire. On many distributions `at` is not installed by default:
+> `sudo apt install at` (Debian/Ubuntu) or `sudo dnf install at` (Fedora), then
+> enable the daemon with `sudo systemctl enable --now atd`. (macOS ships `at`,
+> but `atrun` is disabled by default — enable it with
+> `sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.atrun.plist`.)
+> Recurring jobs use cron instead and have no such requirement.
 
 Each job connects with a saved **connection profile** (chosen in the Scheduling
 tab), so different jobs can target different accounts. The scheduled task runs
