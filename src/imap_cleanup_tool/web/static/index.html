@@ -241,10 +241,11 @@ tailwind.config = { theme: { extend: {
 
       <label class="flex items-center justify-between text-sm py-1.5">
         <span class="flex items-center text-danger">Empty folder (delete ALL)
-          <span class="tip"><span class="ic">i</span><span class="bub" style="border-color:#ff5d73">⚠️ Deletes <b>every</b> message in the selected folders, ignoring the match criteria.</span></span>
+          <span class="tip"><span class="ic">i</span><span class="bub" style="border-color:#ff5d73">⚠️ Deletes <b>every</b> message in the folders you ticked in the <b>Folders</b> section above, <b>ignoring</b> the target list / rule. It does <b>not</b> touch other folders - only the selected ones.</span></span>
         </span>
         <input id="emptyFolder" type="checkbox">
       </label>
+      <p id="emptyNote" class="hidden text-[11px] text-warn -mt-1 mb-1">⚠️ Will delete <b>all</b> messages in the <b>selected</b> folders (the ones ticked under <b>Folders</b>), not just matches.</p>
 
       <label class="flex items-center justify-between text-sm py-1.5 border-t border-line mt-2 pt-3">
         <span class="flex items-center text-cream font-semibold">Dry-run (preview only)
@@ -522,6 +523,7 @@ function refreshConditional(){
   $('subdomains').disabled = rule || !full; if(rule || !full) $('subdomains').checked=false;
   const gmail=gmailHost();
   const empty=$('emptyFolder').checked;
+  $('emptyNote').classList.toggle('hidden', !empty);
   // Move is mutually exclusive with delete/gmail-trash/expunge; empty overrides all.
   $('moveMode').disabled=empty; if(empty)$('moveMode').checked=false;
   const move=$('moveMode').checked && !empty;
