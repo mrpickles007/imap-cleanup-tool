@@ -105,7 +105,11 @@ tailwind.config = { theme: { extend: {
         <h2 class="font-display font-semibold text-brand-light flex items-center">Folders
           <span class="tip"><span class="ic">i</span><span class="bub">Pick the folders to scan. Gmail uses special names like <code>[Gmail]/All Mail</code>, <code>[Gmail]/Trash</code> (may be localized). Connect first to load the list.</span></span>
         </h2>
-        <button id="btnRefreshFolders" class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream hover:border-brand" title="Reload the folder list and message counts">↻ Refresh</button>
+        <div class="flex items-center gap-2">
+          <button id="btnSelectAll" class="text-xs px-2.5 py-1.5 rounded-lg border border-line text-muted hover:text-cream hover:border-brand">Select all</button>
+          <button id="btnDeselectAll" class="text-xs px-2.5 py-1.5 rounded-lg border border-line text-muted hover:text-cream hover:border-brand">Deselect all</button>
+          <button id="btnRefreshFolders" class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream hover:border-brand" title="Reload the folder list and message counts">↻ Refresh</button>
+        </div>
       </div>
       <div id="folders" class="grid grid-cols-2 sm:grid-cols-3 gap-1 max-h-44 overflow-auto text-sm">
         <p class="text-muted col-span-full text-xs">Not connected — folders will appear here. Defaults to <code>INBOX</code>.</p>
@@ -498,6 +502,8 @@ $('togglePass').onclick=()=>{ const p=$('password'); p.type=p.type==='password'?
 document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const rule=document.querySelector('input[name=mode]:checked').value==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); });
 $('btnAddFolder').onclick=()=>{ const v=$('manualFolder').value.trim(); if(!v)return; if(!selectedFolders.includes(v))selectedFolders.push(v); if(!knownFolders.some(f=>f.name===v))knownFolders.push({name:v,count:null}); $('manualFolder').value=''; renderFolders(); };
 $('btnClear').onclick=()=>{ logLines=[]; renderLog(); persistLog(); };
+$('btnSelectAll').onclick=()=>{ const names=new Set(knownFolders.map(f=>f.name)); selectedFolders.forEach(n=>names.add(n)); selectedFolders=[...names]; renderFolders(); };
+$('btnDeselectAll').onclick=()=>{ selectedFolders=[]; renderFolders(); };
 
 $('btnConnect').onclick=async()=>{
   if(!$('host').value.trim() || !$('user').value.trim()){ setStatus(false,'failed'); log('[ERROR] Please enter at least Host and User before connecting.'); return; }

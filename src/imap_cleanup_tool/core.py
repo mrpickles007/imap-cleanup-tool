@@ -36,6 +36,15 @@ def _check_stop(should_stop: StopCheck | None) -> None:
         raise StopRequested
 
 
+def _quote_mailbox(name: str) -> str:
+    """Quote a mailbox name for IMAP commands so names with spaces work.
+
+    Without quotes, ``SELECT Posta inviata`` is parsed as two arguments and the
+    server replies ``BAD Could not parse command``.
+    """
+    return '"' + name.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
 # --------------------------------------------------------------------------- #
 # Header helpers
 # --------------------------------------------------------------------------- #
@@ -115,7 +124,7 @@ def folder_message_counts(conn: imaplib.IMAP4_SSL, names: list[str],
     for name in names:
         _check_stop(should_stop)
         try:
-            status, data = conn.status(f'"{name}"', "(MESSAGES)")
+            status, data = conn.status(_quote_mailbox(name), "(MESSAGES)")
         except (OSError, imaplib.IMAP4.error):
             counts[name] = None
             continue
@@ -179,7 +188,7 @@ def list_senders(conn: imaplib.IMAP4_SSL, folder: str,
                  account: str = "",
                  save_path: str | None = None) -> dict[str, int]:
     """Log unique senders in a folder with counts; optionally save to CSV."""
-    status, _ = conn.select(folder, readonly=True)
+    status, _ = conn.select(_quote_mailbox(folder), readonly=True)
     if status != "OK":
         logger.error("Cannot open folder %r.", folder)
         return {}
@@ -282,7 +291,7 @@ def delete_uids(conn: imaplib.IMAP4_SSL, uids: list[bytes],
 def empty_folder(conn: imaplib.IMAP4_SSL, folder: str, dry_run: bool,
                  should_stop: StopCheck | None = None) -> int:
     """Delete ALL messages in a folder (no filtering). Returns count removed."""
-    status, _ = conn.select(folder, readonly=dry_run)
+    status, _ = conn.select(_quote_mailbox(folder), readonly=dry_run)
     if status != "OK":
         logger.error("Cannot open folder %r — skipping.", folder)
         return 0
@@ -322,7 +331,7 @@ def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
     ``scan_mode='full'`` (target mode only) downloads headers and matches
     locally with exact-domain / subdomain rules; 'search' filters server-side.
     """
-    status, _ = conn.select(folder, readonly=dry_run)
+    status, _ = conn.select(_quote_mailbox(folder), readonly=dry_run)
     if status != "OK":
         logger.error("Cannot open folder %r — skipping.", folder)
         return 0
