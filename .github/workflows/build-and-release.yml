@@ -1,29 +1,67 @@
 name: publish
 
-# Build the package and publish it to PyPI when a v* tag is pushed.
+# Build the package once, then publish it via PyPI Trusted Publishing (OIDC):
+#   * Manual run ("Run workflow" button) -> publishes to TestPyPI.
+#   * Pushing a v* tag                    -> publishes to the real PyPI.
+# No API tokens/secrets are used: the workflow's OIDC identity is the credential,
+# matched against the trusted publisher configured on (Test)PyPI.
 
 on:
+  workflow_dispatch:        # manual button in the Actions tab -> TestPyPI
   push:
     tags:
-      - "v*"
+      - "v*"                # pushing a v* tag -> real PyPI
 
 jobs:
-  pypi:
+  build:
     runs-on: ubuntu-latest
-    # Publishing requires a PyPI API token saved as the PYPI_API_TOKEN secret.
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Build sdist and wheel
         run: |
           python -m pip install --upgrade pip build
           python -m build
+      - name: Upload the built distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
 
-      - name: Publish to PyPI
+  publish-testpypi:
+    # Only manual runs publish to TestPyPI (for testing a release).
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: testpypi          # must match the TestPyPI trusted-publisher env
+    permissions:
+      id-token: write              # required to mint the OIDC token
+    steps:
+      - name: Download the built distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
+
+  publish-pypi:
+    # Only v* tags publish to the real PyPI (the actual release).
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi              # must match the PyPI trusted-publisher env
+    permissions:
+      id-token: write
+    steps:
+      - name: Download the built distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
