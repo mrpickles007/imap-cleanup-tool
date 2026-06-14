@@ -453,3 +453,5 @@ modify, and redistribute it, but **any derivative work - including software that
 reuses any part of this code, and modified versions offered over a network as a
 service - must also be released as open source under the AGPL-3.0**. You cannot
 incorporate this code into a closed-source or proprietary product.
+
+Contributions are welcome - see [CONTRIBUTING.md](CONTRIBUTING.md).
