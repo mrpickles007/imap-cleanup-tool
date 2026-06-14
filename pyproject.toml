@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "imap-cleanup-tool"
 version = "0.1.0"
-description = "Delete or move IMAP emails by sender, domain, or nested rules — CLI and local web UI."
+description = "Delete or move IMAP emails by sender, domain, or nested rules - CLI and local web UI."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "AGPL-3.0-or-later" }

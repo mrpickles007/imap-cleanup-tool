@@ -2,7 +2,7 @@
 
 **Project:** imap-cleanup-tool
 **Project Owner / Licensor:** Giulio Alberello ("the Owner")
-**Contact:** giulioalberello@gmail.com
+**Contact:** info@giulioalberello.it
 
 Thank you for contributing to imap-cleanup-tool. To keep the project legally
 clean and to let its licensing be managed consistently over time, every
