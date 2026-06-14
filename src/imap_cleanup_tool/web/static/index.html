@@ -138,11 +138,14 @@ tailwind.config = { theme: { extend: {
       <div id="folders" class="grid grid-cols-2 sm:grid-cols-3 gap-1 max-h-44 overflow-auto text-sm">
         <p class="text-muted col-span-full text-xs">Not connected - folders will appear here. Defaults to <code>INBOX</code>.</p>
       </div>
-      <div class="flex gap-2 mt-3">
-        <input id="manualFolder" class="field" placeholder="Add a folder name manually…">
-        <button id="btnAddFolder" class="px-3 rounded-lg border border-line text-muted hover:text-cream">Add</button>
+      <datalist id="folderOptions"></datalist>
+      <div class="flex flex-wrap gap-2 mt-3">
+        <input id="manualFolder" class="field flex-1 min-w-[150px]" list="folderOptions" placeholder="Folder / label name…">
+        <button id="btnAddFolder" class="px-3 rounded-lg border border-line text-muted hover:text-cream" title="Add this name to the scan list only - does NOT create anything on the server">+ Add to scan</button>
+        <button id="btnCreateFolder" class="px-3 rounded-lg border border-brand text-brand-light hover:bg-brand hover:text-ink" title="Actually create this folder/label on your mail server">⊕ Create on server</button>
       </div>
-      <p class="text-[11px] text-muted mt-2">⚠️ Every action - <b>Run</b>, <b>List senders</b>, <b>Empty folder</b> - applies to the <b>selected</b> folders above (hover a row and click × to remove it from the list).</p>
+      <p class="text-[11px] text-muted mt-2"><b>Add to scan</b> just includes a folder in the list above (creates nothing). <b>Create on server</b> actually creates a new folder - a <b>label</b> on Gmail - on your mailbox (e.g. to use as a move destination).</p>
+      <p class="text-[11px] text-muted mt-1">⚠️ Every action - <b>Run</b>, <b>List senders</b>, <b>Empty folder</b>, <b>Move</b> - applies to the <b>selected</b> folders above (hover a row and click × to remove it).</p>
     </section>
 
     <!-- Match -->
@@ -220,6 +223,20 @@ tailwind.config = { theme: { extend: {
         <input id="expunge" type="checkbox">
       </label>
       <p id="expungeNote" class="hidden text-[11px] text-muted -mt-1 mb-1">With “Gmail: move to Trash” this has no effect - messages just go to Trash. To delete for good, then select <code>[Gmail]/Trash</code> and use <b>Empty folder</b>.</p>
+
+      <label class="flex items-center justify-between text-sm py-1.5" id="rowMove">
+        <span class="flex items-center">Move matched to another folder
+          <span class="tip"><span class="ic">i</span><span class="bub">Instead of deleting, <b>move</b> the matched messages to the destination below. On <b>Gmail</b> this relabels them (removes the source label, adds the destination). Mutually exclusive with delete / Gmail-trash / expunge.</span></span>
+        </span>
+        <input id="moveMode" type="checkbox">
+      </label>
+      <div id="moveDestRow" class="hidden pb-1.5">
+        <div class="flex gap-2">
+          <input id="moveDest" class="field" list="folderOptions" placeholder="destination folder / label">
+          <button id="btnCreateDest" type="button" class="px-3 rounded-lg border border-brand text-brand-light hover:bg-brand hover:text-ink whitespace-nowrap" title="Create this destination folder/label on the server">⊕ Create</button>
+        </div>
+        <p class="text-[11px] text-muted mt-1">Pick an existing folder or type a new name and click <b>Create</b> (a label on Gmail). The destination must exist before moving.</p>
+      </div>
 
       <label class="flex items-center justify-between text-sm py-1.5">
         <span class="flex items-center text-danger">Empty folder (delete ALL)
@@ -503,11 +520,15 @@ function refreshConditional(){
   const full=$('scanMode').value==='full';
   $('subdomains').disabled = rule || !full; if(rule || !full) $('subdomains').checked=false;
   const gmail=gmailHost();
-  $('gmailTrash').disabled=!gmail; if(!gmail)$('gmailTrash').checked=false;
-  const gtrash=$('gmailTrash').checked;
-  $('expunge').disabled=gtrash; if(gtrash)$('expunge').checked=false;
-  $('expungeNote').classList.toggle('hidden', !gtrash);
   const empty=$('emptyFolder').checked;
+  // Move is mutually exclusive with delete/gmail-trash/expunge; empty overrides all.
+  $('moveMode').disabled=empty; if(empty)$('moveMode').checked=false;
+  const move=$('moveMode').checked && !empty;
+  $('moveDestRow').classList.toggle('hidden', !move);
+  $('gmailTrash').disabled = !gmail || move; if(!gmail||move)$('gmailTrash').checked=false;
+  const gtrash=$('gmailTrash').checked;
+  $('expunge').disabled = gtrash || move; if(gtrash||move)$('expunge').checked=false;
+  $('expungeNote').classList.toggle('hidden', !gtrash);
   $('paneTargets').classList.toggle('dim',empty); $('paneRule').classList.toggle('dim',empty);
 }
 
@@ -530,6 +551,12 @@ function renderFolders(){
     w.querySelector('button').onclick=()=>{ knownFolders=knownFolders.filter(x=>x.name!==name); selectedFolders=selectedFolders.filter(x=>x!==name); renderFolders(); };
     box.appendChild(w);
   });
+  renderFolderOptions();
+}
+function renderFolderOptions(){
+  const dl=$('folderOptions'); if(!dl) return;
+  dl.innerHTML='';
+  knownFolders.forEach(f=>{ const o=document.createElement('option'); o.value=f.name; dl.appendChild(o); });
 }
 
 /* ---------- query builder ---------- */
@@ -587,6 +614,7 @@ function optionsPayload(){
   return { folders:selectedFolders.length?selectedFolders:['INBOX'], scan_mode:$('scanMode').value,
     include_subdomains:$('subdomains').checked, batch_size:parseInt($('batch').value)||500,
     gmail_trash:$('gmailTrash').checked, expunge:$('expunge').checked,
+    move:$('moveMode').checked, dest_folder:$('moveDest').value.trim(),
     empty_folder:$('emptyFolder').checked, dry_run:$('dryRun').checked };
 }
 
@@ -682,6 +710,7 @@ function updateJobSummary(){
     match = n ? ('messages from '+n+' target line(s)') : 'no targets set'; warn=!n; }
   let action;
   if(empty) action='Delete EVERYTHING';
+  else if($('moveMode').checked) action='Move to '+($('moveDest').value.trim()||'(no destination set)');
   else if($('gmailTrash').checked) action='Move to Gmail Trash';
   else if($('expunge').checked) action='Permanently delete (expunge)';
   else action='Flag as deleted';
@@ -733,11 +762,19 @@ document.querySelectorAll('.tab').forEach(t=> t.onclick=()=>{
   if(t.dataset.tab==='scheduling'){ populateJobProfiles(); updateSchedInputs(); loadJobs(); }
 });
 $('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider').value)||0]; if(p){ if(p.host)$('host').value=p.host; if(p.port)$('port').value=p.port; if(p.host==='imap.gmail.com'){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} } applyProviderTips(); refreshConditional(); };
-$('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional; $('gmailTrash').onchange=refreshConditional;
+$('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional; $('gmailTrash').onchange=refreshConditional; $('moveMode').onchange=refreshConditional; $('moveDest').oninput=updateJobSummary;
 $('togglePass').onclick=()=>{ const p=$('password'); p.type=p.type==='password'?'text':'password'; $('togglePass').textContent=p.type==='password'?'show':'hide'; };
 document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const mode=document.querySelector('input[name=mode]:checked').value; try{localStorage.setItem('icw_mode',mode);}catch(_){} const rule=mode==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); refreshConditional(); });
 $('targets').addEventListener('input', ()=>{ try{localStorage.setItem('icw_targets',$('targets').value);}catch(_){} });
 $('btnAddFolder').onclick=()=>{ const v=$('manualFolder').value.trim(); if(!v)return; if(!selectedFolders.includes(v))selectedFolders.push(v); if(!knownFolders.some(f=>f.name===v))knownFolders.push({name:v,count:null}); $('manualFolder').value=''; renderFolders(); };
+async function createServerFolder(name){
+  if(!SID){ log('[ERROR] Connect first to create a folder on the server.'); return false; }
+  name=(name||'').trim(); if(!name){ log('[ERROR] Type a folder/label name first.'); return false; }
+  try{ const d=await api('/api/create-folder',{sid:SID,name:name}); knownFolders=d.folders||knownFolders; renderFolders(); log(d.message); return true; }
+  catch(e){ log('[ERROR] '+e.message); return false; }
+}
+$('btnCreateFolder').onclick=async()=>{ if(await createServerFolder($('manualFolder').value)) $('manualFolder').value=''; };
+$('btnCreateDest').onclick=()=>createServerFolder($('moveDest').value);
 $('btnClear').onclick=()=>{ logLines=[]; renderLog(); persistLog(); };
 $('btnSelectAll').onclick=()=>{ const names=new Set(knownFolders.map(f=>f.name)); selectedFolders.forEach(n=>names.add(n)); selectedFolders=[...names]; renderFolders(); };
 $('btnDeselectAll').onclick=()=>{ selectedFolders=[]; renderFolders(); };

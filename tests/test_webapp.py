@@ -127,6 +127,46 @@ class WebApiTests(unittest.TestCase):
                 self.assertEqual(
                     self.client.get("/api/jobs/t1/log").status_code, 404)
 
+    def test_move_job_builds_args(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)), \
+                 mock.patch.object(profiles, "config_dir",
+                                   return_value=Path(tmp)):
+                self.client.post("/api/profiles", json={
+                    "name": "pf", "host": "imap.gmail.com",
+                    "user": "u", "password": "pw"})
+                r = self.client.post("/api/jobs", json={
+                    "name": "mv", "profile": "pf", "match_mode": "rule",
+                    "rule_tree": _RULE, "move": True, "dest_folder": "Archive",
+                    "kind": "daily", "time": "03:00"})
+                self.assertEqual(r.status_code, 200)
+                mv = next(j for j in self.client.get("/api/jobs").json()["jobs"]
+                          if j["name"] == "mv")
+                self.assertIn("--move", mv["args"])
+                self.assertIn("--dest-folder", mv["args"])
+                self.assertIn("Archive", mv["args"])
+                self.assertNotIn("--gmail-trash", mv["args"])
+
+    def test_move_job_requires_dest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)), \
+                 mock.patch.object(profiles, "config_dir",
+                                   return_value=Path(tmp)):
+                self.client.post("/api/profiles", json={
+                    "name": "pf", "host": "h", "user": "u", "password": "pw"})
+                r = self.client.post("/api/jobs", json={
+                    "name": "mv2", "profile": "pf", "match_mode": "rule",
+                    "rule_tree": _RULE, "move": True, "dest_folder": "",
+                    "kind": "daily"})
+                self.assertEqual(r.status_code, 400)
+
+    def test_create_folder_without_session_is_rejected(self):
+        r = self.client.post("/api/create-folder",
+                             json={"sid": "nope", "name": "X"})
+        self.assertEqual(r.status_code, 440)
+
 
 if __name__ == "__main__":
     unittest.main()

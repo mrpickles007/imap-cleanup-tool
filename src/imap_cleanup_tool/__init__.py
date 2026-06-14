@@ -11,11 +11,13 @@ from __future__ import annotations
 from .core import (
     StopRequested,
     connect,
+    create_folder,
     delete_uids,
     empty_folder,
     fetch_from_headers,
     list_folders,
     list_senders,
+    move_uids,
     process_folder,
     safe_logout,
     save_senders_csv,
@@ -26,7 +28,7 @@ from .targets import load_targets, parse_targets_text, sender_matches
 from .rules import Condition, Group, compile_search, node_from_dict
 from .rule_parser import parse_rule_expression
 
-__version__ = "0.1.4"
+__version__ = "0.2.0"
 
 __all__ = [
     "__version__",
@@ -40,6 +42,8 @@ __all__ = [
     "search_targets",
     "search_rule",
     "delete_uids",
+    "move_uids",
+    "create_folder",
     "empty_folder",
     "process_folder",
     "load_targets",

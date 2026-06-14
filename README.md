@@ -19,6 +19,8 @@ UI is an optional extra (FastAPI).
   expression like `sender contains amazon.com OR (subject is Invoice AND date starts 2025-01-01)`.
 - Fast **server-side search** for huge folders, or strict **local matching**.
 - **Count** how many emails a filter matches before deleting anything.
+- **Move** matched emails to another folder instead of deleting them, and
+  **create** new folders (or **labels** on Gmail) right from the app.
 - **Gmail mode**: moves matches to Trash (the only way to truly delete on Gmail).
 - **Empty a whole folder** (e.g. Trash) without scanning.
 - **List senders** with counts and export them to CSV (with timestamp).
@@ -42,6 +44,7 @@ UI is an optional extra (FastAPI).
 - [Rule expressions](#rule-expressions)
 - [Target file format](#target-file-format)
 - [Web interface](#web-interface)
+- [Folders vs labels, and moving](#folders-vs-labels-and-moving)
 - [Remote / headless server (SSH port forwarding)](#remote--headless-server-ssh-port-forwarding)
 - [Scheduling](#scheduling)
 - [Gmail notes](#gmail-notes)
@@ -218,6 +221,9 @@ land in your shell history.
 | `--save-senders CSV` | With `--list-senders`, append to a CSV. |
 | `--empty-folder` | Delete ALL messages in the folder(s); no filtering. |
 | `--gmail-trash` | Move matches to Gmail Trash via labels. |
+| `--move` | Move matches to `--dest-folder` instead of deleting them. |
+| `--dest-folder NAME` | Destination folder/label for `--move`. |
+| `--create-folder NAME` | Create a folder (a label on Gmail) on the server, then exit. |
 | `--dry-run` | Report only; make no changes. |
 | `--expunge` | Permanently remove after flagging. |
 | `--yes` | Skip the confirmation prompt (for scripts/cron). |
@@ -238,6 +244,11 @@ imap-cleanup-tool --host HOST --user USER --folder Trash --empty-folder
 # Strict local matching including subdomains
 imap-cleanup-tool --host HOST --user USER --targets targets.txt \
     --scan-mode full --include-subdomains --dry-run
+
+# Create a folder/label, then MOVE matched mail into it (instead of deleting)
+imap-cleanup-tool --host HOST --user USER --create-folder "Archive/2025"
+imap-cleanup-tool --host HOST --user USER --targets targets.txt \
+    --move --dest-folder "Archive/2025" --dry-run
 ```
 
 ---
@@ -325,11 +336,47 @@ Highlights:
   help) or a **visual nested query builder** (field ▸ operator ▸ value, AND/OR
   groups).
 - **Count matching emails** before deleting; **dry-run** is on by default.
+- **Move** matches to another folder instead of deleting (an option that
+  excludes delete / Gmail-trash / expunge), and **create folders/labels** on the
+  server. The folder box distinguishes *Add to scan* (just lists a folder to
+  scan, creates nothing) from *Create on server* (really creates a folder, a
+  **label** on Gmail) - see [Folders vs labels](#folders-vs-labels-and-moving).
 - Context-aware options with tooltips (e.g. *Include subdomains* only in
   `"full"` scan mode; *Gmail: move to Trash* only for Gmail).
 - Background runs with a **Stop** button and a persistent, live log panel.
 - **List senders** with counts (export to CSV), and a **Scheduling** tab to
   create jobs and install them into the OS scheduler.
+
+---
+
+## Folders vs labels, and moving
+
+Over IMAP a "folder" and a Gmail "label" are the same thing, so creating one
+works everywhere: on a normal mailbox you get a folder, on Gmail you get a label.
+
+Two different actions in the app are easy to confuse, so they are kept distinct:
+
+- **Add to scan** (the folder box) only adds a name to the list of folders you
+  will scan. It does **not** create anything on the server - use it to scan a
+  folder that was not auto-listed.
+- **Create on server** actually creates a new folder/label on your mailbox (via
+  IMAP `CREATE`). Use it to make a destination before moving.
+
+**Moving** copies the matched messages into the destination and removes them from
+the source. The tool uses the server's `MOVE` command when available, otherwise
+`COPY` + delete + expunge. On **Gmail** a move *relabels* the messages (removes
+the source label, adds the destination one); the message itself still lives in
+*All Mail*. Move is mutually exclusive with delete / Gmail-trash / expunge; only
+*Empty folder* overrides everything. From the CLI:
+
+```bash
+imap-cleanup-tool --host HOST --user USER --create-folder "Receipts"
+imap-cleanup-tool --host HOST --user USER --targets bills.txt \
+    --move --dest-folder "Receipts" --dry-run
+```
+
+Move jobs can be **scheduled** like any other job (the Scheduling tab carries the
+same Move setting and destination into the saved job).
 
 ---
 

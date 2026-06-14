@@ -231,10 +231,16 @@ def create_app():
         gmail_trash: bool = False
         expunge: bool = False
         empty_folder: bool = False
+        move: bool = False                   # move matches to dest_folder
+        dest_folder: str = ""                # destination for move
         dry_run: bool = True
 
     class RunIn(Match, Options):
         sid: str
+
+    class CreateFolderIn(BaseModel):
+        sid: str
+        name: str
 
     class SendersIn(BaseModel):
         sid: str
@@ -359,6 +365,26 @@ def create_app():
         sess.folders = [{"name": n, "count": counts.get(n)} for n in names]
         return {"folders": sess.folders}
 
+    @app.post("/api/create-folder")
+    def create_folder(body: CreateFolderIn) -> dict[str, Any]:
+        """Create a folder (a label on Gmail) on the server, then reload the list."""
+        sess = _session(body.sid)
+        name = (body.name or "").strip()
+        if not name:
+            raise HTTPException(400, "Provide a folder/label name.")
+        if sess.run and sess.run.status == "running":
+            raise HTTPException(409, "An operation is running; try again after "
+                                     "it finishes.")
+        with sess.lock:
+            try:
+                message = core.create_folder(sess.conn, name)
+                names = core.list_folders(sess.conn)
+                counts = core.folder_message_counts(sess.conn, names)
+            except (OSError, core.imaplib.IMAP4.error) as exc:
+                raise HTTPException(502, f"IMAP error: {exc}") from exc
+        sess.folders = [{"name": n, "count": counts.get(n)} for n in names]
+        return {"message": message, "created": name, "folders": sess.folders}
+
     @app.post("/api/disconnect/{sid}")
     def disconnect(sid: str) -> dict[str, Any]:
         sess = _SESSIONS.pop(sid, None)
@@ -439,6 +465,9 @@ def create_app():
         search_argument = None
         if not body.empty_folder:
             addresses, domains, exact_domains, search_argument = _resolve_match(body)
+        dest = (body.dest_folder or "").strip()
+        if body.move and not body.empty_folder and not dest:
+            raise HTTPException(400, "Choose a destination folder for the move.")
         folders = body.folders or ["INBOX"]
 
         def work(rs: RunState) -> None:
@@ -456,7 +485,8 @@ def create_app():
                         expunge=body.expunge,
                         include_subdomains=body.include_subdomains,
                         batch_size=body.batch_size, scan_mode=body.scan_mode,
-                        gmail_trash=body.gmail_trash, should_stop=rs.stop.is_set)
+                        gmail_trash=body.gmail_trash, move=body.move,
+                        dest_folder=dest, should_stop=rs.stop.is_set)
             verb = "would be processed" if body.dry_run else "processed"
             core.logger.info("Done. %d message(s) %s.", total, verb)
             rs.result = {"processed": total, "dry_run": body.dry_run}
@@ -568,10 +598,17 @@ def create_app():
             tpath = scheduler.config_dir() / f"{name}.targets.txt"
             tpath.write_text(body.targets_text, encoding="utf-8")
             args += ["--targets", str(tpath)]
-        if body.gmail_trash:
-            args.append("--gmail-trash")
-        if body.expunge:
-            args.append("--expunge")
+        dest = (body.dest_folder or "").strip()
+        if body.move and not body.empty_folder:
+            if not dest:
+                raise HTTPException(400, "Choose a destination folder for the "
+                                         "move job.")
+            args += ["--move", "--dest-folder", dest]
+        else:
+            if body.gmail_trash:
+                args.append("--gmail-trash")
+            if body.expunge:
+                args.append("--expunge")
         args += ["--scan-mode", body.scan_mode, "--yes"]
         try:
             sched = scheduler.build_schedule(

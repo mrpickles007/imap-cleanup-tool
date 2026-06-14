@@ -62,6 +62,14 @@ def _add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--save-senders", metavar="CSV")
     parser.add_argument("--empty-folder", action="store_true")
     parser.add_argument("--gmail-trash", action="store_true")
+    parser.add_argument("--move", action="store_true",
+                        help="Move matching messages to --dest-folder instead "
+                             "of deleting them.")
+    parser.add_argument("--dest-folder", metavar="NAME",
+                        help="Destination folder/label for --move.")
+    parser.add_argument("--create-folder", metavar="NAME",
+                        help="Create a folder (a label on Gmail) on the server "
+                             "and exit.")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--expunge", action="store_true")
     parser.add_argument("--yes", action="store_true")
@@ -91,12 +99,14 @@ def _resolve_credentials(args: argparse.Namespace) -> tuple[str, str, str]:
 
 
 def _confirm(folders: list[str], empty: bool, gmail: bool,
-             expunge: bool) -> bool:
+             expunge: bool, move_to: str | None = None) -> bool:
     where = ", ".join(folders)
     if empty:
         print(f"About to DELETE EVERYTHING in: {where}")
     else:
-        if gmail:
+        if move_to:
+            action = f"moved to {move_to!r}"
+        elif gmail:
             action = "moved to Gmail Trash"
         elif expunge:
             action = "permanently removed"
@@ -128,7 +138,8 @@ def _run_operation(conn, args: argparse.Namespace, folders: list[str]) -> None:
             dry_run=args.dry_run, expunge=args.expunge,
             include_subdomains=args.include_subdomains,
             batch_size=args.batch_size, scan_mode=args.scan_mode,
-            gmail_trash=args.gmail_trash)
+            gmail_trash=args.gmail_trash, move=args.move,
+            dest_folder=args.dest_folder)
     verb = "would be acted on" if args.dry_run else "acted on"
     core.logger.info("Done. %d message(s) %s in total.", total, verb)
 
@@ -199,6 +210,9 @@ def main(argv: list[str] | None = None) -> int:
 
     folders = args.folder or ["INBOX"]
     try:
+        if args.create_folder:
+            print(core.create_folder(conn, args.create_folder))
+            return 0
         if args.list_folders:
             for name in core.list_folders(conn):
                 print("  ", name)
@@ -218,8 +232,12 @@ def main(argv: list[str] | None = None) -> int:
             core.logger.info("Done. %d message(s) processed.", total)
             return 0
 
+        if args.move and not (args.dest_folder and args.dest_folder.strip()):
+            print("[ERROR] --move requires --dest-folder NAME.")
+            return 2
         if not args.dry_run and not args.yes and not _confirm(
-                folders, False, args.gmail_trash, args.expunge):
+                folders, False, args.gmail_trash, args.expunge,
+                move_to=args.dest_folder if args.move else None):
             print("Aborted.")
             return 0
         _run_operation(conn, args, folders)

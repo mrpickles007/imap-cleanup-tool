@@ -315,6 +315,72 @@ def empty_folder(conn: imaplib.IMAP4_SSL, folder: str, dry_run: bool,
 
 
 # --------------------------------------------------------------------------- #
+# Creating folders / labels and moving messages
+# --------------------------------------------------------------------------- #
+def create_folder(conn: imaplib.IMAP4_SSL, name: str) -> str:
+    """Create a mailbox on the server. On Gmail this creates a *label*.
+
+    Folders and Gmail labels are the same thing over IMAP, so a single
+    ``CREATE`` works for both. Tolerant if the folder already exists.
+    """
+    name = name.strip()
+    if not name:
+        raise imaplib.IMAP4.error("Empty folder name.")
+    try:
+        status, data = conn.create(_quote_mailbox(name))
+    except imaplib.IMAP4.error as exc:
+        if "alreadyexists" in str(exc).lower() or "exist" in str(exc).lower():
+            return f"Folder {name!r} already exists."
+        raise
+    detail = (data[0].decode(errors="replace") if data and data[0] else "")
+    if status == "OK":
+        try:
+            conn.subscribe(_quote_mailbox(name))   # so mail clients show it
+        except (OSError, imaplib.IMAP4.error):
+            pass
+        logger.info("Created folder/label %r.", name)
+        return f"Created folder {name!r}."
+    if "exist" in detail.lower():
+        return f"Folder {name!r} already exists."
+    raise imaplib.IMAP4.error(detail or "CREATE failed")
+
+
+def move_uids(conn: imaplib.IMAP4_SSL, uids: list[bytes], dest: str,
+              batch_size: int = UID_CHUNK_SIZE,
+              should_stop: StopCheck | None = None) -> int:
+    """Move messages to ``dest`` in chunks; return the count moved.
+
+    Uses the server's ``MOVE`` command (RFC 6851) when available, otherwise
+    falls back to ``COPY`` + flag ``\\Deleted`` + ``EXPUNGE``. On Gmail a move
+    relabels the message (removes the source label, adds the destination one).
+    """
+    processed = 0
+    total = len(uids)
+    has_move = "MOVE" in getattr(conn, "capabilities", ())
+    qdest = _quote_mailbox(dest)
+    logger.info("%s %d message(s) to %r in batches of %d ...",
+                "Moving" if has_move else "Copying", total, dest, batch_size)
+    for i in range(0, total, batch_size):
+        _check_stop(should_stop)
+        chunk = uids[i:i + batch_size]
+        ids = b",".join(chunk)
+        if has_move:
+            status, _ = conn.uid("MOVE", ids, qdest)
+        else:
+            status, _ = conn.uid("COPY", ids, qdest)
+            if status == "OK":
+                conn.uid("STORE", ids, "+FLAGS", r"(\Deleted)")
+        if status == "OK":
+            processed += len(chunk)
+        else:
+            logger.warning("Failed to move a chunk of %d message(s).", len(chunk))
+        logger.info("  ... moved %d/%d", min(i + batch_size, total), total)
+    if not has_move:
+        conn.expunge()   # finalize the copy-then-delete move
+    return processed
+
+
+# --------------------------------------------------------------------------- #
 # High-level per-folder operation
 # --------------------------------------------------------------------------- #
 def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
@@ -327,15 +393,21 @@ def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
                    batch_size: int = UID_CHUNK_SIZE,
                    scan_mode: str = "search",
                    gmail_trash: bool = False,
+                   move: bool = False,
+                   dest_folder: str | None = None,
                    should_stop: StopCheck | None = None) -> int:
-    """Scan one folder and delete matching messages. Returns count acted on.
+    """Scan one folder and act on matching messages. Returns count acted on.
 
-    Two matching sources, mutually exclusive:
+    The action is delete (default), Gmail-trash (``gmail_trash``), or **move**
+    to ``dest_folder`` (``move``). Two matching sources, mutually exclusive:
       * ``search_argument`` - a compiled IMAP SEARCH string from rules.py.
       * ``addresses``/``domains`` - the classic target lists.
     ``scan_mode='full'`` (target mode only) downloads headers and matches
     locally with exact-domain / subdomain rules; 'search' filters server-side.
     """
+    if move and not (dest_folder and dest_folder.strip()):
+        logger.error("Move requested but no destination folder given - skipping.")
+        return 0
     status, _ = conn.select(_quote_mailbox(folder), readonly=dry_run)
     if status != "OK":
         logger.error("Cannot open folder %r - skipping.", folder)
@@ -369,10 +441,21 @@ def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
         return 0
 
     if dry_run:
-        what = "move to Gmail Trash" if gmail_trash else "delete"
+        if move:
+            what = f"move to {dest_folder!r}"
+        elif gmail_trash:
+            what = "move to Gmail Trash"
+        else:
+            what = "delete"
         logger.info("[DRY-RUN] Would %s %d message(s) from %r.",
                     what, len(matched), folder)
         return len(matched)
+
+    if move:
+        processed = move_uids(conn, matched, dest_folder, batch_size, should_stop)
+        logger.info("Moved %d message(s) from %r to %r.",
+                    processed, folder, dest_folder)
+        return processed
 
     processed = delete_uids(conn, matched, gmail_trash=gmail_trash,
                             batch_size=batch_size, should_stop=should_stop)
