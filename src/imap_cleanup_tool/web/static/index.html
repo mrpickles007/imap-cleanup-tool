@@ -517,12 +517,12 @@ function applyProviderTips(){
 function gmailHost(){ return $('host').value.trim()==='imap.gmail.com'; }
 function refreshConditional(){
   const rule=document.querySelector('input[name=mode]:checked').value==='rule';
-  $('scanMode').disabled=rule;
+  const empty=$('emptyFolder').checked;
+  $('scanMode').disabled=rule || empty;
   $('scanNote').classList.toggle('hidden', !rule);
   const full=$('scanMode').value==='full';
-  $('subdomains').disabled = rule || !full; if(rule || !full) $('subdomains').checked=false;
+  $('subdomains').disabled = rule || !full || empty; if(rule || !full || empty) $('subdomains').checked=false;
   const gmail=gmailHost();
-  const empty=$('emptyFolder').checked;
   $('emptyNote').classList.toggle('hidden', !empty);
   // Move is mutually exclusive with delete/gmail-trash/expunge; empty overrides all.
   $('moveMode').disabled=empty; if(empty)$('moveMode').checked=false;
