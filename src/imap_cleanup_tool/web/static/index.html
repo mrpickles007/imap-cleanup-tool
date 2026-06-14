@@ -605,13 +605,25 @@ function updateJobSummary(){
   const folders=(selectedFolders.length?selectedFolders:['INBOX']).join(', ');
   const empty=$('emptyFolder').checked;
   const mode=document.querySelector('input[name=mode]:checked').value;
-  let match='', warn=false;
-  if(empty){ match='empty folder(s) — delete EVERYTHING'; }
-  else if(mode==='rule'){ match='rule'; }
+  const prof=$('jobProfile').value;
+  let warn=false, match;
+  if(empty){ match='every message (empty folder)'; }
+  else if(mode==='rule'){ match='messages matching the rule'; }
   else { const n=($('targets').value||'').split('\n').filter(l=>l.trim()&&!l.trim().startsWith('#')).length;
-    if(n){ match=n+' target line(s)'; } else { match='no targets set'; warn=true; } }
-  el.innerHTML='Acts on <b>'+escapeHtml(folders)+'</b> · match: '+(warn?'<span class="text-warn">⚠️ ':'<b>')+escapeHtml(match)+(warn?'</span>':'</b>')+
-    ' · <span class="text-warn">runs for real (dry-run does not apply)</span>. Set folders/match/options in the <b>Cleanup</b> tab.';
+    match = n ? ('messages from '+n+' target line(s)') : 'no targets set'; warn=!n; }
+  let action;
+  if(empty) action='Delete EVERYTHING';
+  else if($('gmailTrash').checked) action='Move to Gmail Trash';
+  else if($('expunge').checked) action='Permanently delete (expunge)';
+  else action='Flag as deleted';
+  const profTxt = prof ? ('<b>'+escapeHtml(prof)+'</b>') : '<span class="text-warn">⚠️ none selected</span>';
+  const matchTxt = warn ? ('<span class="text-warn">⚠️ '+escapeHtml(match)+'</span>') : ('<b>'+escapeHtml(match)+'</b>');
+  el.innerHTML =
+    '<b>'+escapeHtml(action)+'</b> · '+matchTxt+
+    '<br>Profile: '+profTxt+' · Folders: <b>'+escapeHtml(folders)+'</b>'+
+    (empty?'':' · Scan: <b>'+escapeHtml(mode)+'</b>')+
+    '<br><span class="text-warn">Runs for real — dry-run does not apply to scheduled jobs.</span> '+
+    'Set connection profile here; folders/match/options in the <b>Cleanup</b> tab.';
 }
 let JOBS = [];
 async function loadJobs(){
@@ -700,6 +712,7 @@ async function confirmJobOverwrite(){
 $('btnSaveJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; try{ const d=await api('/api/jobs',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Saved. System command:\n'+d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
 $('btnExportJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; try{ const d=await api('/api/jobs/export',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
 $('btnInstallJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; try{ const d=await api('/api/jobs/install',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.message+'\n\n'+d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
+$('jobProfile').onchange=updateJobSummary;
 function download(name, text){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href); }
 $('targetsFile').onchange=(e)=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ $('targets').value=r.result; try{localStorage.setItem('icw_targets',$('targets').value);}catch(_){} log('Loaded target list from '+f.name+'.'); }; r.readAsText(f); e.target.value=''; };
 async function saveTargets(){
