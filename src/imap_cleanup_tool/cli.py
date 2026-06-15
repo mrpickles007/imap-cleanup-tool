@@ -156,17 +156,20 @@ _NOTIFY_WHEN = "run"
 
 
 def _notify_cli(args, folders: list[str], total: int, *, gmail: bool,
-                kind: str) -> None:
+                kind: str, attachments=None, subject=None, body=None) -> None:
     """Best-effort email notification after a CLI cleanup (never fatal)."""
     try:
         from . import notifications as nt
         account = getattr(args, "user", None) or getattr(args, "host", "")
-        subject, body = nt.cleanup_summary(
-            account, folders, total, dry_run=args.dry_run, gmail=gmail,
-            kind=kind)
-        if nt.send_notification(subject, body, when=_NOTIFY_WHEN):
+        if subject is None or body is None:
+            subject, body = nt.cleanup_summary(
+                account, folders, total, dry_run=args.dry_run, gmail=gmail,
+                kind=kind)
+        if nt.send_notification(subject, body, when=_NOTIFY_WHEN,
+                                attachments=attachments):
             core.logger.info("Notification email sent to the configured "
-                             "recipient.")
+                             "recipient%s.",
+                             " (with the report attached)" if attachments else "")
     except Exception as exc:  # pylint: disable=broad-exception-caught
         core.logger.warning("Notification email not sent: %s", exc)
 
@@ -294,16 +297,40 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
                          cost_str, ev["prompt_tokens"],
                          ev["completion_tokens"], cfg["model"])
 
+    csv_text = core.ai_report_csv(report)
     if args.ai_report_csv:
         try:
             with open(args.ai_report_csv, "w", encoding="utf-8", newline="") as fh:
-                fh.write(core.ai_report_csv(report))
+                fh.write(csv_text)
             core.logger.info("AI report written to %s", args.ai_report_csv)
         except OSError as exc:
             print(f"[ERROR] Could not write {args.ai_report_csv}: {exc}")
             return 2
 
     if args.ai_report_only or ev is None:
+        # Report-only: skip deletion, save the report, and (if email
+        # notifications are on) send it as an attachment.
+        from .scheduler import save_ai_report
+        try:
+            saved = save_ai_report(csv_text)
+            core.logger.info("Report saved to %s", saved)
+        except OSError as exc:
+            core.logger.warning("Could not save the report: %s", exc)
+            saved = None
+        account = getattr(args, "user", None) or getattr(args, "host", "")
+        flagged = report.get("flagged_count", 0)
+        deletable = report.get("flagged_messages", 0)
+        subject = (f"[imap-cleanup-tool] AI report on {account}: "
+                   f"{flagged} sender(s) flagged")
+        body = (f"AI Cleanup report (report only - nothing was deleted) for "
+                f"account: {account}\nFolders: {', '.join(folders)}\n"
+                f"Flagged senders: {flagged}\n"
+                f"Emails potentially deletable: {deletable}\n\n"
+                f"The full report is attached as a CSV.\n\n- imap-cleanup-tool")
+        fname = (saved.name if saved else "ai_report.csv")
+        _notify_cli(args, folders, deletable, gmail=False, kind="AI report",
+                    subject=subject, body=body,
+                    attachments=[(fname, csv_text)])
         core.logger.info("Report only - nothing deleted.")
         return 0
 

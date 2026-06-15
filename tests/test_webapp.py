@@ -269,6 +269,23 @@ class WebApiTests(unittest.TestCase):
                 self.assertIn("gpt", j["args"])
                 self.assertNotIn("--targets", j["args"])
 
+                # report-only + skip-llm: heuristic only, no model, report-only flag
+                r2 = self.client.post("/api/jobs", json={
+                    "name": "aij2", "profile": "pf", "ai_cleanup": True,
+                    "ai_report_only": True, "ai_skip_llm": True,
+                    "kind": "daily", "time": "03:00"})
+                self.assertEqual(r2.status_code, 200)
+                j2 = next(x for x in self.client.get("/api/jobs").json()["jobs"]
+                          if x["name"] == "aij2")
+                self.assertIn("--ai-report-only", j2["args"])
+                self.assertNotIn("--ai-model", j2["args"])
+
+                # skip-llm WITHOUT report-only is rejected (can't decide deletes)
+                bad = self.client.post("/api/jobs", json={
+                    "name": "aij3", "profile": "pf", "ai_cleanup": True,
+                    "ai_skip_llm": True, "kind": "daily", "time": "03:00"})
+                self.assertEqual(bad.status_code, 400)
+
     def test_llm_models_crud(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(llm, "config_dir", return_value=Path(tmp)):

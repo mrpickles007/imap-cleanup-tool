@@ -116,6 +116,30 @@ def job_log_path(name: str) -> Path:
     return logs_dir() / f"{name}.log"
 
 
+def ai_reports_dir() -> Path:
+    """Directory holding saved AI Cleanup report CSVs (shared by web + CLI)."""
+    path = config_dir() / "ai_reports"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def save_ai_report(csv_text: str, stamp: str | None = None) -> Path:
+    """Write an AI report CSV to a timestamped file; returns the path.
+
+    ``newline=""`` avoids the CSV's \\r\\n being re-translated to \\r\\r\\n on
+    Windows (which shows a blank row between records).
+    """
+    from datetime import datetime
+    stamp = stamp or datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    base, n = f"ai_report_{stamp}", 1
+    path = ai_reports_dir() / f"{base}.csv"
+    while path.exists():
+        n += 1
+        path = ai_reports_dir() / f"{base}_{n}.csv"
+    path.write_text(csv_text, encoding="utf-8", newline="")
+    return path
+
+
 def read_job_log(name: str, max_bytes: int = 200_000) -> str:
     """Return the tail of a job's log file (empty string if it never ran)."""
     path = job_log_path(name)

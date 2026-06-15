@@ -655,6 +655,19 @@ CLI loads host / user / password from the profile's local SQLite DB. Only
 **non-encrypted** profiles can be scheduled - a cron has no way to type the
 password to decrypt an encrypted one.
 
+**AI Cleanup jobs** - tick *AI Cleanup* in the Scheduling tab to schedule the AI
+flow. Two extra options:
+
+- **Report only** - the job builds the report and **deletes nothing**. The report
+  is saved on disk (and listed in the *Download* dropdown), and if **email
+  notifications for jobs** are enabled it is sent as a **CSV attachment**.
+- **Skip LLM (heuristic only)** - build the report from the local heuristic only,
+  with **no LLM call** (no API cost). It requires *Report only* (the heuristic
+  alone can't decide what to delete). Both options can be combined.
+
+A non-report-only AI job needs a **non-encrypted** LLM model (to run unattended).
+On the CLI these map to `--ai-cleanup --ai-report-only` and omitting `--ai-model`.
+
 **Logs** - every scheduled run appends to a rolling log file under
 `<config dir>/logs/<job>.log`. In the *Scheduling* tab, click **logs** on any
 saved job to view (or download) its run history.

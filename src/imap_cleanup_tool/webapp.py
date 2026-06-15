@@ -373,6 +373,8 @@ def create_app():
         ai_model: str = ""    # non-encrypted LLM model config name
         ai_threshold: float = 6.0
         ai_sample: int = 5
+        ai_skip_llm: bool = False     # heuristic only (no model)
+        ai_report_only: bool = False  # build report, delete nothing (emailed if on)
 
     # ----- helpers --------------------------------------------------------- #
     def _session(sid: str) -> "Session":
@@ -1054,17 +1056,30 @@ def create_app():
         for folder in (body.folders or ["INBOX"]):
             args += ["--folder", folder]
         if body.ai_cleanup:
-            mname = (body.ai_model or "").strip()
-            minfo = next((m for m in llm.list_models() if m["name"] == mname),
-                         None)
-            if minfo is None:
-                raise HTTPException(400, "Choose a saved LLM model for the AI job.")
-            if minfo["encrypted"]:
-                raise HTTPException(400, "Encrypted model configs can't run "
-                                         "unattended - use a non-encrypted one.")
-            args += ["--ai-cleanup", "--ai-model", mname,
+            args += ["--ai-cleanup",
                      "--ai-threshold", str(body.ai_threshold),
                      "--ai-sample", str(int(body.ai_sample)), "--yes"]
+            if body.ai_report_only:
+                args += ["--ai-report-only"]
+            # Skip LLM = heuristic only -> no model. Otherwise a non-encrypted
+            # model is required (for the run, or for the LLM verdicts in a report).
+            if not body.ai_skip_llm:
+                mname = (body.ai_model or "").strip()
+                minfo = next((m for m in llm.list_models()
+                              if m["name"] == mname), None)
+                if minfo is None:
+                    raise HTTPException(
+                        400, "Choose a saved LLM model for the AI job "
+                             "(or tick Skip LLM).")
+                if minfo["encrypted"]:
+                    raise HTTPException(
+                        400, "Encrypted model configs can't run unattended - "
+                             "use a non-encrypted one.")
+                args += ["--ai-model", mname]
+            elif not body.ai_report_only:
+                raise HTTPException(
+                    400, "Skip LLM only makes sense with Report only for a job "
+                         "(heuristic alone can't decide what to delete).")
             try:
                 sched = scheduler.build_schedule(
                     body.kind, time=body.time, date=body.date,

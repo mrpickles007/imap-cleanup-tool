@@ -463,6 +463,12 @@ tailwind.config = { theme: { extend: {
           <label class="text-xs text-muted col-span-2">Model <select id="jobAiModel" class="field mt-1"></select></label>
           <label class="text-xs text-muted">Threshold <input id="jobAiThreshold" type="number" step="0.5" min="0" max="10" value="6" class="field mt-1"></label>
           <label class="text-xs text-muted">Sample <input id="jobAiSample" type="number" min="1" max="50" value="5" class="field mt-1"></label>
+          <label class="flex items-center gap-1.5 text-xs text-muted col-span-2 cursor-pointer"><input id="jobAiReportOnly" type="checkbox"> Report only (save the report, delete nothing)
+            <span class="tip"><span class="ic">i</span><span class="bub">The job builds the report and <b>deletes nothing</b>. The report is saved on disk and, if <b>email notifications for jobs</b> are enabled, sent as a <b>CSV attachment</b>.</span></span>
+          </label>
+          <label class="flex items-center gap-1.5 text-xs text-muted col-span-2 cursor-pointer"><input id="jobAiSkipLlm" type="checkbox"> Skip LLM (heuristic only, no model)
+            <span class="tip"><span class="ic">i</span><span class="bub">Build the report from the <b>local heuristic only</b> - no LLM call, no API cost. Requires <b>Report only</b> (heuristic alone can't decide what to delete).</span></span>
+          </label>
         </div>
       </div>
     </div>
@@ -1071,7 +1077,18 @@ function jobPayload(){
     day:day,
     ai_cleanup:$('jobAI').checked, ai_model:$('jobAiModel').value||'',
     ai_threshold:parseFloat($('jobAiThreshold').value)||6,
-    ai_sample:parseInt($('jobAiSample').value)||5 });
+    ai_sample:parseInt($('jobAiSample').value)||5,
+    ai_report_only:$('jobAiReportOnly').checked,
+    ai_skip_llm:$('jobAiSkipLlm').checked });
+}
+function syncJobAi(){
+  // Skip LLM requires Report only (heuristic alone can't decide deletions).
+  if($('jobAiSkipLlm').checked && !$('jobAiReportOnly').checked) $('jobAiReportOnly').checked=true;
+  const skip=$('jobAiSkipLlm').checked;
+  // model is irrelevant when skipping the LLM
+  $('jobAiModel').disabled=skip; $('jobAiModel').parentElement.classList.toggle('opacity-50', skip);
+  $('jobAiSample').disabled=skip;
+  updateJobSummary();
 }
 function populateJobAiModels(){
   const sel=$('jobAiModel'); if(!sel) return;
@@ -1081,7 +1098,9 @@ function populateJobAiModels(){
   plain.forEach(m=>{ const o=document.createElement('option'); o.value=m.name; o.textContent=m.name+' ('+m.model+')'; sel.appendChild(o); });
   if(cur && plain.some(m=>m.name===cur)) sel.value=cur;
 }
-if($('jobAI')) $('jobAI').onchange=()=>{ $('jobAIRow').classList.toggle('hidden', !$('jobAI').checked); populateJobAiModels(); updateJobSummary(); };
+if($('jobAI')) $('jobAI').onchange=()=>{ $('jobAIRow').classList.toggle('hidden', !$('jobAI').checked); populateJobAiModels(); syncJobAi(); };
+if($('jobAiReportOnly')) $('jobAiReportOnly').onchange=()=>{ if(!$('jobAiReportOnly').checked) $('jobAiSkipLlm').checked=false; syncJobAi(); };
+if($('jobAiSkipLlm')) $('jobAiSkipLlm').onchange=syncJobAi;
 /* Show only the inputs relevant to the chosen frequency. */
 function updateSchedInputs(){
   const kind=$('jobKind').value;
@@ -1140,8 +1159,14 @@ function updateJobSummary(){
     else { match='no targets set'; warn=true; } }
   const aiJob=$('jobAI') && $('jobAI').checked;
   let action;
-  if(aiJob){ action='AI Cleanup ('+($('jobAiModel').value||'no model')+')';
-    match='senders the model confirms (score ≥ '+(parseFloat($('jobAiThreshold').value)||6)+')'; warn=false; }
+  if(aiJob){
+    const reportOnly=$('jobAiReportOnly').checked, skip=$('jobAiSkipLlm').checked;
+    const eng = skip?'heuristic only':('LLM '+($('jobAiModel').value||'no model'));
+    action = reportOnly ? ('AI report only ('+eng+', emailed if notifications on)')
+                        : ('AI Cleanup ('+eng+')');
+    match = reportOnly ? ('flagged senders, score ≥ '+(parseFloat($('jobAiThreshold').value)||6)+' (nothing deleted)')
+                       : ('senders the model confirms (score ≥ '+(parseFloat($('jobAiThreshold').value)||6)+')');
+    warn=false; }
   else if(empty) action='Delete EVERYTHING';
   else if($('moveMode').checked) action='Move to '+(moveDestValue()||'(no destination set)');
   else if($('gmailTrash').checked) action='Move to Gmail Trash';

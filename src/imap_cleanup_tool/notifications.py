@@ -273,8 +273,13 @@ def test_connection(name: str, secret: str = "") -> dict:
             f"{cfg['user'] or '(no auth)'}."}
 
 
-def send_email(cfg: dict, to_addr: str, subject: str, body: str) -> None:
-    """Send one plain-text email using a loaded profile dict."""
+def send_email(cfg: dict, to_addr: str, subject: str, body: str,
+               attachments: list | None = None) -> None:
+    """Send one plain-text email using a loaded profile dict.
+
+    ``attachments`` is an optional list of ``(filename, text_content)`` pairs,
+    attached as ``text/csv`` (used to email an AI report).
+    """
     to_addr = (to_addr or "").strip()
     if not to_addr:
         raise NotifyError("No recipient address set (Notifications tab).")
@@ -285,6 +290,9 @@ def send_email(cfg: dict, to_addr: str, subject: str, body: str) -> None:
     msg.set_content(body)
     if not msg["From"]:
         raise NotifyError("No From address (set it on the SMTP profile).")
+    for filename, content in (attachments or []):
+        msg.add_attachment((content or "").encode("utf-8"), maintype="text",
+                           subtype="csv", filename=filename)
     srv = _server(cfg)
     try:
         srv.send_message(msg)
@@ -295,13 +303,15 @@ def send_email(cfg: dict, to_addr: str, subject: str, body: str) -> None:
 
 
 def send_notification(subject: str, body: str, *, when: str,
-                      secret: str = "") -> bool:
+                      secret: str = "", attachments: list | None = None) -> bool:
     """Send a notification for a run/job if enabled and configured.
 
-    ``when`` is 'job' or 'run' - the matching toggle must be on. Returns True if
-    an email was sent, False if notifications are off / not configured. Raises
-    NotifyError on an actual send failure. Encrypted active profiles can only be
-    used when ``secret`` is supplied (so scheduled jobs need a plain profile).
+    ``when`` is 'job' or 'run' - the matching toggle must be on. ``attachments``
+    is an optional list of ``(filename, text_content)`` (e.g. an AI report CSV).
+    Returns True if an email was sent, False if notifications are off / not
+    configured. Raises NotifyError on an actual send failure. Encrypted active
+    profiles can only be used when ``secret`` is supplied (so scheduled jobs need
+    a plain profile).
     """
     s = get_settings()
     enabled = s["notify_jobs"] if when == "job" else s["notify_runs"]
@@ -311,7 +321,7 @@ def send_notification(subject: str, body: str, *, when: str,
     if cfg["encrypted"] and not secret:
         raise NotifyError("The active SMTP profile is encrypted and cannot send "
                           "unattended - use a non-encrypted profile for jobs.")
-    send_email(cfg, s["notify_to"], subject, body)
+    send_email(cfg, s["notify_to"], subject, body, attachments=attachments)
     return True
 
 
