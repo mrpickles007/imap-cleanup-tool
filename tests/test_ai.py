@@ -157,6 +157,25 @@ class AiReportTests(unittest.TestCase):
         rep = self._report(msgs, threshold=0)   # must complete without error
         self.assertEqual(rep["total_senders"], 1)
 
+    def test_aggregates_across_multiple_folders(self):
+        # whole-folder report over 2 folders aggregates per sender (the fake
+        # returns the same message in each folder -> count doubles).
+        msgs = [{"from": "a@x.com", "date": "", "subject": "s", "seen": False}]
+        rep = core.build_ai_report(FakeAIConn(msgs), ["INBOX", "Archive"],
+                                   threshold=0)
+        by = {s["sender"]: s for s in rep["senders"]}
+        self.assertEqual(by["a@x.com"]["count"], 2)
+
+    def test_multi_folder_with_filter(self):
+        msgs = [{"from": "a@x.com", "date": "", "subject": "s", "seen": False},
+                {"from": "b@y.com", "date": "", "subject": "s", "seen": False}]
+        conn = ScopingConn(msgs)
+        rep = core.build_ai_report(conn, ["INBOX", "Archive"], threshold=0,
+                                   addresses={"a@x.com"})
+        by = {s["sender"]: s for s in rep["senders"]}
+        self.assertEqual(list(by), ["a@x.com"])       # filter honored per folder
+        self.assertEqual(by["a@x.com"]["count"], 2)   # matched in both folders
+
     def test_exclusions_skip_sender(self):
         rep = self._report(
             [{"from": "a@b.com", "date": "", "subject": "x", "seen": False}],

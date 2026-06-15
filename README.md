@@ -682,8 +682,10 @@ Get an email when a cleanup finishes. Configure it in the **Notifications** tab:
   security, username, password, From address). Works with any provider - Gmail,
   **Amazon SES**, Outlook/Microsoft 365, SendGrid, Mailgun, Postmark, Brevo, etc.
   The password is stored locally (SQLite) and can be **encrypted** with a
-  passphrase, exactly like connection profiles (an encrypted profile can't run in
-  scheduled jobs). Each profile has a **test connection** button.
+  passphrase, exactly like connection profiles - the passphrase needs a
+  **confirmation**, a show/hide toggle, and meets **strength criteria** before you
+  can save (an encrypted profile can't run in scheduled jobs). Each profile has a
+  **test connection** button.
 - **One active profile** + a recipient address. Toggle notifications for
   **scheduled jobs** (default) and/or **interactive runs**. A **Send test email**
   button confirms it all works.

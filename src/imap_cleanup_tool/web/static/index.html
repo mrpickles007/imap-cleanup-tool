@@ -576,7 +576,22 @@ tailwind.config = { theme: { extend: {
       </span>
       <input id="smEncrypt" type="checkbox">
     </label>
-    <div id="smSecretRow" class="hidden mb-1"><input id="smSecret" type="password" class="field" placeholder="encryption passphrase"></div>
+    <div id="smSecretRow" class="hidden mb-1 space-y-2">
+      <div class="flex gap-2">
+        <input id="smSecret" type="password" class="field" placeholder="Encryption passphrase" autocomplete="new-password">
+        <button id="smSecretEye" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream text-sm">show</button>
+      </div>
+      <input id="smSecret2" type="password" class="field" placeholder="Confirm passphrase" autocomplete="new-password">
+      <ul id="smPwCriteria" class="text-[11px] space-y-0.5 mt-1">
+        <li data-c="len" class="text-muted"><span class="mark">○</span> at least 8 characters</li>
+        <li data-c="lower" class="text-muted"><span class="mark">○</span> a lowercase letter</li>
+        <li data-c="upper" class="text-muted"><span class="mark">○</span> an uppercase letter</li>
+        <li data-c="num" class="text-muted"><span class="mark">○</span> a number</li>
+        <li data-c="sym" class="text-muted"><span class="mark">○</span> a special character</li>
+        <li data-c="match" class="text-muted"><span class="mark">○</span> both passphrases match</li>
+      </ul>
+      <p class="text-[11px] text-muted">This passphrase is never stored - you'll need it to use the profile (encrypted profiles can't run scheduled jobs).</p>
+    </div>
     <div class="flex gap-2 mt-3 flex-wrap">
       <button id="btnSaveSmtp" class="bg-brand hover:bg-brand-light text-ink font-semibold rounded-lg px-4 py-2">Save profile</button>
       <button id="btnCancelSmtp" type="button" class="hidden rounded-lg border border-line text-muted hover:text-cream px-4 py-2">Cancel edit</button>
@@ -1365,7 +1380,9 @@ function fillSmtpProviders(){
 }
 if($('smProvider')) $('smProvider').onchange=()=>{ const p=(META.smtp_providers||[])[parseInt($('smProvider').value)||0]; if(!p) return; if(p.host!==undefined)$('smHost').value=p.host; if(p.port)$('smPort').value=p.port; if(p.security)$('smSecurity').value=p.security; if($('smPassTip')) $('smPassTip').innerHTML=p.pass_tip||'SMTP login credentials for your provider.'; };
 if($('smKeyToggle')) $('smKeyToggle').onclick=()=>{ const k=$('smKey'); k.type=k.type==='password'?'text':'password'; $('smKeyToggle').textContent=k.type==='password'?'show':'hide'; };
-if($('smEncrypt')) $('smEncrypt').onchange=()=>$('smSecretRow').classList.toggle('hidden', !$('smEncrypt').checked);
+if($('smEncrypt')) $('smEncrypt').onchange=()=>{ $('smSecretRow').classList.toggle('hidden', !$('smEncrypt').checked); if($('smEncrypt').checked) evalSmtpPw(); updateSmtpSaveBtn(); };
+if($('smSecretEye')) $('smSecretEye').onclick=()=>{ const t=$('smSecret').type==='password'?'text':'password'; $('smSecret').type=t; $('smSecret2').type=t; $('smSecretEye').textContent=t==='password'?'show':'hide'; };
+['smSecret','smSecret2','smKey'].forEach(id=>{ if($(id)) $(id).addEventListener('input', updateSmtpSaveBtn); });
 async function loadSmtp(){
   fillSmtpProviders();
   try{ const d=await (await fetch('/api/smtp-profiles')).json(); SMTP_PROFILES=d.profiles||[]; renderSmtp(d.settings||{}); }
@@ -1407,18 +1424,19 @@ function editSmtp(p){
   $('smHost').value=p.host; $('smPort').value=p.port; $('smSecurity').value=p.security||'starttls';
   $('smUser').value=p.user||''; $('smFrom').value=p.from_addr||'';
   $('smKey').value=''; $('smKey').placeholder=p.encrypted?'(leave blank to keep current)':'(leave blank to keep current)';
-  $('smEncrypt').checked=false; $('smSecretRow').classList.add('hidden'); $('smSecret').value='';
+  $('smEncrypt').checked=false; $('smSecretRow').classList.add('hidden'); $('smSecret').value=''; $('smSecret2').value=''; $('btnSaveSmtp').disabled=false;
   $('btnSaveSmtp').textContent='Update profile'; $('btnCancelSmtp').classList.remove('hidden');
   $('smMsg').textContent='Editing "'+p.name+'" - name locked; leave the password blank to keep it.'; $('smMsg').className='text-[11px] mt-2 text-muted';
   $('smName').scrollIntoView({behavior:'smooth',block:'center'});
 }
 function resetSmtpForm(){
   EDITING_SMTP=null;
-  ['smName','smHost','smUser','smFrom','smKey','smSecret'].forEach(id=>$(id).value='');
+  ['smName','smHost','smUser','smFrom','smKey','smSecret','smSecret2'].forEach(id=>$(id).value='');
   $('smName').readOnly=false; $('smName').classList.remove('opacity-60');
   $('smPort').value='587'; $('smSecurity').value='starttls'; $('smKey').placeholder='SMTP password / API key';
   $('smEncrypt').checked=false; $('smSecretRow').classList.add('hidden');
-  $('btnSaveSmtp').textContent='Save profile'; $('btnCancelSmtp').classList.add('hidden');
+  $('smSecret').type='password'; $('smSecret2').type='password'; if($('smSecretEye')) $('smSecretEye').textContent='show';
+  $('btnSaveSmtp').textContent='Save profile'; $('btnCancelSmtp').classList.add('hidden'); $('btnSaveSmtp').disabled=false;
 }
 if($('btnCancelSmtp')) $('btnCancelSmtp').onclick=()=>{ resetSmtpForm(); $('smMsg').textContent=''; };
 if($('btnSaveSmtp')) $('btnSaveSmtp').onclick=async()=>{
@@ -1748,17 +1766,22 @@ $('unlockConfirm').onclick=async ()=>{
   catch(e){ $('unlockErr').textContent=e.message; $('unlockErr').classList.remove('hidden'); }
 };
 $('unlockSecret').addEventListener('keydown', e=>{ if(e.key==='Enter') $('unlockConfirm').click(); });
-function evalPw(){
-  const pw=$('saveSecret').value, pw2=$('saveSecret2').value;
+function checkPwCriteria(pw, pw2, listSel){
   const c={ len:pw.length>=8, lower:/[a-z]/.test(pw), upper:/[A-Z]/.test(pw),
             num:/[0-9]/.test(pw), sym:/[^A-Za-z0-9]/.test(pw),
             match: pw.length>0 && pw===pw2 };
-  document.querySelectorAll('#pwCriteria li').forEach(li=>{
+  document.querySelectorAll(listSel+' li').forEach(li=>{
     const ok=!!c[li.dataset.c];
     li.classList.toggle('text-ok',ok); li.classList.toggle('text-muted',!ok);
     const m=li.querySelector('.mark'); if(m) m.textContent= ok?'✓':'○';
   });
   return Object.values(c).every(Boolean);
+}
+function evalPw(){ return checkPwCriteria($('saveSecret').value, $('saveSecret2').value, '#pwCriteria'); }
+function evalSmtpPw(){ return checkPwCriteria($('smSecret').value, $('smSecret2').value, '#smPwCriteria'); }
+function updateSmtpSaveBtn(){
+  // when encrypting, require a password to encrypt + a strong, matching passphrase
+  $('btnSaveSmtp').disabled = $('smEncrypt').checked && (!$('smKey').value || !evalSmtpPw());
 }
 function updateSaveBtn(){ $('saveConfirm').disabled = $('saveEncrypt').checked && !evalPw(); }
 $('saveSecret').addEventListener('input', updateSaveBtn);
