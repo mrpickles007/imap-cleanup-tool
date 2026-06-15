@@ -667,6 +667,19 @@ def create_app():
                              ev["cost"])
         return report
 
+    def _log_llm_total(report) -> None:
+        """Log the aggregated LLM cost for this report (across all batches)."""
+        info = report.get("llm")
+        if not info:
+            return
+        cost = info.get("cost")
+        cost_str = f"${cost:.6f}" if isinstance(cost, (int, float)) else \
+            "not tracked (enable cost tracking on the model)"
+        core.logger.info("=> LLM cost for this report: %s "
+                         "(%d input + %d output tokens, model %s).",
+                         cost_str, info.get("prompt_tokens", 0),
+                         info.get("completion_tokens", 0), info.get("model", "?"))
+
     @app.post("/api/ai-report")
     def ai_report(body: AIReportIn) -> dict[str, Any]:
         """Heuristic per-sender report; if a model is chosen, also LLM verdicts.
@@ -689,6 +702,7 @@ def create_app():
                              "Use 'Download report (CSV)'.",
                              report["flagged_count"], report["total_senders"],
                              body.threshold, report.get("flagged_messages", 0))
+            _log_llm_total(report)
 
         run_state = _start_run(sess, "ai-report", work)
         return {"run_id": run_state.run_id}
@@ -712,6 +726,7 @@ def create_app():
             confirmed = {s["sender"].lower() for s in report["senders"]
                          if s.get("flagged") and (s.get("verdict") or {}).get("delete")}
             rs.result = {"report": report, "to_delete": sorted(confirmed)}
+            _log_llm_total(report)
             if not confirmed:
                 core.logger.info("=> AI confirmed nothing to delete.")
                 return

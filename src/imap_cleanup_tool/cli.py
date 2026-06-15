@@ -262,6 +262,13 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
         for s in report["senders"]:
             if s.get("flagged"):
                 s["verdict"] = ev["verdicts"].get(s["sender"].lower())
+        cost = ev["cost"]
+        cost_str = (f"${cost:.6f}" if isinstance(cost, (int, float))
+                    else "not tracked")
+        core.logger.info("=> LLM cost for this report: %s "
+                         "(%d input + %d output tokens, model %s).",
+                         cost_str, ev["prompt_tokens"],
+                         ev["completion_tokens"], cfg["model"])
 
     if args.ai_report_csv:
         try:
@@ -279,8 +286,7 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
     confirmed = {s["sender"].lower() for s in report["senders"]
                  if s.get("flagged")
                  and (s.get("verdict") or {}).get("delete")}
-    core.logger.info("AI confirmed %d sender(s) to delete (cost %s).",
-                     len(confirmed), ev["cost"])
+    core.logger.info("AI confirmed %d sender(s) to delete.", len(confirmed))
     if not confirmed:
         return 0
     gmail = "gmail" in (args.host or "").lower()
