@@ -37,9 +37,9 @@ UI is an optional extra (FastAPI).
 
 ## Table of contents
 
-- [Quick start - web interface](#quick-start--web-interface)
+- [Quick start - web interface](#quick-start---web-interface)
 - [Install](#install)
-- [Quick start - command line](#quick-start--command-line)
+- [Quick start - command line](#quick-start---command-line)
 - [Command-line usage](#command-line-usage)
 - [Rule expressions](#rule-expressions)
 - [Target file format](#target-file-format)
