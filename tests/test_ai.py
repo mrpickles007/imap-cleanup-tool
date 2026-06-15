@@ -270,5 +270,31 @@ class LLMHelpersTests(unittest.TestCase):
         self.assertNotIn("friend@x.com", user)
 
 
+class CliWeightTests(unittest.TestCase):
+    def test_parse_weights_ok(self):
+        from imap_cleanup_tool.cli import _parse_ai_weights
+        out = _parse_ai_weights(["unread_ratio=4", "bulk=2.5"])
+        self.assertEqual(out, {"unread_ratio": 4.0, "bulk": 2.5})
+
+    def test_parse_weights_empty(self):
+        from imap_cleanup_tool.cli import _parse_ai_weights
+        self.assertEqual(_parse_ai_weights([]), {})
+
+    def test_parse_weights_bad_key(self):
+        from imap_cleanup_tool.cli import _parse_ai_weights
+        with self.assertRaises(SystemExit):
+            _parse_ai_weights(["nope=1"])
+
+    def test_parse_weights_bad_value(self):
+        from imap_cleanup_tool.cli import _parse_ai_weights
+        with self.assertRaises(SystemExit):
+            _parse_ai_weights(["bulk=high"])
+
+    def test_parse_weights_no_equals(self):
+        from imap_cleanup_tool.cli import _parse_ai_weights
+        with self.assertRaises(SystemExit):
+            _parse_ai_weights(["bulk"])
+
+
 if __name__ == "__main__":
     unittest.main()

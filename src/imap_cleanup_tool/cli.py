@@ -83,6 +83,23 @@ def _add_arguments(parser: argparse.ArgumentParser) -> None:
                         help="Heuristic spam-score threshold 0-10 (default 6).")
     parser.add_argument("--ai-sample", type=int, default=5,
                         help="Sample emails per flagged sender (default 5).")
+    parser.add_argument("--ai-exclude", metavar="ADDR", action="append",
+                        default=[],
+                        help="Extra sender to exclude from the AI report "
+                             "(repeatable; your own address is always excluded).")
+    parser.add_argument("--ai-weight", metavar="KEY=VALUE", action="append",
+                        default=[],
+                        help="Override a heuristic weight (repeatable). Keys: "
+                             "list_unsubscribe, unread_ratio, bulk, "
+                             "sender_pattern, frequency. E.g. "
+                             "--ai-weight unread_ratio=4.")
+    parser.add_argument("--ai-report-only", action="store_true",
+                        help="With --ai-cleanup: build the report (heuristic, "
+                             "plus LLM verdicts if --ai-model is given) but "
+                             "DELETE nothing. A model is optional in this mode.")
+    parser.add_argument("--ai-report-csv", metavar="PATH",
+                        help="Write the AI report as CSV to PATH "
+                             "(Excel-friendly).")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--expunge", action="store_true")
     parser.add_argument("--yes", action="store_true")
@@ -161,23 +178,53 @@ def _run_operation(conn, args: argparse.Namespace, folders: list[str]) -> None:
     core.logger.info("Done. %d message(s) %s in total.", total, verb)
 
 
+def _parse_ai_weights(items: list[str]) -> dict:
+    """Parse --ai-weight KEY=VALUE pairs into a weights dict (validates keys)."""
+    weights: dict[str, float] = {}
+    for item in items:
+        if "=" not in item:
+            raise SystemExit(f"[ERROR] --ai-weight must be KEY=VALUE, got {item!r}.")
+        key, _, value = item.partition("=")
+        key = key.strip()
+        if key not in core.DEFAULT_WEIGHTS:
+            valid = ", ".join(sorted(core.DEFAULT_WEIGHTS))
+            raise SystemExit(f"[ERROR] Unknown weight {key!r}. Valid: {valid}.")
+        try:
+            weights[key] = float(value)
+        except ValueError:
+            raise SystemExit(f"[ERROR] Weight {key!r} must be a number, "
+                             f"got {value!r}.")
+    return weights
+
+
 def _run_ai(conn, args: argparse.Namespace, folders: list[str],
             user: str) -> int:
-    """AI cleanup: heuristic report -> LLM verdict -> delete confirmed senders."""
+    """AI cleanup: heuristic report -> LLM verdict -> delete confirmed senders.
+
+    With --ai-report-only the LLM step is optional and nothing is deleted.
+    """
     from . import ai
     from .llm import LLMError, ensure_default_models, load_model, log_cost
     ensure_default_models()        # so gpt-4o-mini / Ollama exist out of the box
-    if not args.ai_model:
-        print("[ERROR] --ai-cleanup requires --ai-model NAME.")
+
+    cfg = None
+    if args.ai_model:
+        try:
+            cfg = load_model(args.ai_model)
+        except LLMError as exc:
+            print(f"[ERROR] {exc}")
+            return 2
+        if cfg.get("encrypted"):
+            print("[ERROR] Encrypted model configs can't run unattended.")
+            return 2
+    elif not args.ai_report_only:
+        print("[ERROR] --ai-cleanup requires --ai-model NAME "
+              "(or use --ai-report-only).")
         return 2
-    try:
-        cfg = load_model(args.ai_model)
-    except LLMError as exc:
-        print(f"[ERROR] {exc}")
-        return 2
-    if cfg.get("encrypted"):
-        print("[ERROR] Encrypted model configs can't run unattended.")
-        return 2
+
+    weights = _parse_ai_weights(args.ai_weight) or None
+    exclude = {user} | {a.strip() for a in args.ai_exclude if a.strip()}
+
     # Scope like the Move feature: filter by --rule/--targets, else whole folder.
     search_argument = None
     addresses: set[str] = set()
@@ -188,22 +235,43 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
     elif args.targets:
         addresses, domains, exact_domains = load_targets(args.targets)
     report = core.build_ai_report(conn, folders, threshold=args.ai_threshold,
-                                  sample_size=args.ai_sample, exclude={user},
+                                  sample_size=args.ai_sample, exclude=exclude,
+                                  weights=weights,
                                   addresses=addresses, domains=domains,
                                   exact_domains=exact_domains,
                                   search_argument=search_argument,
                                   batch_size=args.batch_size)
-    try:
-        ev = ai.evaluate(report, cfg)
-    except RuntimeError as exc:
-        print(f"[ERROR] {exc}")
-        return 5
-    if cfg.get("track_costs"):
-        log_cost(args.ai_model, ev["prompt_tokens"], ev["completion_tokens"],
-                 ev["cost"] or 0)
+
+    ev = None
+    if cfg is not None:
+        try:
+            ev = ai.evaluate(report, cfg)
+        except RuntimeError as exc:
+            print(f"[ERROR] {exc}")
+            return 5
+        if cfg.get("track_costs"):
+            log_cost(args.ai_model, ev["prompt_tokens"],
+                     ev["completion_tokens"], ev["cost"] or 0)
+        for s in report["senders"]:
+            if s.get("flagged"):
+                s["verdict"] = ev["verdicts"].get(s["sender"].lower())
+
+    if args.ai_report_csv:
+        try:
+            with open(args.ai_report_csv, "w", encoding="utf-8", newline="") as fh:
+                fh.write(core.ai_report_csv(report))
+            core.logger.info("AI report written to %s", args.ai_report_csv)
+        except OSError as exc:
+            print(f"[ERROR] Could not write {args.ai_report_csv}: {exc}")
+            return 2
+
+    if args.ai_report_only or ev is None:
+        core.logger.info("Report only - nothing deleted.")
+        return 0
+
     confirmed = {s["sender"].lower() for s in report["senders"]
                  if s.get("flagged")
-                 and ev["verdicts"].get(s["sender"].lower(), {}).get("delete")}
+                 and (s.get("verdict") or {}).get("delete")}
     core.logger.info("AI confirmed %d sender(s) to delete (cost %s).",
                      len(confirmed), ev["cost"])
     if not confirmed:
@@ -217,6 +285,7 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
             batch_size=args.batch_size, scan_mode="search")
     verb = "would be deleted" if args.dry_run else "deleted"
     core.logger.info("Done. %d message(s) %s.", total, verb)
+    return 0
     return 0
 
 
@@ -306,8 +375,8 @@ def main(argv: list[str] | None = None) -> int:
                                   account=user, save_path=args.save_senders)
             return 0
         if args.ai_cleanup:
-            if not args.dry_run and not args.yes and not _confirm(
-                    folders, False, False, False):
+            if (not args.ai_report_only and not args.dry_run and not args.yes
+                    and not _confirm(folders, False, False, False)):
                 print("Aborted.")
                 return 0
             return _run_ai(conn, args, folders, user)

@@ -241,6 +241,10 @@ land in your shell history.
 | `--ai-model NAME` | Saved (non-encrypted) LLM model config to use for `--ai-cleanup`. |
 | `--ai-threshold N` | Heuristic spam-score threshold 0-10 (default 6). |
 | `--ai-sample N` | Sample emails per flagged sender (default 5). |
+| `--ai-exclude ADDR` | Extra sender to exclude from the report (repeatable; your own address is always excluded). |
+| `--ai-weight KEY=VALUE` | Override a heuristic weight (repeatable): `list_unsubscribe`, `unread_ratio`, `bulk`, `sender_pattern`, `frequency`. |
+| `--ai-report-only` | Build the report (and LLM verdicts if `--ai-model` is given) but delete nothing; a model is optional. |
+| `--ai-report-csv PATH` | Write the report as CSV (Excel-friendly) to `PATH`. |
 | `--dry-run` | Report only; make no changes. |
 | `--expunge` | Permanently remove after flagging. |
 | `--yes` | Skip the confirmation prompt (for scripts/cron). |
@@ -488,11 +492,24 @@ the tool seeds two ready-to-use defaults you can edit or delete: **`gpt-4o-mini`
 AI Cleanup can also be **scheduled** (Scheduling tab -> "AI Cleanup job") with a
 non-encrypted model; the scheduled CLI runs `--ai-cleanup --ai-model NAME`.
 
+Everything the web panel offers is available on the CLI too - threshold, sample
+size, exclusions, heuristic weights, report-only, and CSV export:
+
 ```bash
 pip install "imap-cleanup-tool[ai]"
 # Configure a model + API key in the LLM tab (or a local Ollama model), then:
 imap-cleanup-tool --host HOST --user USER \
     --ai-cleanup --ai-model my-model --dry-run
+
+# Heuristic report only (no LLM, nothing deleted), saved to CSV:
+imap-cleanup-tool --host HOST --user USER \
+    --ai-cleanup --ai-report-only --ai-report-csv report.csv
+
+# Tune threshold/weights and add exclusions, with an LLM, report only:
+imap-cleanup-tool --host HOST --user USER \
+    --ai-cleanup --ai-model my-model --ai-report-only \
+    --ai-threshold 7 --ai-weight unread_ratio=4 --ai-weight bulk=2 \
+    --ai-exclude boss@work.com --ai-report-csv report.csv
 ```
 
 ---
