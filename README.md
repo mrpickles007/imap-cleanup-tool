@@ -21,6 +21,9 @@ UI is an optional extra (FastAPI).
 - **Count** how many emails a filter matches before deleting anything.
 - **Move** matched emails to another folder instead of deleting them, and
   **create** new folders (or **labels** on Gmail) right from the app.
+- **AI Cleanup** (optional): score senders with a heuristic, then let an **LLM**
+  (cloud or **local** via Ollama) decide what is junk and delete it - with a
+  configurable threshold, a report-only mode, and per-model cost tracking.
 - **Gmail mode**: moves matches to Trash (the only way to truly delete on Gmail).
 - **Empty a whole folder** (e.g. Trash) without scanning.
 - **List senders** with counts and export them to CSV (with timestamp).
@@ -45,6 +48,7 @@ UI is an optional extra (FastAPI).
 - [Target file format](#target-file-format)
 - [Web interface](#web-interface)
 - [Folders vs labels, and moving](#folders-vs-labels-and-moving)
+- [AI Cleanup](#ai-cleanup)
 - [Remote / headless server (SSH port forwarding)](#remote--headless-server-ssh-port-forwarding)
 - [Scheduling](#scheduling)
 - [Gmail notes](#gmail-notes)
@@ -159,6 +163,9 @@ You do not need to install the base separately before `[web]` - the extra
 includes it. The CLI stays dependency-free; only the web UI pulls in FastAPI,
 uvicorn and cryptography (the last for encrypted connection profiles).
 
+For the optional **[AI Cleanup](#ai-cleanup)** feature, add the `[ai]` extra
+(pulls in `litellm`): `pip install "imap-cleanup-tool[web,ai]"`.
+
 ### From source
 
 ```bash
@@ -225,6 +232,10 @@ land in your shell history.
 | `--dest-folder NAME` | Destination folder/label for `--move`. |
 | `--create-folder NAME` | Create a folder (a label on Gmail) on the server, then exit. |
 | `--delete-folder NAME` | Delete a non-system folder/label on the server, then exit. |
+| `--ai-cleanup` | AI cleanup: heuristic score -> LLM verdict -> delete confirmed senders (needs `[ai]`). |
+| `--ai-model NAME` | Saved (non-encrypted) LLM model config to use for `--ai-cleanup`. |
+| `--ai-threshold N` | Heuristic spam-score threshold 0-10 (default 6). |
+| `--ai-sample N` | Sample emails per flagged sender (default 5). |
 | `--dry-run` | Report only; make no changes. |
 | `--expunge` | Permanently remove after flagging. |
 | `--yes` | Skip the confirmation prompt (for scripts/cron). |
@@ -415,6 +426,46 @@ imap-cleanup-tool --host HOST --user USER --folder INBOX \
 
 Move jobs can be **scheduled** like any other job (the Scheduling tab carries the
 same Move setting and destination into the saved job).
+
+---
+
+## AI Cleanup
+
+*Optional - install the AI extra:* `pip install "imap-cleanup-tool[ai]"`.
+
+AI Cleanup hands "which of these do I actually want?" to a model, safely:
+
+1. **Heuristic pre-filter (local).** Every sender gets a 0-10 **spam score** from
+   signals read on your machine: `List-Unsubscribe`, the share of **unread**
+   messages, send **frequency**, `Precedence: bulk`, and sender patterns
+   (`noreply@`, `newsletter@`...). Weights are calibrated and **tunable**.
+2. **LLM verdict.** Only senders at or above your **threshold** (default 6) are
+   sent to the model, with a few sample subjects each; it replies in strict JSON
+   which to delete.
+3. **Generate report** stops there (download the JSON; nothing changes). **Run**
+   also deletes the confirmed senders (dry-run simulates; Gmail uses the Trash
+   label). Your own address is always excluded - add more exclusions in the panel.
+
+**Models** are configured in the **LLM** tab (powered by litellm):
+
+- **Local & private (recommended):** an Ollama model (e.g. `ollama/llama3`) keeps
+  everything on your machine. ⚠️ A **remote** model (OpenAI, OpenRouter, ...)
+  sends the sample subjects to that provider - the app warns you, and only ever
+  sends subjects + stats, never message bodies.
+- API keys live in a local SQLite DB, optionally **encrypted** (encrypted = not
+  usable in scheduling, like connection profiles). Keys are never committed.
+- Optional **cost tracking**: set the price per million tokens and get a
+  per-model cost log.
+
+AI Cleanup can also be **scheduled** (Scheduling tab -> "AI Cleanup job") with a
+non-encrypted model; the scheduled CLI runs `--ai-cleanup --ai-model NAME`.
+
+```bash
+pip install "imap-cleanup-tool[ai]"
+# Configure a model + API key in the LLM tab (or a local Ollama model), then:
+imap-cleanup-tool --host HOST --user USER \
+    --ai-cleanup --ai-model my-model --dry-run
+```
 
 ---
 

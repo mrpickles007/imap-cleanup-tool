@@ -203,6 +203,29 @@ class WebApiTests(unittest.TestCase):
         r = self.client.post("/api/ai-run", json={"sid": "nope", "model": "m"})
         self.assertEqual(r.status_code, 440)
 
+    def test_ai_job_builds_args(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)), \
+                 mock.patch.object(profiles, "config_dir",
+                                   return_value=Path(tmp)), \
+                 mock.patch.object(llm, "config_dir", return_value=Path(tmp)):
+                self.client.post("/api/profiles", json={
+                    "name": "pf", "host": "h", "user": "u", "password": "pw"})
+                self.client.post("/api/llm-models", json={
+                    "name": "gpt", "model": "gpt-4o-mini", "api_key": "sk-x"})
+                r = self.client.post("/api/jobs", json={
+                    "name": "aij", "profile": "pf", "ai_cleanup": True,
+                    "ai_model": "gpt", "ai_threshold": 7, "ai_sample": 3,
+                    "kind": "daily", "time": "03:00"})
+                self.assertEqual(r.status_code, 200)
+                j = next(x for x in self.client.get("/api/jobs").json()["jobs"]
+                         if x["name"] == "aij")
+                self.assertIn("--ai-cleanup", j["args"])
+                self.assertIn("--ai-model", j["args"])
+                self.assertIn("gpt", j["args"])
+                self.assertNotIn("--targets", j["args"])
+
     def test_llm_models_crud(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(llm, "config_dir", return_value=Path(tmp)):

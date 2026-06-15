@@ -314,6 +314,10 @@ def create_app():
         date: str = ""        # YYYY-MM-DD (once only)
         minutes: int = 60     # interval only
         day: str = ""         # weekly: MON..SUN; monthly: day-of-month 1..31
+        ai_cleanup: bool = False
+        ai_model: str = ""    # non-encrypted LLM model config name
+        ai_threshold: float = 6.0
+        ai_sample: int = 5
 
     # ----- helpers --------------------------------------------------------- #
     def _session(sid: str) -> "Session":
@@ -767,6 +771,25 @@ def create_app():
         args: list[str] = ["--profile", prof]
         for folder in (body.folders or ["INBOX"]):
             args += ["--folder", folder]
+        if body.ai_cleanup:
+            mname = (body.ai_model or "").strip()
+            minfo = next((m for m in llm.list_models() if m["name"] == mname),
+                         None)
+            if minfo is None:
+                raise HTTPException(400, "Choose a saved LLM model for the AI job.")
+            if minfo["encrypted"]:
+                raise HTTPException(400, "Encrypted model configs can't run "
+                                         "unattended - use a non-encrypted one.")
+            args += ["--ai-cleanup", "--ai-model", mname,
+                     "--ai-threshold", str(body.ai_threshold),
+                     "--ai-sample", str(int(body.ai_sample)), "--yes"]
+            try:
+                sched = scheduler.build_schedule(
+                    body.kind, time=body.time, date=body.date,
+                    minutes=body.minutes, day=body.day)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            return scheduler.Job(name=name, args=args, schedule=sched)
         if body.empty_folder:
             args.append("--empty-folder")
         elif body.match_mode == "rule" and body.rule_tree:

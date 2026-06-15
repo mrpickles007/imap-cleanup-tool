@@ -405,6 +405,19 @@ tailwind.config = { theme: { extend: {
       </label>
       <label id="wrapDom" class="text-xs text-muted hidden">Day of month (1-28) <input id="jobDom" type="number" min="1" max="28" class="field mt-1" value="1"></label>
       <span id="schedHint" class="col-span-2 text-[11px] text-muted"></span>
+      <div class="col-span-2 mt-1 rounded-lg p-2" style="background:rgba(24,144,216,.08);border:1px solid rgba(24,144,216,.35)">
+        <label class="flex items-center justify-between text-sm cursor-pointer">
+          <span class="flex items-center font-semibold text-brand-light">✨ AI Cleanup job
+            <span class="tip"><span class="ic">i</span><span class="bub">Make this a scheduled <b>AI Cleanup</b> instead of a filter job: it scores senders, asks the model, then deletes the confirmed ones. Needs a <b>non-encrypted</b> model and the <code>[ai]</code> extra installed where the job runs.</span></span>
+          </span>
+          <input id="jobAI" type="checkbox">
+        </label>
+        <div id="jobAIRow" class="hidden grid grid-cols-2 gap-2 mt-2">
+          <label class="text-xs text-muted col-span-2">Model <select id="jobAiModel" class="field mt-1"></select></label>
+          <label class="text-xs text-muted">Threshold <input id="jobAiThreshold" type="number" step="0.5" min="0" max="10" value="6" class="field mt-1"></label>
+          <label class="text-xs text-muted">Sample <input id="jobAiSample" type="number" min="1" max="50" value="5" class="field mt-1"></label>
+        </div>
+      </div>
     </div>
     <div id="jobSummary" class="text-[11px] text-muted mt-3 border-t border-line pt-3"></div>
     <div class="flex flex-wrap gap-2 mt-3">
@@ -494,6 +507,18 @@ tailwind.config = { theme: { extend: {
       <button id="logDownload" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Download</button>
       <button id="logClose" class="bg-brand hover:bg-brand-light text-ink font-semibold rounded-lg px-4 py-2">Close</button>
     </div>
+  </div>
+</div>
+
+<!-- LLM cost-log modal -->
+<div id="costModal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+  <div class="bg-panel border border-line rounded-xl p-5 w-full max-w-xl flex flex-col" style="max-height:85vh">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-display font-semibold text-brand-light">Cost log - <span id="costModel"></span></h3>
+      <button id="costClose" class="text-xs text-muted hover:text-cream">close</button>
+    </div>
+    <div id="costTotal" class="text-sm mb-2 text-cream"></div>
+    <pre id="costBody" class="console text-[12px] bg-ink border border-line rounded-lg p-3 overflow-auto whitespace-pre-wrap text-[#c4c8d4] flex-1"></pre>
   </div>
 </div>
 
@@ -816,8 +841,20 @@ function jobPayload(){
     profile:$('jobProfile').value,
     kind:kind, time:$('jobTime').value.trim()||'03:00',
     date:$('jobDate').value, minutes:parseInt($('jobMinutes').value)||60,
-    day:day });
+    day:day,
+    ai_cleanup:$('jobAI').checked, ai_model:$('jobAiModel').value||'',
+    ai_threshold:parseFloat($('jobAiThreshold').value)||6,
+    ai_sample:parseInt($('jobAiSample').value)||5 });
 }
+function populateJobAiModels(){
+  const sel=$('jobAiModel'); if(!sel) return;
+  const cur=sel.value; const plain=LLM_MODELS.filter(m=>!m.encrypted);
+  sel.innerHTML='';
+  if(!plain.length){ const o=document.createElement('option'); o.value=''; o.textContent='- no non-encrypted model -'; sel.appendChild(o); }
+  plain.forEach(m=>{ const o=document.createElement('option'); o.value=m.name; o.textContent=m.name+' ('+m.model+')'; sel.appendChild(o); });
+  if(cur && plain.some(m=>m.name===cur)) sel.value=cur;
+}
+if($('jobAI')) $('jobAI').onchange=()=>{ $('jobAIRow').classList.toggle('hidden', !$('jobAI').checked); populateJobAiModels(); updateJobSummary(); };
 /* Show only the inputs relevant to the chosen frequency. */
 function updateSchedInputs(){
   const kind=$('jobKind').value;
@@ -874,8 +911,11 @@ function updateJobSummary(){
     if(n){ match='messages from '+n+' target line(s)'; }
     else if(moveOn){ match='every message (move all)'; }
     else { match='no targets set'; warn=true; } }
+  const aiJob=$('jobAI') && $('jobAI').checked;
   let action;
-  if(empty) action='Delete EVERYTHING';
+  if(aiJob){ action='AI Cleanup ('+($('jobAiModel').value||'no model')+')';
+    match='senders the model confirms (score ≥ '+(parseFloat($('jobAiThreshold').value)||6)+')'; warn=false; }
+  else if(empty) action='Delete EVERYTHING';
   else if($('moveMode').checked) action='Move to '+(moveDestValue()||'(no destination set)');
   else if($('gmailTrash').checked) action='Move to Gmail Trash';
   else if($('expunge').checked) action='Permanently delete (expunge)';
@@ -926,7 +966,7 @@ document.querySelectorAll('.tab').forEach(t=> t.onclick=()=>{
   $('tab-cleanup').classList.toggle('hidden', t.dataset.tab!=='cleanup');
   $('tab-scheduling').classList.toggle('hidden', t.dataset.tab!=='scheduling');
   $('tab-llm').classList.toggle('hidden', t.dataset.tab!=='llm');
-  if(t.dataset.tab==='scheduling'){ populateJobProfiles(); updateSchedInputs(); loadJobs(); }
+  if(t.dataset.tab==='scheduling'){ populateJobProfiles(); updateSchedInputs(); loadJobs(); loadLLMModels().then(populateJobAiModels); }
   if(t.dataset.tab==='llm'){ loadLLMModels(); }
 });
 $('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider').value)||0]; if(p){ if(p.host)$('host').value=p.host; if(p.port)$('port').value=p.port; if(p.host==='imap.gmail.com'){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} } applyProviderTips(); refreshConditional(); };
@@ -978,9 +1018,11 @@ async function loadLLMModels(){
       const row=document.createElement('div'); row.className='flex items-center justify-between bg-ink border border-line rounded-lg px-3 py-2';
       const badges=[m.encrypted?'🔒 encrypted':'', m.model.startsWith('ollama/')?'local':'', m.track_costs?('costs $'+m.cost_input+'/$'+m.cost_output+' per 1M'):''].filter(Boolean).map(b=>'<span class="text-muted text-xs">· '+escapeHtml(b)+'</span>').join(' ');
       row.innerHTML='<span class="truncate"><b>'+escapeHtml(m.name)+'</b> <span class="text-muted text-xs">'+escapeHtml(m.model)+'</span> '+badges+'</span>';
-      const del=document.createElement('button'); del.className='text-danger text-xs hover:underline flex-none ml-2'; del.textContent='delete';
+      const acts=document.createElement('span'); acts.className='flex gap-3 flex-none ml-2';
+      if(m.track_costs){ const c=document.createElement('button'); c.className='text-muted text-xs hover:text-cream'; c.textContent='cost log'; c.onclick=()=>openCostLog(m.name); acts.appendChild(c); }
+      const del=document.createElement('button'); del.className='text-danger text-xs hover:underline'; del.textContent='delete';
       del.onclick=async()=>{ if(!(await confirmDialog({title:'Delete model', message:'Delete model config "'+m.name+'"?', okText:'Delete', danger:true}))) return; await api('/api/llm-models/'+encodeURIComponent(m.name),null,'DELETE'); loadLLMModels(); };
-      row.appendChild(del); box.appendChild(row);
+      acts.appendChild(del); row.appendChild(acts); box.appendChild(row);
     });
   }
 }
@@ -994,6 +1036,17 @@ if($('btnSaveLLM')) $('btnSaveLLM').onclick=async()=>{
     $('llmMsg').textContent='Saved.'; $('llmMsg').className='text-[11px] mt-2 text-ok'; $('llmKey').value=''; $('llmSecret').value=''; loadLLMModels();
   }catch(e){ $('llmMsg').textContent='Error: '+e.message; $('llmMsg').className='text-[11px] mt-2 text-danger'; }
 };
+async function openCostLog(name){
+  $('costModel').textContent=name; $('costTotal').textContent='Loading…'; $('costBody').textContent=''; $('costModal').classList.remove('hidden');
+  try{
+    const d=await (await fetch('/api/llm-costs/'+encodeURIComponent(name))).json();
+    const t=d.total||{};
+    $('costTotal').innerHTML='<b>'+(t.calls||0)+'</b> call(s) · '+(t.prompt_tokens||0)+' in + '+(t.completion_tokens||0)+' out tokens · total <b>$'+(t.cost||0)+'</b>';
+    $('costBody').textContent=(d.entries||[]).map(e=>e.ts+'  '+e.prompt_tokens+'+'+e.completion_tokens+' tok  $'+e.cost).join('\n') || 'No calls logged yet.';
+  }catch(e){ $('costTotal').textContent='Error: '+e.message; }
+}
+$('costClose').onclick=()=>$('costModal').classList.add('hidden');
+$('costModal').onclick=(e)=>{ if(e.target.id==='costModal') $('costModal').classList.add('hidden'); };
 $('togglePass').onclick=()=>{ const p=$('password'); p.type=p.type==='password'?'text':'password'; $('togglePass').textContent=p.type==='password'?'show':'hide'; };
 document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const mode=document.querySelector('input[name=mode]:checked').value; try{localStorage.setItem('icw_mode',mode);}catch(_){} const rule=mode==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); refreshConditional(); });
 $('targets').addEventListener('input', ()=>{ try{localStorage.setItem('icw_targets',$('targets').value);}catch(_){} });
@@ -1315,11 +1368,13 @@ function startTour(){
       { element:'#secFolders', popover:{ title:'2 · Folders', description:'Choose which folders to scan. <b>Add to scan</b> only lists a folder; <b>Create on server</b> actually makes a new folder/label; the 🗑 deletes one you created (system folders are protected).' } },
       { element:'#secMatch', popover:{ title:'3 · What to match', description:'Match by a <b>target list</b> (senders/domains) or build a <b>rule</b> visually with AND/OR groups - no syntax to learn.' } },
       { element:'#secOptions', popover:{ title:'4 · Options', description:'Choose the action: delete, <b>Move</b> to another folder, Gmail-trash, Expunge, or Empty folder. <b>Dry-run</b> (on by default) only reports - turn it off to act for real.' } },
+      { element:'#rowAI', popover:{ title:'4b · AI Cleanup', description:'Let an LLM decide what is junk: it scores every sender heuristically, asks the model to judge those above your threshold, then deletes the confirmed ones. <b>Generate report</b> only analyzes; <b>Run</b> also deletes (dry-run simulates). Configure a model in the LLM tab.' } },
       { element:'#btnCount', popover:{ title:'5 · Count first', description:'See exactly how many emails match before touching anything.' } },
       { element:'#btnSenders', popover:{ title:'6 · List senders', description:'See who is filling your mailbox - unique senders with message counts - and export the list to CSV to decide what to clean.' } },
       { element:'#btnRun', popover:{ title:'7 · Run', description:'Run the action. With dry-run on it just previews; without it you get a clear confirmation first. Use Stop to cancel a long run.' } },
       { element:'#log', popover:{ title:'8 · Live log', description:'Everything the tool does shows here in real time - what it searches, matches and acts on. Watch it during a run; the log survives a page refresh.' } },
-      { element:'.tab[data-tab="scheduling"]', popover:{ title:'9 · Schedule it', description:'In the <b>Scheduling</b> tab you can turn these settings into a job and install it into your system scheduler (Task Scheduler / cron) to run automatically.' } },
+      { element:'.tab[data-tab="scheduling"]', popover:{ title:'9 · Schedule it', description:'In the <b>Scheduling</b> tab you can turn these settings into a job (incl. AI Cleanup) and install it into your system scheduler (Task Scheduler / cron) to run automatically.' } },
+      { element:'.tab[data-tab="llm"]', popover:{ title:'10 · LLM models', description:'Configure the model(s) for AI Cleanup here - cloud or <b>local</b> (Ollama). API keys stay on your machine and can be encrypted; optional per-model cost tracking.' } },
       { popover:{ title:'That is it! 🎉', description:'Tip: hover the little <b>i</b> icons anywhere for detailed help. Happy cleaning!' } },
     ],
   });

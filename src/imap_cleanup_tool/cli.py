@@ -73,6 +73,16 @@ def _add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--delete-folder", metavar="NAME",
                         help="Delete a non-system folder/label on the server "
                              "and exit.")
+    parser.add_argument("--ai-cleanup", action="store_true",
+                        help="AI cleanup: score senders heuristically, ask an "
+                             "LLM to judge those above --ai-threshold, then "
+                             "delete the confirmed ones. Needs the [ai] extra.")
+    parser.add_argument("--ai-model", metavar="NAME",
+                        help="Name of a saved (non-encrypted) LLM model config.")
+    parser.add_argument("--ai-threshold", type=float, default=6.0,
+                        help="Heuristic spam-score threshold 0-10 (default 6).")
+    parser.add_argument("--ai-sample", type=int, default=5,
+                        help="Sample emails per flagged sender (default 5).")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--expunge", action="store_true")
     parser.add_argument("--yes", action="store_true")
@@ -149,6 +159,52 @@ def _run_operation(conn, args: argparse.Namespace, folders: list[str]) -> None:
             dest_folder=args.dest_folder)
     verb = "would be acted on" if args.dry_run else "acted on"
     core.logger.info("Done. %d message(s) %s in total.", total, verb)
+
+
+def _run_ai(conn, args: argparse.Namespace, folders: list[str],
+            user: str) -> int:
+    """AI cleanup: heuristic report -> LLM verdict -> delete confirmed senders."""
+    from . import ai
+    from .llm import LLMError, load_model, log_cost
+    if not args.ai_model:
+        print("[ERROR] --ai-cleanup requires --ai-model NAME.")
+        return 2
+    try:
+        cfg = load_model(args.ai_model)
+    except LLMError as exc:
+        print(f"[ERROR] {exc}")
+        return 2
+    if cfg.get("encrypted"):
+        print("[ERROR] Encrypted model configs can't run unattended.")
+        return 2
+    report = core.build_ai_report(conn, folders, threshold=args.ai_threshold,
+                                  sample_size=args.ai_sample, exclude={user},
+                                  batch_size=args.batch_size)
+    try:
+        ev = ai.evaluate(report, cfg)
+    except RuntimeError as exc:
+        print(f"[ERROR] {exc}")
+        return 5
+    if cfg.get("track_costs"):
+        log_cost(args.ai_model, ev["prompt_tokens"], ev["completion_tokens"],
+                 ev["cost"] or 0)
+    confirmed = {s["sender"].lower() for s in report["senders"]
+                 if s.get("flagged")
+                 and ev["verdicts"].get(s["sender"].lower(), {}).get("delete")}
+    core.logger.info("AI confirmed %d sender(s) to delete (cost %s).",
+                     len(confirmed), ev["cost"])
+    if not confirmed:
+        return 0
+    gmail = "gmail" in (args.host or "").lower()
+    total = 0
+    for folder in folders:
+        total += core.process_folder(
+            conn, folder, addresses=confirmed, dry_run=args.dry_run,
+            expunge=args.expunge, gmail_trash=gmail,
+            batch_size=args.batch_size, scan_mode="search")
+    verb = "would be deleted" if args.dry_run else "deleted"
+    core.logger.info("Done. %d message(s) %s.", total, verb)
+    return 0
 
 
 def _run_saved_job(job) -> int:
@@ -236,6 +292,12 @@ def main(argv: list[str] | None = None) -> int:
                 core.list_senders(conn, folder, args.batch_size,
                                   account=user, save_path=args.save_senders)
             return 0
+        if args.ai_cleanup:
+            if not args.dry_run and not args.yes and not _confirm(
+                    folders, False, False, False):
+                print("Aborted.")
+                return 0
+            return _run_ai(conn, args, folders, user)
         if args.empty_folder:
             if not args.dry_run and not args.yes and not _confirm(
                     folders, True, False, False):

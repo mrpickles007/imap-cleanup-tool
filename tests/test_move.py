@@ -168,6 +168,14 @@ class CliArgsTests(unittest.TestCase):
         args = cli.parse_args(["--delete-folder", "Receipts"])
         self.assertEqual(args.delete_folder, "Receipts")
 
+    def test_ai_cleanup_flags_parse(self):
+        args = cli.parse_args(["--ai-cleanup", "--ai-model", "gpt",
+                               "--ai-threshold", "7", "--ai-sample", "8"])
+        self.assertTrue(args.ai_cleanup)
+        self.assertEqual(args.ai_model, "gpt")
+        self.assertEqual(args.ai_threshold, 7.0)
+        self.assertEqual(args.ai_sample, 8)
+
 
 if __name__ == "__main__":
     unittest.main()
