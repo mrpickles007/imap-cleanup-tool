@@ -461,7 +461,9 @@ AI Cleanup hands "which of these do I actually want?" to a model, safely:
    pydantic**, and the model is **retried up to 3 times** before giving up.
 3. **Generate report** stops there (download a **CSV** you can open in Excel; the
    log also shows how many emails are potentially deletable). **Run**
-   also deletes the confirmed senders (dry-run simulates).
+   also deletes the confirmed senders (dry-run simulates). Tick **Skip LLM
+   (heuristic only)** to generate the report from the local score alone - no LLM
+   call, so it is free and much faster (CLI: `--ai-report-only` without a model).
 
 AI Cleanup deletes the **same way as a normal run**: on a regular server the
 messages are flagged `\Deleted` and, if you tick **Expunge**, immediately removed

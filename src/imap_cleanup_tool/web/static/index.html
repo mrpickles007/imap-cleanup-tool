@@ -261,6 +261,11 @@ tailwind.config = { theme: { extend: {
             <label class="block">Send frequency<input id="wFreq" type="number" step="0.5" min="0" value="1" class="field mt-1"></label>
           </div>
         </details>
+        <label class="flex items-center gap-1.5 text-[11px] text-muted pt-1 cursor-pointer">
+          <input id="aiSkipLlm" type="checkbox" class="scale-90">
+          <span>Skip LLM (heuristic only)</span>
+          <span class="tip"><span class="ic">i</span><span class="bub"><b>Generate report</b> using only the <b>local heuristic</b> spam score - <b>no LLM call</b>, so it is <b>free and much faster</b> and nothing leaves your machine. The report just won't have per-sender AI verdicts. The chosen model is still used if you press <b>Run</b> (deleting needs the LLM).</span></span>
+        </label>
         <div class="flex gap-2 pt-1 flex-wrap">
           <button id="btnAiReport" type="button" class="px-4 py-2 rounded-lg bg-brand hover:bg-brand-light text-ink font-semibold text-sm">Generate report</button>
           <button id="btnAiDownload" type="button" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream text-sm">Download report (CSV)</button>
@@ -1025,7 +1030,10 @@ function updateAiSecret(){
   if($('aiSecret')) $('aiSecret').classList.toggle('hidden', !(m && m.encrypted));
 }
 $('btnAiReport').onclick=async()=>{ if(!SID){ log('[ERROR] Not connected.'); return; } if(!(await ensureFolderChosen())) return;
-  const p=aiPayload(); log('Generating AI report on: '+p.folders.join(', ')+' …'); startJob('/api/ai-report', p); };
+  const p=aiPayload();
+  if($('aiSkipLlm') && $('aiSkipLlm').checked){ p.model=''; log('Generating heuristic-only report (LLM skipped) on: '+p.folders.join(', ')+' …'); }
+  else log('Generating AI report on: '+p.folders.join(', ')+' …');
+  startJob('/api/ai-report', p); };
 $('btnAiDownload').onclick=async()=>{ if(!SID){ log('[ERROR] Not connected.'); return; }
   try{ const r=await fetch('/api/ai-report.csv/'+SID); if(!r.ok){ const d=await r.json().catch(()=>({})); throw new Error(errText(d,r.status)); }
     download('ai_report_'+humanStamp()+'.csv', await r.text()); log('AI report downloaded (CSV).'); }
