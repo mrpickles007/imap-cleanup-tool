@@ -1143,7 +1143,8 @@ function startTour(){
       { element:'#btnCount', popover:{ title:'5 · Count first', description:'See exactly how many emails match before touching anything.' } },
       { element:'#btnSenders', popover:{ title:'6 · List senders', description:'See who is filling your mailbox - unique senders with message counts - and export the list to CSV to decide what to clean.' } },
       { element:'#btnRun', popover:{ title:'7 · Run', description:'Run the action. With dry-run on it just previews; without it you get a clear confirmation first. Use Stop to cancel a long run.' } },
-      { element:'.tab[data-tab="scheduling"]', popover:{ title:'8 · Schedule it', description:'In the <b>Scheduling</b> tab you can turn these settings into a job and install it into your system scheduler (Task Scheduler / cron) to run automatically.' } },
+      { element:'#log', popover:{ title:'8 · Live log', description:'Everything the tool does shows here in real time - what it searches, matches and acts on. Watch it during a run; the log survives a page refresh.' } },
+      { element:'.tab[data-tab="scheduling"]', popover:{ title:'9 · Schedule it', description:'In the <b>Scheduling</b> tab you can turn these settings into a job and install it into your system scheduler (Task Scheduler / cron) to run automatically.' } },
       { popover:{ title:'That is it! 🎉', description:'Tip: hover the little <b>i</b> icons anywhere for detailed help. Happy cleaning!' } },
     ],
   });
