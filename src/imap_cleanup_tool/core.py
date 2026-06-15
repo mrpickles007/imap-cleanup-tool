@@ -630,15 +630,21 @@ def ai_report_csv(report: dict) -> str:
 
 def _per_week(date_headers: list[str], count: int) -> float:
     """Estimate messages-per-week from a list of Date headers."""
+    from datetime import timezone
     from email.utils import parsedate_to_datetime
     parsed = []
     for d in date_headers:
         try:
             dt = parsedate_to_datetime(d)
-            if dt is not None:
-                parsed.append(dt)
         except (TypeError, ValueError):
             continue
+        if dt is None:
+            continue
+        # Mix of tz-aware and naive Date headers can't be compared - normalize
+        # naive ones to UTC so max()/min() below never raise.
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        parsed.append(dt)
     if len(parsed) < 2:
         return float(count)            # treat as within a single week
     span_days = (max(parsed) - min(parsed)).days

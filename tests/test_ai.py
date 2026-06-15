@@ -139,6 +139,24 @@ class AiReportTests(unittest.TestCase):
         rows = list(_csv.reader(lines))
         self.assertEqual(len(rows[0]), len(rows[1]))
 
+    def test_mixed_tz_dates_do_not_crash(self):
+        # One Date header tz-aware, one naive (no zone) - must not raise
+        # "can't compare offset-naive and offset-aware datetimes".
+        from imap_cleanup_tool.core import _per_week
+        pw = _per_week(["Mon, 1 Jan 2024 10:00:00 +0000",
+                        "Mon, 8 Jan 2024 10:00:00"], 2)
+        self.assertGreater(pw, 0)
+
+    def test_report_with_mixed_tz_dates(self):
+        msgs = [
+            {"from": "n@shop.com", "date": "Mon, 1 Jan 2024 10:00:00 +0000",
+             "subject": "a", "seen": False, "unsub": True},
+            {"from": "n@shop.com", "date": "Mon, 8 Jan 2024 10:00:00",
+             "subject": "b", "seen": False, "unsub": True},
+        ]
+        rep = self._report(msgs, threshold=0)   # must complete without error
+        self.assertEqual(rep["total_senders"], 1)
+
     def test_exclusions_skip_sender(self):
         rep = self._report(
             [{"from": "a@b.com", "date": "", "subject": "x", "seen": False}],
