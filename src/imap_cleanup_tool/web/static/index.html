@@ -268,9 +268,11 @@ tailwind.config = { theme: { extend: {
         </label>
         <div class="flex gap-2 pt-1 flex-wrap items-center">
           <button id="btnAiReport" type="button" class="px-4 py-2 rounded-lg bg-brand hover:bg-brand-light text-ink font-semibold text-sm">Generate report</button>
-          <select id="aiReportList" class="field text-sm" style="max-width:15rem" title="Saved reports (newest first)"></select>
-          <button id="btnAiDownload" type="button" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream text-sm">Download CSV</button>
-          <span class="tip"><span class="ic">i</span><span class="bub">Every report is auto-saved to disk with a timestamp. Pick one here and download it as CSV - older reports stay available even after new runs or a restart.</span></span>
+          <div class="flex gap-2 items-center flex-nowrap min-w-0">
+            <select id="aiReportList" class="field text-sm min-w-0" style="max-width:13rem" title="Saved reports (newest first)"></select>
+            <button id="btnAiDownload" type="button" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream text-sm whitespace-nowrap">Download CSV</button>
+            <span class="tip"><span class="ic">i</span><span class="bub">Every report is auto-saved to disk with a timestamp. Pick one here and download it as CSV - older reports stay available even after new runs or a restart.</span></span>
+          </div>
         </div>
       </div>
 
