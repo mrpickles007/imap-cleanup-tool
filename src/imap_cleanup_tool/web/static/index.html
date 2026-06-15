@@ -647,13 +647,13 @@ tailwind.config = { theme: { extend: {
       <table class="w-full text-sm border-collapse">
         <thead><tr class="text-muted text-xs text-left border-b border-line">
           <th class="py-2 pr-2 w-6"></th>
-          <th class="py-2 pr-3">Sender</th>
-          <th class="py-2 px-2 text-center">Score</th>
-          <th class="py-2 px-2 text-center">Msgs</th>
-          <th class="py-2 px-2 text-center">Unread</th>
-          <th class="py-2 px-2 text-center">/week</th>
-          <th class="py-2 px-2">Signals</th>
-          <th class="py-2 px-2">LLM verdict</th>
+          <th class="py-2 pr-3">Sender<span class="tip"><span class="ic">i</span><span class="bub">The sender's email address (the local-part + domain extracted from the <code>From</code> header).</span></span></th>
+          <th class="py-2 px-2 text-center">Score<span class="tip"><span class="ic">i</span><span class="bub"><b>Heuristic spam score, 0-10.</b> A weighted blend of the signals below, normalized to 10: <code>List-Unsubscribe</code> present, unread ratio, send frequency, <code>Precedence: bulk</code>, and a bulk-looking sender name (<code>noreply@</code>, <code>newsletter@</code>…). Higher = more spam-like. Senders at/above the threshold are flagged.</span></span></th>
+          <th class="py-2 px-2 text-center">Msgs<span class="tip"><span class="ic">i</span><span class="bub"><b>Total messages</b> seen from this sender in the scanned folder(s).</span></span></th>
+          <th class="py-2 px-2 text-center">Unread<span class="tip"><span class="ic">i</span><span class="bub"><b>Unread ratio</b> = messages without the <code>\Seen</code> flag ÷ total. A high ratio means you rarely open their mail.</span></span></th>
+          <th class="py-2 px-2 text-center">Msgs/week<span class="tip"><span class="ic">i</span><span class="bub"><b>Send frequency</b>: messages per week, estimated from the span between the oldest and newest <code>Date</code> headers. Frequent senders score higher.</span></span></th>
+          <th class="py-2 px-2">Signals<span class="tip"><span class="ic">i</span><span class="bub">Boolean flags that feed the score: <b>unsub</b> = has a <code>List-Unsubscribe</code> header; <b>bulk</b> = <code>Precedence: bulk</code>; <b>pattern</b> = a bulk-looking sender name (<code>noreply@</code>, <code>newsletter@</code>, <code>no-reply@</code>…).</span></span></th>
+          <th class="py-2 px-2">LLM verdict<span class="tip"><span class="ic">i</span><span class="bub">The model's judgement (only if AI Cleanup ran with a model): <b>delete</b> or <b>keep</b>, with its reason and confidence. Empty if the report was heuristic-only.</span></span></th>
         </tr></thead>
         <tbody id="spamBody"><tr><td colspan="8" class="py-6 text-center text-muted text-xs">No spam addresses yet - run an AI Cleanup report first.</td></tr></tbody>
       </table>
@@ -1631,6 +1631,8 @@ $('btnSaveJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; tr
 $('btnExportJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; try{ const d=await api('/api/jobs/export',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
 $('btnInstallJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; try{ const d=await api('/api/jobs/install',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.message+'\n\n'+d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
 $('jobProfile').onchange=updateJobSummary;
+['jobAiThreshold','jobAiSample'].forEach(id=>{ if($(id)) $(id).oninput=updateJobSummary; });
+if($('jobAiModel')) $('jobAiModel').onchange=updateJobSummary;
 function download(name, text){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href); }
 $('targetsFile').onchange=(e)=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ $('targets').value=r.result; try{localStorage.setItem('icw_targets',$('targets').value);}catch(_){} log('Loaded target list from '+f.name+'.'); }; r.readAsText(f); e.target.value=''; };
 async function saveTargets(){
