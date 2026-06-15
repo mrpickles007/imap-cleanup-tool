@@ -484,7 +484,7 @@ tailwind.config = { theme: { extend: {
       <label class="text-xs text-muted">Input $ / 1M tokens <input id="llmCostIn" type="number" step="0.01" min="0" value="0" class="field mt-1"></label>
       <label class="text-xs text-muted">Output $ / 1M tokens <input id="llmCostOut" type="number" step="0.01" min="0" value="0" class="field mt-1"></label>
     </div>
-    <div class="flex gap-2 mt-3"><button id="btnSaveLLM" class="bg-brand hover:bg-brand-light text-ink font-semibold rounded-lg px-4 py-2">Save model</button></div>
+    <div class="flex gap-2 mt-3"><button id="btnSaveLLM" class="bg-brand hover:bg-brand-light text-ink font-semibold rounded-lg px-4 py-2">Save model</button><button id="btnCancelLLM" type="button" class="hidden rounded-lg border border-line text-muted hover:text-cream px-4 py-2">Cancel edit</button></div>
     <p id="llmMsg" class="text-[11px] mt-2 text-muted"></p>
   </section>
   <section class="bg-panel border border-line rounded-xl p-5">
@@ -1024,20 +1024,48 @@ async function loadLLMModels(){
       row.innerHTML='<span class="truncate"><b>'+escapeHtml(m.name)+'</b> <span class="text-muted text-xs">'+escapeHtml(m.model)+'</span> '+badges+'</span>';
       const acts=document.createElement('span'); acts.className='flex gap-3 flex-none ml-2';
       if(m.track_costs){ const c=document.createElement('button'); c.className='text-muted text-xs hover:text-cream'; c.textContent='cost log'; c.onclick=()=>openCostLog(m.name); acts.appendChild(c); }
+      const ed=document.createElement('button'); ed.className='text-brand-light text-xs hover:underline'; ed.textContent='edit'; ed.onclick=()=>editLLMModel(m); acts.appendChild(ed);
       const del=document.createElement('button'); del.className='text-danger text-xs hover:underline'; del.textContent='delete';
       del.onclick=async()=>{ if(!(await confirmDialog({title:'Delete model', message:'Delete model config "'+m.name+'"?', okText:'Delete', danger:true}))) return; await api('/api/llm-models/'+encodeURIComponent(m.name),null,'DELETE'); loadLLMModels(); };
       acts.appendChild(del); row.appendChild(acts); box.appendChild(row);
     });
   }
 }
+let EDITING_MODEL=null;
+function editLLMModel(m){
+  EDITING_MODEL=m.name;
+  $('llmName').value=m.name; $('llmName').readOnly=true; $('llmName').classList.add('opacity-60');
+  $('llmModel').value=m.model; $('llmApiBase').value=m.api_base||'';
+  $('llmType').value=m.model.startsWith('ollama/')?'local':'remote';
+  $('llmTrack').checked=!!m.track_costs; $('llmCostRow').classList.toggle('hidden',!m.track_costs);
+  $('llmCostIn').value=m.cost_input||0; $('llmCostOut').value=m.cost_output||0;
+  $('llmEncrypt').checked=false; $('llmSecretRow').classList.add('hidden'); $('llmSecret').value='';
+  $('llmKey').value=''; $('llmKey').placeholder = m.has_key ? '(leave blank to keep current key)' : 'sk-... (none set)';
+  $('btnSaveLLM').textContent='Update model'; $('btnCancelLLM').classList.remove('hidden');
+  $('llmMsg').textContent='Editing "'+m.name+'" - name is locked (delete to rename). Leave the key blank to keep the current one.'; $('llmMsg').className='text-[11px] mt-2 text-muted';
+  $('llmName').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function resetLLMForm(){
+  EDITING_MODEL=null;
+  $('llmName').value=''; $('llmName').readOnly=false; $('llmName').classList.remove('opacity-60');
+  $('llmModel').value='gpt-4o-mini'; $('llmApiBase').value=''; $('llmType').value='remote';
+  $('llmKey').value=''; $('llmKey').placeholder='sk-...'; $('llmEncrypt').checked=false; $('llmSecretRow').classList.add('hidden'); $('llmSecret').value='';
+  $('llmTrack').checked=false; $('llmCostRow').classList.add('hidden'); $('llmCostIn').value=0; $('llmCostOut').value=0;
+  $('btnSaveLLM').textContent='Save model'; $('btnCancelLLM').classList.add('hidden');
+}
+if($('btnCancelLLM')) $('btnCancelLLM').onclick=()=>{ resetLLMForm(); $('llmMsg').textContent=''; };
 if($('llmType')) $('llmType').onchange=()=>{ if($('llmType').value==='local'){ if(!$('llmModel').value.startsWith('ollama/')) $('llmModel').value='ollama/llama3'; if(!$('llmApiBase').value) $('llmApiBase').value='http://localhost:11434'; } };
 if($('llmKeyToggle')) $('llmKeyToggle').onclick=()=>{ const k=$('llmKey'); k.type=k.type==='password'?'text':'password'; $('llmKeyToggle').textContent=k.type==='password'?'show':'hide'; };
 if($('llmEncrypt')) $('llmEncrypt').onchange=()=>$('llmSecretRow').classList.toggle('hidden', !$('llmEncrypt').checked);
 if($('llmTrack')) $('llmTrack').onchange=()=>$('llmCostRow').classList.toggle('hidden', !$('llmTrack').checked);
 if($('btnSaveLLM')) $('btnSaveLLM').onclick=async()=>{
   try{
-    await api('/api/llm-models',{ name:$('llmName').value, model:$('llmModel').value, api_key:$('llmKey').value, api_base:$('llmApiBase').value, encrypt:$('llmEncrypt').checked, secret:$('llmSecret').value, track_costs:$('llmTrack').checked, cost_input:parseFloat($('llmCostIn').value)||0, cost_output:parseFloat($('llmCostOut').value)||0 });
-    $('llmMsg').textContent='Saved.'; $('llmMsg').className='text-[11px] mt-2 text-ok'; $('llmKey').value=''; $('llmSecret').value=''; loadLLMModels();
+    const editing = EDITING_MODEL!==null;
+    const keyTyped = $('llmKey').value.length>0;
+    const update_key = !editing || keyTyped;   // creating always sets the key; editing only if a new one is typed
+    await api('/api/llm-models',{ name:$('llmName').value, model:$('llmModel').value, api_key:$('llmKey').value, api_base:$('llmApiBase').value, encrypt:$('llmEncrypt').checked, secret:$('llmSecret').value, track_costs:$('llmTrack').checked, cost_input:parseFloat($('llmCostIn').value)||0, cost_output:parseFloat($('llmCostOut').value)||0, update_key });
+    const wasEditing=editing; resetLLMForm();
+    $('llmMsg').textContent=wasEditing?'Updated.':'Saved.'; $('llmMsg').className='text-[11px] mt-2 text-ok'; loadLLMModels();
   }catch(e){ $('llmMsg').textContent='Error: '+e.message; $('llmMsg').className='text-[11px] mt-2 text-danger'; }
 };
 async function openCostLog(name){

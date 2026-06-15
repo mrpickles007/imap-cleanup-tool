@@ -131,14 +131,36 @@ def list_models() -> list[dict]:
 def save_model(name: str, model: str, api_key: str = "", api_base: str = "",
                encrypt: bool = False, secret: str = "",
                track_costs: bool = False, cost_input: float = 0.0,
-               cost_output: float = 0.0) -> str:
-    """Create or replace a model config. Returns the (trimmed) name."""
+               cost_output: float = 0.0, update_key: bool = True) -> str:
+    """Create or replace a model config. Returns the (trimmed) name.
+
+    When ``update_key`` is False and the model already exists, only its metadata
+    (model string, api_base, cost settings) is updated and the stored API key +
+    encryption are left untouched - so editing a model does not require retyping
+    its key (the key is never returned to the UI).
+    """
     name = (name or "").strip()
     model = (model or "").strip()
     if not name:
         raise LLMError("Model config name is required.")
     if not model:
         raise LLMError("A model string is required (e.g. gpt-4o-mini).")
+
+    if not update_key:
+        conn = _connect()
+        try:
+            cur = conn.execute(
+                "UPDATE models SET model=?, api_base=?, track_costs=?,"
+                " cost_input=?, cost_output=? WHERE name=?",
+                (model, (api_base or "").strip() or None,
+                 1 if track_costs else 0, float(cost_input or 0),
+                 float(cost_output or 0), name))
+            if cur.rowcount == 0:
+                raise LLMError(f"No model config named {name!r} to update.")
+            conn.commit()
+        finally:
+            conn.close()
+        return name
 
     if encrypt:
         if not secret:

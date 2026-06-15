@@ -277,6 +277,7 @@ def create_app():
         track_costs: bool = False
         cost_input: float = 0.0
         cost_output: float = 0.0
+        update_key: bool = True          # False = keep the stored key when editing
 
     class SendersIn(BaseModel):
         sid: str
@@ -491,7 +492,7 @@ def create_app():
             name = llm.save_model(
                 body.name, body.model, body.api_key, body.api_base,
                 body.encrypt, body.secret, body.track_costs,
-                body.cost_input, body.cost_output)
+                body.cost_input, body.cost_output, update_key=body.update_key)
         except llm.LLMError as exc:
             raise HTTPException(400, str(exc)) from exc
         return {"saved": name}

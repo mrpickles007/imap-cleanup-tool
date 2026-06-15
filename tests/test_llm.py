@@ -53,6 +53,30 @@ class LLMConfigTests(unittest.TestCase):
                 llm.delete_model("m")
                 self.assertEqual(llm.list_models(), [])
 
+    def test_edit_keeps_key_when_update_key_false(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(llm, "config_dir", return_value=Path(tmp)):
+                llm.save_model("m", "gpt-4o-mini", api_key="sk-keep",
+                               track_costs=False)
+                # edit metadata only - key must survive
+                llm.save_model("m", "gpt-4o", api_base="https://x",
+                               track_costs=True, cost_input=1.0,
+                               update_key=False)
+                loaded = llm.load_model("m")
+                self.assertEqual(loaded["api_key"], "sk-keep")    # preserved
+                self.assertEqual(loaded["model"], "gpt-4o")       # updated
+                self.assertEqual(loaded["api_base"], "https://x")
+                self.assertTrue(llm.list_models()[0]["track_costs"])
+                # typing a new key replaces it
+                llm.save_model("m", "gpt-4o", api_key="sk-new", update_key=True)
+                self.assertEqual(llm.load_model("m")["api_key"], "sk-new")
+
+    def test_edit_nonexistent_with_update_key_false_errors(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(llm, "config_dir", return_value=Path(tmp)):
+                with self.assertRaises(llm.LLMError):
+                    llm.save_model("ghost", "gpt-4o", update_key=False)
+
     def test_seed_defaults_once(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(llm, "config_dir", return_value=Path(tmp)):

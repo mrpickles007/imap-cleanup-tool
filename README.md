@@ -471,6 +471,9 @@ the tool seeds two ready-to-use defaults you can edit or delete: **`gpt-4o-mini`
   everything on your machine. ⚠️ A **remote** model (OpenAI, OpenRouter, ...)
   sends the sample subjects to that provider - the app warns you, and only ever
   sends subjects + stats, never message bodies.
+- **Edit** a saved model from the list (the **edit** button loads it into the
+  form). The key is never shown - leave the key field blank to keep the current
+  one, or type a new one to replace it.
 - API keys live in a local SQLite DB, optionally **encrypted** (encrypted = not
   usable in scheduling, like connection profiles). Keys are never committed.
 - **Prefer an environment variable?** Leave the model's API-key field **blank**
