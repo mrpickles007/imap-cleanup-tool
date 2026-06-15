@@ -248,7 +248,7 @@ tailwind.config = { theme: { extend: {
           <input id="aiSample" type="number" min="1" max="50" value="5" class="field mt-1">
         </label>
         <label class="text-xs text-muted block">Exclude addresses (one per line)
-          <span class="tip"><span class="ic">i</span><span class="bub">Senders to skip entirely. Your own mailbox address is <b>always</b> excluded (self-sent reminders).</span></span>
+          <span class="tip"><span class="ic">i</span><span class="bub">Senders to skip entirely. Your own mailbox address is <b>pre-filled here on connect</b> so self-sent mail is skipped - <b>remove it</b> if you want your own address included too. Add one address per line.</span></span>
           <textarea id="aiExclude" rows="2" class="field console mt-1" placeholder="boss@work.com&#10;statements@mybank.com"></textarea>
         </label>
         <details class="text-xs text-muted">
@@ -1102,9 +1102,18 @@ $('btnConnect').onclick=async()=>{
     const d=await api('/api/connect',connParams()); SID=d.sid; localStorage.setItem('icw_sid',SID);
     logCursor=0; persistLog();   // fresh session log
     knownFolders=d.folders||[]; renderFolders(); setStatus(true,'connected · '+knownFolders.length+' folders'); setConnectedUI(true);
+    prefillSelfExclude();
     log('Connected. Loaded '+knownFolders.length+' folder(s).'); refreshConditional();
   }catch(e){ setStatus(false,'failed'); setConnectedUI(false); log('[ERROR] '+e.message); }
 };
+// Pre-fill the AI exclude box with the connected mailbox so self-sent mail is
+// skipped by default; the user can remove the line to include their own address.
+function prefillSelfExclude(){
+  const me=($('user').value||'').trim(); if(!me) return;
+  const box=$('aiExclude'); if(!box) return;
+  const lines=box.value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!lines.some(l=>l.toLowerCase()===me.toLowerCase())){ lines.unshift(me); box.value=lines.join('\n'); }
+}
 $('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setStatus(false,'disconnected'); setConnectedUI(false); log('Disconnected.'); };
 $('btnValidate').onclick=async()=>{ try{ const d=await api('/api/validate-rule',{tree:toTree(ROOT)}); $('ruleOut').textContent='OK → SEARCH '+d.search; $('ruleOut').className='text-xs text-ok ml-2'; }catch(e){ $('ruleOut').textContent=e.message; $('ruleOut').className='text-xs text-danger ml-2'; } };
 $('btnStop').onclick=async()=>{ if(SID&&curRunId){ try{ await api(`/api/stop/${SID}/${curRunId}`); log('Stop requested…'); }catch(e){} } };

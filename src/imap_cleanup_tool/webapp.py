@@ -670,7 +670,9 @@ def create_app():
         if sess.run and sess.run.status == "running":
             raise HTTPException(409, "An operation is already running.")
         folders = body.folders or ["INBOX"]
-        exclude = set((body.exclude or "").splitlines()) | {sess.user}
+        # Exclusions come solely from the box (the UI pre-fills the user's own
+        # address on connect, so it is excluded by default but can be removed).
+        exclude = set((body.exclude or "").splitlines())
         model_cfg = _load_ai_model(body)
         scope = _ai_scope(body)        # resolve here so 400s reach the client
 
@@ -695,7 +697,7 @@ def create_app():
         if not (body.model or "").strip():
             raise HTTPException(400, "Choose a model for AI Cleanup (LLM tab).")
         folders = body.folders or ["INBOX"]
-        exclude = set((body.exclude or "").splitlines()) | {sess.user}
+        exclude = set((body.exclude or "").splitlines())   # box-only (see ai-report)
         model_cfg = _load_ai_model(body)
         gmail = "gmail" in (sess.host or "").lower()
         scope = _ai_scope(body)        # resolve here so 400s reach the client

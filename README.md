@@ -241,7 +241,8 @@ land in your shell history.
 | `--ai-model NAME` | Saved (non-encrypted) LLM model config to use for `--ai-cleanup`. |
 | `--ai-threshold N` | Heuristic spam-score threshold 0-10 (default 6). |
 | `--ai-sample N` | Sample emails per flagged sender (default 5). |
-| `--ai-exclude ADDR` | Extra sender to exclude from the report (repeatable; your own address is always excluded). |
+| `--ai-exclude ADDR` | Extra sender to exclude from the report (repeatable). Your own address is excluded by default. |
+| `--ai-include-self` | Include your own mailbox address in the report (by default it is excluded). |
 | `--ai-weight KEY=VALUE` | Override a heuristic weight (repeatable): `list_unsubscribe`, `unread_ratio`, `bulk`, `sender_pattern`, `frequency`. |
 | `--ai-report-only` | Build the report (and LLM verdicts if `--ai-model` is given) but delete nothing; a model is optional. |
 | `--ai-report-csv PATH` | Write the report as CSV (Excel-friendly) to `PATH`. |
@@ -461,7 +462,13 @@ AI Cleanup hands "which of these do I actually want?" to a model, safely:
 3. **Generate report** stops there (download a **CSV** you can open in Excel; the
    log also shows how many emails are potentially deletable). **Run**
    also deletes the confirmed senders (dry-run simulates; Gmail uses the Trash
-   label). Your own address is always excluded - add more exclusions in the panel.
+   label).
+
+Your own mailbox address is **pre-filled in the Exclude box when you connect**, so
+self-sent mail is skipped by default. **Remove that line** if you want your own
+address included too, and add any other senders to skip (one per line). On the CLI
+the same default applies - pass `--ai-include-self` to include your own address,
+or `--ai-exclude ADDR` to skip more.
 
 Like **Move**, AI Cleanup honors the active **filter** (target list or rule) when
 one is set, or scans the **whole folder** when none is - so you can point it at a

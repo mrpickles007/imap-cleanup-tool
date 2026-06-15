@@ -86,7 +86,11 @@ def _add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--ai-exclude", metavar="ADDR", action="append",
                         default=[],
                         help="Extra sender to exclude from the AI report "
-                             "(repeatable; your own address is always excluded).")
+                             "(repeatable). Your own address is excluded by "
+                             "default unless --ai-include-self is given.")
+    parser.add_argument("--ai-include-self", action="store_true",
+                        help="Include your own mailbox address in the AI report "
+                             "(by default it is excluded).")
     parser.add_argument("--ai-weight", metavar="KEY=VALUE", action="append",
                         default=[],
                         help="Override a heuristic weight (repeatable). Keys: "
@@ -223,7 +227,9 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
         return 2
 
     weights = _parse_ai_weights(args.ai_weight) or None
-    exclude = {user} | {a.strip() for a in args.ai_exclude if a.strip()}
+    exclude = {a.strip() for a in args.ai_exclude if a.strip()}
+    if not args.ai_include_self:
+        exclude.add(user)
 
     # Scope like the Move feature: filter by --rule/--targets, else whole folder.
     search_argument = None
