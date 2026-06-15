@@ -454,7 +454,8 @@ AI Cleanup hands "which of these do I actually want?" to a model, safely:
    sent to the model, with a few sample **subjects** each (never the body); it
    replies in strict JSON which to delete. The reply is **validated with
    pydantic**, and the model is **retried up to 3 times** before giving up.
-3. **Generate report** stops there (download the JSON; nothing changes). **Run**
+3. **Generate report** stops there (download a **CSV** you can open in Excel; the
+   log also shows how many emails are potentially deletable). **Run**
    also deletes the confirmed senders (dry-run simulates; Gmail uses the Trash
    label). Your own address is always excluded - add more exclusions in the panel.
 

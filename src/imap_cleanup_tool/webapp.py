@@ -678,9 +678,10 @@ def create_app():
             report = _ai_build(sess, body, folders, exclude, rs, model_cfg, scope)
             rs.result = {"report": report}
             core.logger.info("=> AI report ready: %d of %d sender(s) flagged "
-                             "(threshold %.1f). Use 'Download report' for the JSON.",
+                             "(threshold %.1f); %d email(s) potentially deletable. "
+                             "Use 'Download report (CSV)'.",
                              report["flagged_count"], report["total_senders"],
-                             body.threshold)
+                             body.threshold, report.get("flagged_messages", 0))
 
         run_state = _start_run(sess, "ai-report", work)
         return {"run_id": run_state.run_id}
@@ -733,6 +734,17 @@ def create_app():
             raise HTTPException(404, "No report yet - generate one first.")
         return Response(content=json.dumps(report, indent=2, ensure_ascii=False),
                         media_type="application/json")
+
+    @app.get("/api/ai-report.csv/{sid}")
+    def ai_report_csv(sid: str) -> Response:
+        sess = _session(sid)
+        report = (sess.run.result or {}).get("report") if sess.run else None
+        if not report:
+            raise HTTPException(404, "No report yet - generate one first.")
+        return Response(
+            content=core.ai_report_csv(report), media_type="text/csv",
+            headers={"Content-Disposition":
+                     "attachment; filename=ai-report.csv"})
 
     @app.get("/api/log/{sid}")
     def get_log(sid: str, cursor: int = 0) -> dict[str, Any]:

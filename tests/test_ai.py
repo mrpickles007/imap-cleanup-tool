@@ -113,6 +113,32 @@ class AiReportTests(unittest.TestCase):
         self.assertTrue(by["newsletter@shop.com"]["samples"])
         self.assertEqual(by["alice@friends.com"]["samples"], [])
 
+    def test_report_counts_flagged_messages(self):
+        msgs = [
+            {"from": "n@shop.com", "date": "Mon, 1 Jan 2024 10:00:00 +0000",
+             "subject": "Sale", "seen": False, "unsub": True, "bulk": True},
+            {"from": "n@shop.com", "date": "Mon, 8 Jan 2024 10:00:00 +0000",
+             "subject": "Sale2", "seen": False, "unsub": True, "bulk": True},
+            {"from": "alice@friends.com", "date": "", "subject": "hi",
+             "seen": True},
+        ]
+        rep = self._report(msgs, threshold=6)
+        # both flagged-sender messages count; the friend's does not
+        self.assertEqual(rep["flagged_messages"], 2)
+
+    def test_report_csv_has_header_and_rows(self):
+        msgs = [{"from": "n@shop.com", "date": "", "subject": "Sale, big!",
+                 "seen": False, "unsub": True, "bulk": True}]
+        rep = self._report(msgs, threshold=0)
+        csv_text = core.ai_report_csv(rep)
+        lines = csv_text.splitlines()
+        self.assertIn("sender,score,flagged,messages", lines[0])
+        self.assertIn("n@shop.com", csv_text)
+        # the comma inside the subject must be quoted, not split into a column
+        import csv as _csv
+        rows = list(_csv.reader(lines))
+        self.assertEqual(len(rows[0]), len(rows[1]))
+
     def test_exclusions_skip_sender(self):
         rep = self._report(
             [{"from": "a@b.com", "date": "", "subject": "x", "seen": False}],

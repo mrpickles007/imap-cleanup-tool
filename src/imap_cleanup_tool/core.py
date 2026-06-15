@@ -585,11 +585,47 @@ def build_ai_report(conn: imaplib.IMAP4_SSL, folders: list[str], *,
         })
     senders.sort(key=lambda x: x["score"], reverse=True)
     flagged = [s for s in senders if s["flagged"]]
+    flagged_messages = sum(s["count"] for s in flagged)
     logger.info("AI report: %d sender(s), %d above threshold %.1f.",
                 len(senders), len(flagged), threshold)
+    logger.info("=> %d email(s) from %d flagged sender(s) are potentially "
+                "deletable.", flagged_messages, len(flagged))
     return {"folders": folders, "threshold": threshold, "sample_size": sample_size,
             "weights": weights, "total_senders": len(senders),
-            "flagged_count": len(flagged), "senders": senders}
+            "flagged_count": len(flagged), "flagged_messages": flagged_messages,
+            "senders": senders}
+
+
+def ai_report_csv(report: dict) -> str:
+    """Render an AI report as CSV (Excel-friendly), one row per sender.
+
+    Verdict columns are filled only when the report was run with an LLM.
+    """
+    import csv
+    import io
+    buf = io.StringIO()
+    cols = ["sender", "score", "flagged", "messages", "unread", "unread_ratio",
+            "per_week", "list_unsubscribe", "bulk", "sender_pattern",
+            "verdict_delete", "verdict_reason", "verdict_confidence",
+            "sample_subjects"]
+    writer = csv.writer(buf)
+    writer.writerow(cols)
+    for s in report.get("senders", []):
+        v = s.get("verdict") or {}
+        writer.writerow([
+            s.get("sender", ""), s.get("score", ""),
+            "yes" if s.get("flagged") else "no",
+            s.get("count", ""), s.get("unread", ""), s.get("unread_ratio", ""),
+            s.get("per_week", ""),
+            "yes" if s.get("list_unsubscribe") else "no",
+            "yes" if s.get("bulk") else "no",
+            "yes" if s.get("sender_pattern") else "no",
+            ("yes" if v.get("delete") else "no") if v else "",
+            v.get("reason", "") if v else "",
+            v.get("confidence", "") if v else "",
+            " | ".join(x.get("subject", "") for x in s.get("samples", [])),
+        ])
+    return buf.getvalue()
 
 
 def _per_week(date_headers: list[str], count: int) -> float:
