@@ -304,6 +304,11 @@ tailwind.config = { theme: { extend: {
           <span>Skip LLM (heuristic only)</span>
           <span class="tip"><span class="ic">i</span><span class="bub"><b>Generate report</b> using only the <b>local heuristic</b> spam score - <b>no LLM call</b>, so it is <b>free and much faster</b> and nothing leaves your machine. The report just won't have per-sender AI verdicts. The chosen model is still used if you press <b>Run</b> (deleting needs the LLM).</span></span>
         </label>
+        <label class="flex items-center gap-1.5 text-[11px] text-muted pt-1 cursor-pointer">
+          <input id="aiFlagSpam" type="checkbox" class="scale-90">
+          <span>Flag senders as spam (on Run)</span>
+          <span class="tip"><span class="ic">i</span><span class="bub">Only affects <b>Run</b>. For each sender the AI confirms for deletion, <b>one</b> of their messages is moved to the <b>Junk/Spam</b> folder (the "report spam" signal that trains the server to send their <b>future</b> mail to spam) and the rest are deleted. Needs a Junk/Spam folder on the server.</span></span>
+        </label>
         <div class="flex gap-2 pt-1 flex-wrap items-center">
           <button id="btnAiReport" type="button" class="px-4 py-2 rounded-lg bg-brand hover:bg-brand-light text-ink font-semibold text-sm">Generate report</button>
           <div class="flex gap-2 items-center flex-nowrap min-w-0">
@@ -468,6 +473,9 @@ tailwind.config = { theme: { extend: {
           </label>
           <label class="flex items-center gap-1.5 text-xs text-muted col-span-2 cursor-pointer"><input id="jobAiSkipLlm" type="checkbox"> Skip LLM (heuristic only, no model)
             <span class="tip"><span class="ic">i</span><span class="bub">Build the report from the <b>local heuristic only</b> - no LLM call, no API cost. Requires <b>Report only</b> (heuristic alone can't decide what to delete).</span></span>
+          </label>
+          <label class="flex items-center gap-1.5 text-xs text-muted col-span-2 cursor-pointer"><input id="jobAiFlagSpam" type="checkbox"> Flag senders as spam
+            <span class="tip"><span class="ic">i</span><span class="bub">When the job deletes a confirmed sender, first move <b>one</b> of their messages to the <b>Junk/Spam</b> folder (the "report spam" signal that trains the server to send their <b>future</b> mail to spam), then delete the rest. Ignored with <b>Report only</b> (nothing is deleted). Needs a Junk/Spam folder.</span></span>
           </label>
         </div>
       </div>
@@ -1094,7 +1102,8 @@ function jobPayload(){
     ai_threshold:parseFloat($('jobAiThreshold').value)||6,
     ai_sample:parseInt($('jobAiSample').value)||5,
     ai_report_only:$('jobAiReportOnly').checked,
-    ai_skip_llm:$('jobAiSkipLlm').checked });
+    ai_skip_llm:$('jobAiSkipLlm').checked,
+    ai_flag_spam:$('jobAiFlagSpam').checked });
 }
 function syncJobAi(){
   // Skip LLM requires Report only (heuristic alone can't decide deletions).
@@ -1263,7 +1272,7 @@ function aiPayload(){
     threshold:parseFloat($('aiThreshold').value)||6, sample_size:parseInt($('aiSample').value)||5,
     exclude:$('aiExclude').value, batch_size:parseInt($('batch').value)||500,
     model:$('aiModel').value||'', secret:$('aiSecret').value||'',
-    dry_run:$('dryRun').checked, expunge:$('expunge').checked,
+    dry_run:$('dryRun').checked, expunge:$('expunge').checked, flag_spam:$('aiFlagSpam')?$('aiFlagSpam').checked:false,
     weights:{ list_unsubscribe:parseFloat($('wUnsub').value)||0, unread_ratio:parseFloat($('wUnread').value)||0,
       bulk:parseFloat($('wBulk').value)||0, sender_pattern:parseFloat($('wPattern').value)||0, frequency:parseFloat($('wFreq').value)||0 } };
 }
@@ -1532,7 +1541,10 @@ if($('spamFlag')) $('spamFlag').onclick=async()=>{
   const addrs=[...spamState.sel]; if(!addrs.length) return;
   if(!(await confirmDialog({title:'Report sender as spam', message:'Report '+addrs.length+' sender(s) to the server\'s spam filter so their FUTURE mail is auto-sent to spam?\n\nIMAP has no per-sender rule, so this moves their current inbox mail into the Junk/Spam folder - the standard "report spam" signal that trains the filter. (To just delete unwanted mail, use AI Cleanup instead.)', okText:'Report as spam', danger:true}))) return;
   spamMsg('Flagging on the server…','text-muted');
-  try{ const r=await api('/api/spam-flag',{sid:SID,addresses:addrs}); spamMsg('✓ Flagged '+r.flagged+' sender(s): moved '+r.moved+' message(s) to "'+r.folder+'".','text-ok'); refreshFoldersQuiet(); }
+  try{ const r=await api('/api/spam-flag',{sid:SID,addresses:addrs});
+    let msg='✓ Reported '+r.flagged+' sender(s) as spam: moved '+r.moved+' message(s) to "'+r.folder+'".';
+    if(r.no_mail) msg+=' '+r.no_mail+' had no inbox mail (already deleted) - their future mail still needs at least one message in Spam to train the filter.';
+    spamMsg(msg, r.flagged?'text-ok':'text-warn'); refreshFoldersQuiet(); }
   catch(e){ spamMsg('✗ '+e.message,'text-danger'); }
 };
 $('togglePass').onclick=()=>{ const p=$('password'); p.type=p.type==='password'?'text':'password'; $('togglePass').textContent=p.type==='password'?'show':'hide'; };

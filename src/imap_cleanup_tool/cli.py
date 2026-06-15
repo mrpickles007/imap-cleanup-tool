@@ -104,6 +104,10 @@ def _add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--ai-report-csv", metavar="PATH",
                         help="Write the AI report as CSV to PATH "
                              "(Excel-friendly).")
+    parser.add_argument("--ai-flag-spam", action="store_true",
+                        help="Report confirmed senders as spam: move one of each "
+                             "sender's messages to the Junk/Spam folder (trains "
+                             "the server filter) before deleting the rest.")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--expunge", action="store_true")
     parser.add_argument("--yes", action="store_true")
@@ -341,8 +345,20 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
     if not confirmed:
         return 0
     gmail = "gmail" in (args.host or "").lower()
+    junk = None
+    if getattr(args, "ai_flag_spam", False):
+        junk = core.special_folder(conn, "\\Junk")
+        if not junk:
+            core.logger.warning("--ai-flag-spam: no Junk/Spam folder found - "
+                                "skipping that step.")
     total = 0
     for folder in folders:
+        if junk:
+            m, _h = core.flag_senders_as_spam(
+                conn, folder, confirmed, junk, per_sender=1,
+                dry_run=args.dry_run, batch_size=args.batch_size)
+            core.logger.info("Reported senders as spam in %r: %d message(s) "
+                             "moved to %r.", folder, m, junk)
         total += core.process_folder(
             conn, folder, addresses=confirmed, dry_run=args.dry_run,
             expunge=args.expunge, gmail_trash=gmail,

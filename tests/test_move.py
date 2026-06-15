@@ -72,6 +72,34 @@ class MoveUidsTests(unittest.TestCase):
         self.assertIn("EXPUNGE", cmds)
 
 
+class FlagSpamTests(unittest.TestCase):
+    def test_moves_one_per_sender(self):
+        conn = FakeConn(capabilities=("IMAP4REV1", "MOVE"))
+        moved, hit = core.flag_senders_as_spam(
+            conn, "INBOX", {"a@x.com", "b@y.com"}, "[Gmail]/Spam", per_sender=1)
+        self.assertEqual(hit, 2)        # both senders had mail
+        self.assertEqual(moved, 2)      # one message each
+
+    def test_per_sender_none_moves_all(self):
+        conn = FakeConn(capabilities=("IMAP4REV1", "MOVE"))
+        moved, hit = core.flag_senders_as_spam(
+            conn, "INBOX", {"a@x.com"}, "Spam", per_sender=None)
+        self.assertEqual(hit, 1)
+        self.assertEqual(moved, 3)      # all three messages (SEARCH -> 1 2 3)
+
+    def test_dry_run_moves_nothing(self):
+        conn = FakeConn(capabilities=("IMAP4REV1", "MOVE"))
+        moved, hit = core.flag_senders_as_spam(
+            conn, "INBOX", {"a@x.com"}, "Spam", per_sender=1, dry_run=True)
+        self.assertEqual((moved, hit), (1, 1))
+        self.assertNotIn("MOVE", [c[0] for c in conn.calls])
+
+    def test_special_folder_by_flag(self):
+        conn = FakeConn()
+        self.assertEqual(core.special_folder(conn, "\\Trash"), "[Gmail]/Trash")
+        self.assertIsNone(core.special_folder(conn, "\\Junk"))
+
+
 class CreateFolderTests(unittest.TestCase):
     def test_create_ok(self):
         conn = FakeConn()

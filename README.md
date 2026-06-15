@@ -493,6 +493,13 @@ timestamped CSV** in your config directory (`ai_reports/`), so reports stay
 available after other runs or a restart. The **download dropdown** next to the
 buttons lists them newest-first - pick one and click **Download CSV**.
 
+**Flag senders as spam (on Run).** Optionally, when **Run** deletes a confirmed
+sender, first move **one** of their messages to the **Junk/Spam** folder - the
+standard "report spam" signal that trains the server to route that sender's
+**future** mail to spam - then delete the rest. This also works in scheduled AI
+jobs (a checkbox) and on the CLI (`--ai-flag-spam`). It needs a Junk/Spam folder
+on the server.
+
 AI Cleanup deletes the **same way as a normal run**: on a regular server the
 messages are flagged `\Deleted` and, if you tick **Expunge**, immediately removed
 for good (otherwise they linger until an expunge). On **Gmail** they are moved to
@@ -716,11 +723,14 @@ reason + confidence) when a model was used.
   mailbox).
 - **Report sender as spam** - tells the server to treat the **sender** as spam so
   their **future** mail is auto-routed to spam. IMAP has no per-sender rule API,
-  so this works the standard way: it moves the sender's current inbox mail into
-  the **Junk/Spam** folder (found via its special-use flag, so it works with
-  localized names) - the "report spam" signal that **trains the provider's
-  filter**. It marks the *sender*, not individual emails; to simply delete
-  unwanted mail use **AI Cleanup** instead.
+  so this works the standard way: for each selected address it connects, finds
+  the sender's inbox mail and moves it into the **Junk/Spam** folder (found via
+  its special-use flag, so it works with localized names) - the "report spam"
+  signal that **trains the provider's filter** - and **reports** any addresses
+  that had no mail (e.g. already deleted). It marks the *sender*, not individual
+  emails. Tip: to avoid losing the training signal, you can flag senders **during
+  cleanup** (the *Flag senders as spam* option above) so one message is kept in
+  Spam before the rest are deleted.
 
 ---
 

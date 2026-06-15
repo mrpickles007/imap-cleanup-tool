@@ -293,6 +293,7 @@ def create_app():
         secret: str = ""                     # password for an encrypted model
         dry_run: bool = True                 # used by /api/ai-run
         expunge: bool = False                # used by /api/ai-run
+        flag_spam: bool = False              # move 1 msg/confirmed sender to Junk
 
     class LLMModelIn(BaseModel):
         name: str
@@ -375,6 +376,7 @@ def create_app():
         ai_sample: int = 5
         ai_skip_llm: bool = False     # heuristic only (no model)
         ai_report_only: bool = False  # build report, delete nothing (emailed if on)
+        ai_flag_spam: bool = False    # report confirmed senders as spam (1 msg -> Junk)
 
     # ----- helpers --------------------------------------------------------- #
     def _session(sid: str) -> "Session":
@@ -893,8 +895,20 @@ def create_app():
                 core.logger.info("=> AI confirmed nothing to delete.")
                 return
             core.logger.info("AI confirmed %d sender(s) to delete.", len(confirmed))
+            junk = core.special_folder(sess.conn, "\\Junk") if body.flag_spam \
+                else None
+            if body.flag_spam and not junk:
+                core.logger.warning("Flag-as-spam requested but no Junk/Spam "
+                                    "folder found - skipping that step.")
             total = 0
             for folder in folders:
+                if junk:
+                    m, _h = core.flag_senders_as_spam(
+                        sess.conn, folder, confirmed, junk, per_sender=1,
+                        dry_run=body.dry_run, batch_size=body.batch_size,
+                        should_stop=rs.stop.is_set)
+                    core.logger.info("Reported senders as spam in %r: %d "
+                                     "message(s) moved to %r.", folder, m, junk)
                 total += core.process_folder(
                     sess.conn, folder, addresses=confirmed, dry_run=body.dry_run,
                     expunge=body.expunge, gmail_trash=gmail,
@@ -974,7 +988,11 @@ def create_app():
 
     @app.post("/api/spam-flag")
     def spam_flag(body: SpamActionIn) -> dict[str, Any]:
-        """Flag senders as spam on the server: move their INBOX mail to Junk/Spam."""
+        """Report senders as spam: move their INBOX mail into the Junk/Spam folder.
+
+        Reports per selection how many senders actually had mail (the rest may
+        already have been deleted by AI Cleanup, so there's nothing to move).
+        """
         sess = _session(body.sid)
         if sess.run and sess.run.status == "running":
             raise HTTPException(409, "An operation is already running.")
@@ -987,14 +1005,16 @@ def create_app():
                 raise HTTPException(
                     400, "No Spam/Junk folder found on this server.")
             try:
-                moved = core.process_folder(
-                    sess.conn, "INBOX", addresses=addrs, move=True,
-                    dest_folder=junk, dry_run=False, scan_mode="search")
+                moved, hit = core.flag_senders_as_spam(
+                    sess.conn, "INBOX", addrs, junk, per_sender=None,
+                    batch_size=core.UID_CHUNK_SIZE)
             except (OSError, core.imaplib.IMAP4.error) as exc:
-                raise HTTPException(400, f"Flag-as-spam failed: {exc}") from exc
-        core.logger.info("Flagged %d sender(s) as spam: moved %d INBOX message(s) "
-                         "to %r.", len(addrs), moved, junk)
-        return {"flagged": len(addrs), "moved": moved, "folder": junk}
+                raise HTTPException(400, f"Report-as-spam failed: {exc}") from exc
+        no_mail = len(addrs) - hit
+        core.logger.info("Reported %d sender(s) as spam: %d moved to %r; "
+                         "%d had no inbox mail.", len(addrs), moved, junk, no_mail)
+        return {"flagged": hit, "moved": moved, "folder": junk,
+                "no_mail": no_mail, "selected": len(addrs)}
 
     @app.get("/api/log/{sid}")
     def get_log(sid: str, cursor: int = 0) -> dict[str, Any]:
@@ -1061,6 +1081,8 @@ def create_app():
                      "--ai-sample", str(int(body.ai_sample)), "--yes"]
             if body.ai_report_only:
                 args += ["--ai-report-only"]
+            if body.ai_flag_spam:
+                args += ["--ai-flag-spam"]
             # Skip LLM = heuristic only -> no model. Otherwise a non-encrypted
             # model is required (for the run, or for the LLM verdicts in a report).
             if not body.ai_skip_llm:
