@@ -266,9 +266,11 @@ tailwind.config = { theme: { extend: {
           <span>Skip LLM (heuristic only)</span>
           <span class="tip"><span class="ic">i</span><span class="bub"><b>Generate report</b> using only the <b>local heuristic</b> spam score - <b>no LLM call</b>, so it is <b>free and much faster</b> and nothing leaves your machine. The report just won't have per-sender AI verdicts. The chosen model is still used if you press <b>Run</b> (deleting needs the LLM).</span></span>
         </label>
-        <div class="flex gap-2 pt-1 flex-wrap">
+        <div class="flex gap-2 pt-1 flex-wrap items-center">
           <button id="btnAiReport" type="button" class="px-4 py-2 rounded-lg bg-brand hover:bg-brand-light text-ink font-semibold text-sm">Generate report</button>
-          <button id="btnAiDownload" type="button" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream text-sm">Download report (CSV)</button>
+          <select id="aiReportList" class="field text-sm" style="max-width:15rem" title="Saved reports (newest first)"></select>
+          <button id="btnAiDownload" type="button" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream text-sm">Download CSV</button>
+          <span class="tip"><span class="ic">i</span><span class="bub">Every report is auto-saved to disk with a timestamp. Pick one here and download it as CSV - older reports stay available even after new runs or a restart.</span></span>
         </div>
       </div>
 
@@ -837,6 +839,7 @@ async function pollLog(){
     }
     if(d.running){ poll=setTimeout(pollLog, pollDelay()); }
     else { poll=null; if(d.status && d.status!=='running') log('- '+d.status+(d.error?(': '+d.error):'')+' -'); setBusy(false); curRunId=null; persistLog();
+      loadAiReports();   // a finished run may have saved a new report
       if(gmailTrashSeen && d.status==='done'){ gmailTrashSeen=false; showTrashNotice(); }
     }
   }catch(e){ poll=null; setBusy(false); log('[ERROR] '+e.message); }
@@ -1034,9 +1037,22 @@ $('btnAiReport').onclick=async()=>{ if(!SID){ log('[ERROR] Not connected.'); ret
   if($('aiSkipLlm') && $('aiSkipLlm').checked){ p.model=''; log('Generating heuristic-only report (LLM skipped) on: '+p.folders.join(', ')+' …'); }
   else log('Generating AI report on: '+p.folders.join(', ')+' …');
   startJob('/api/ai-report', p); };
-$('btnAiDownload').onclick=async()=>{ if(!SID){ log('[ERROR] Not connected.'); return; }
-  try{ const r=await fetch('/api/ai-report.csv/'+SID); if(!r.ok){ const d=await r.json().catch(()=>({})); throw new Error(errText(d,r.status)); }
-    download('ai_report_'+humanStamp()+'.csv', await r.text()); log('AI report downloaded (CSV).'); }
+async function loadAiReports(){
+  const sel=$('aiReportList'); if(!sel) return;
+  const cur=sel.value;
+  try{ const d=await (await fetch('/api/ai-reports')).json(); const files=d.reports||[];
+    sel.innerHTML='';
+    if(!files.length){ const o=document.createElement('option'); o.value=''; o.textContent='— no saved reports yet —'; sel.appendChild(o); }
+    files.forEach(f=>{ const o=document.createElement('option'); o.value=f; o.textContent=f.replace(/^ai_report_/,'').replace(/\.csv$/,''); sel.appendChild(o); });
+    if(cur && files.includes(cur)) sel.value=cur;          // keep selection
+    $('btnAiDownload').disabled = !files.length;
+  }catch(e){ /* leave as-is */ }
+}
+$('btnAiDownload').onclick=async()=>{
+  const name=$('aiReportList') ? $('aiReportList').value : '';
+  if(!name){ log('[ERROR] No saved report to download yet - generate one first.'); return; }
+  try{ const r=await fetch('/api/ai-reports/'+encodeURIComponent(name)); if(!r.ok){ const d=await r.json().catch(()=>({})); throw new Error(errText(d,r.status)); }
+    download(name, await r.text()); log('Report downloaded: '+name); }
   catch(e){ log('[ERROR] '+e.message); } };
 
 /* ---------- LLM model configs (LLM tab) ---------- */
@@ -1463,7 +1479,7 @@ function maybeAutoTour(){
   if(!done) setTimeout(startTour, 700);   // first access: show it once
 }
 
-loadMeta().then(()=>{ refreshConditional(); restore(); restoreUiState(); loadLLMModels(); maybeAutoTour(); });
+loadMeta().then(()=>{ refreshConditional(); restore(); restoreUiState(); loadLLMModels(); loadAiReports(); maybeAutoTour(); });
 
 // Blink the provider user/password tooltips at random intervals to draw the
 // eye - only while NOT connected, and only for tips that are actually shown.

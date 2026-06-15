@@ -203,6 +203,26 @@ class WebApiTests(unittest.TestCase):
         r = self.client.post("/api/ai-run", json={"sid": "nope", "model": "m"})
         self.assertEqual(r.status_code, 440)
 
+    def test_saved_reports_list_and_download(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)):
+                d = Path(tmp) / "ai_reports"
+                d.mkdir()
+                (d / "ai_report_2026-06-15_10-00-00.csv").write_text(
+                    "sender,score\nx@y.com,9\n", encoding="utf-8")
+                lst = self.client.get("/api/ai-reports").json()["reports"]
+                self.assertIn("ai_report_2026-06-15_10-00-00.csv", lst)
+                got = self.client.get(
+                    "/api/ai-reports/ai_report_2026-06-15_10-00-00.csv")
+                self.assertEqual(got.status_code, 200)
+                self.assertIn("x@y.com", got.text)
+                # path traversal / bad names rejected
+                self.assertEqual(self.client.get(
+                    "/api/ai-reports/passwd.txt").status_code, 400)
+                self.assertEqual(self.client.get(
+                    "/api/ai-reports/ai_report_missing.csv").status_code, 404)
+
     def test_ai_job_builds_args(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(scheduler, "config_dir",

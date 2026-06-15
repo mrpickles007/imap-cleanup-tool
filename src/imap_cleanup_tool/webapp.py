@@ -680,6 +680,27 @@ def create_app():
                          cost_str, info.get("prompt_tokens", 0),
                          info.get("completion_tokens", 0), info.get("model", "?"))
 
+    def _ai_reports_dir():
+        d = scheduler.config_dir() / "ai_reports"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _save_ai_report(report) -> None:
+        """Persist the report as a timestamped CSV so it survives later runs."""
+        from datetime import datetime
+        stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        base, n = f"ai_report_{stamp}", 1
+        path = _ai_reports_dir() / f"{base}.csv"
+        while path.exists():                      # avoid same-second collisions
+            n += 1
+            path = _ai_reports_dir() / f"{base}_{n}.csv"
+        try:
+            path.write_text(core.ai_report_csv(report), encoding="utf-8")
+            core.logger.info("Report saved to disk as %s (pick it from the "
+                             "download list).", path.name)
+        except OSError as exc:
+            core.logger.warning("Could not save the report to disk: %s", exc)
+
     @app.post("/api/ai-report")
     def ai_report(body: AIReportIn) -> dict[str, Any]:
         """Heuristic per-sender report; if a model is chosen, also LLM verdicts.
@@ -703,6 +724,7 @@ def create_app():
                              report["flagged_count"], report["total_senders"],
                              body.threshold, report.get("flagged_messages", 0))
             _log_llm_total(report)
+            _save_ai_report(report)
 
         run_state = _start_run(sess, "ai-report", work)
         return {"run_id": run_state.run_id}
@@ -727,6 +749,7 @@ def create_app():
                          if s.get("flagged") and (s.get("verdict") or {}).get("delete")}
             rs.result = {"report": report, "to_delete": sorted(confirmed)}
             _log_llm_total(report)
+            _save_ai_report(report)
             if not confirmed:
                 core.logger.info("=> AI confirmed nothing to delete.")
                 return
@@ -767,6 +790,26 @@ def create_app():
             content=core.ai_report_csv(report), media_type="text/csv",
             headers={"Content-Disposition":
                      "attachment; filename=ai-report.csv"})
+
+    @app.get("/api/ai-reports")
+    def ai_reports_list() -> dict[str, Any]:
+        """List the timestamped report CSVs saved on disk (newest first)."""
+        files = sorted((p.name for p in _ai_reports_dir().glob("ai_report_*.csv")),
+                       reverse=True)
+        return {"reports": files}
+
+    @app.get("/api/ai-reports/{name}")
+    def ai_reports_get(name: str) -> Response:
+        """Download a previously saved report CSV by file name."""
+        if ("/" in name or "\\" in name or not name.startswith("ai_report_")
+                or not name.endswith(".csv")):
+            raise HTTPException(400, "Invalid report name.")
+        path = _ai_reports_dir() / name
+        if not path.is_file():
+            raise HTTPException(404, "No such saved report.")
+        return Response(
+            content=path.read_text(encoding="utf-8"), media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={name}"})
 
     @app.get("/api/log/{sid}")
     def get_log(sid: str, cursor: int = 0) -> dict[str, Any]:

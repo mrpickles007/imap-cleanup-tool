@@ -477,6 +477,11 @@ AI Cleanup hands "which of these do I actually want?" to a model, safely:
   Run. "Skip LLM" only affects *Generate report*, never *Run*. CLI: `--ai-cleanup
   --ai-model NAME` (omit `--dry-run` to actually delete).
 
+Every report (from Generate report or Run) is **auto-saved to disk as a
+timestamped CSV** in your config directory (`ai_reports/`), so reports stay
+available after other runs or a restart. The **download dropdown** next to the
+buttons lists them newest-first - pick one and click **Download CSV**.
+
 AI Cleanup deletes the **same way as a normal run**: on a regular server the
 messages are flagged `\Deleted` and, if you tick **Expunge**, immediately removed
 for good (otherwise they linger until an expunge). On **Gmail** they are moved to
