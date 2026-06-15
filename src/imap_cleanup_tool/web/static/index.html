@@ -22,6 +22,9 @@ tailwind.config = { theme: { extend: {
 <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css">
 <script src="https://unpkg.com/@popperjs/core@2"></script>
 <script src="https://unpkg.com/tippy.js@6"></script>
+<!-- driver.js: lightweight guided tour (MIT, no deps) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css">
+<script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
 <style>
   body{background:radial-gradient(1200px 600px at 80% -10%,rgba(24,144,216,.14),transparent),#0a0f1a;}
   .tip{position:relative;display:inline-flex;align-items:center;cursor:help}
@@ -55,7 +58,8 @@ tailwind.config = { theme: { extend: {
       <h1 class="font-display text-lg font-bold tracking-tight">IMAP Cleanup Tool</h1>
       <p class="text-muted text-xs -mt-0.5">Bulk-clean your mailbox · local web UI <span id="ver"></span></p>
     </div>
-    <div class="flex items-center gap-2 text-sm">
+    <div class="flex items-center gap-3 text-sm">
+      <button id="btnTour" class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream hover:border-brand" title="Replay the guided tour">❔ Tour</button>
       <span id="dot" class="w-2.5 h-2.5 rounded-full bg-muted"></span>
       <span id="status" class="text-muted">disconnected</span>
     </div>
@@ -73,7 +77,7 @@ tailwind.config = { theme: { extend: {
 
   <div class="lg:col-span-3 space-y-5">
     <!-- Connection -->
-    <section class="bg-panel border border-line rounded-xl p-5">
+    <section id="secConnection" class="bg-panel border border-line rounded-xl p-5">
       <h2 class="font-display font-semibold text-brand-light mb-4">Connection</h2>
       <div class="grid grid-cols-2 gap-3">
         <div class="col-span-2">
@@ -124,7 +128,7 @@ tailwind.config = { theme: { extend: {
     </section>
 
     <!-- Folders -->
-    <section class="bg-panel border border-line rounded-xl p-5">
+    <section id="secFolders" class="bg-panel border border-line rounded-xl p-5">
       <div class="flex items-center justify-between mb-3">
         <h2 class="font-display font-semibold text-brand-light flex items-center">Folders
           <span class="tip"><span class="ic">i</span><span class="bub">Pick the folders to scan. Gmail uses special names like <code>[Gmail]/All Mail</code>, <code>[Gmail]/Trash</code> (may be localized). Connect first to load the list.</span></span>
@@ -149,7 +153,7 @@ tailwind.config = { theme: { extend: {
     </section>
 
     <!-- Match -->
-    <section class="bg-panel border border-line rounded-xl p-5">
+    <section id="secMatch" class="bg-panel border border-line rounded-xl p-5">
       <h2 class="font-display font-semibold text-brand-light mb-3">What to match</h2>
       <div class="flex gap-4 mb-3 text-sm">
         <label class="flex items-center gap-2"><input type="radio" name="mode" value="targets" checked> Target list</label>
@@ -188,7 +192,7 @@ tailwind.config = { theme: { extend: {
   </div>
 
   <div class="lg:col-span-2 space-y-5">
-    <section class="bg-panel border border-line rounded-xl p-5">
+    <section id="secOptions" class="bg-panel border border-line rounded-xl p-5">
       <h2 class="font-display font-semibold text-brand-light mb-3">Options</h2>
       <label class="text-xs text-muted flex items-center">Scan mode
         <span class="tip"><span class="ic">i</span><span class="bub">
@@ -1090,7 +1094,36 @@ setConnectedUI(false);
 restoreLog();
 initTooltips();
 loadProfiles();
-loadMeta().then(()=>{ refreshConditional(); restore(); restoreUiState(); });
+/* ---------- guided tour (driver.js) ---------- */
+function startTour(){
+  if(!(window.driver && window.driver.js && window.driver.js.driver)){ log('[ERROR] Tour library not loaded (offline?).'); return; }
+  const ct=document.querySelector('.tab[data-tab="cleanup"]'); if(ct) ct.click();   // tour lives on the Cleanup tab
+  const driver=window.driver.js.driver;
+  const tour=driver({
+    showProgress:true, allowClose:true, overlayOpacity:0.65,
+    nextBtnText:'Next', prevBtnText:'Back', doneBtnText:'Done',
+    onDestroyed:()=>{ try{ localStorage.setItem('icw_tour_done','1'); }catch(_){} },
+    steps:[
+      { popover:{ title:'Welcome to IMAP Cleanup Tool 👋', description:'A quick 1-minute tour of the main areas. Everything runs locally and <b>dry-run is on by default</b>, so nothing changes until you decide. You can replay this anytime from the <b>❔ Tour</b> button.' } },
+      { element:'#secConnection', popover:{ title:'1 · Connect', description:'Pick a provider preset (or type host/port), enter username and password, then Connect. Optionally save it as a <b>connection profile</b> (optionally encrypted) so you do not retype it.' } },
+      { element:'#secFolders', popover:{ title:'2 · Folders', description:'Choose which folders to scan. <b>Add to scan</b> only lists a folder; <b>Create on server</b> actually makes a new folder/label; the 🗑 deletes one you created (system folders are protected).' } },
+      { element:'#secMatch', popover:{ title:'3 · What to match', description:'Match by a <b>target list</b> (senders/domains) or build a <b>rule</b> visually with AND/OR groups - no syntax to learn.' } },
+      { element:'#secOptions', popover:{ title:'4 · Options', description:'Choose the action: delete, <b>Move</b> to another folder, Gmail-trash, Expunge, or Empty folder. <b>Dry-run</b> (on by default) only reports - turn it off to act for real.' } },
+      { element:'#btnCount', popover:{ title:'5 · Count first', description:'See exactly how many emails match before touching anything.' } },
+      { element:'#btnRun', popover:{ title:'6 · Run', description:'Run the action. With dry-run on it just previews; without it you get a clear confirmation first. Use Stop to cancel a long run.' } },
+      { element:'.tab[data-tab="scheduling"]', popover:{ title:'7 · Schedule it', description:'In the <b>Scheduling</b> tab you can turn these settings into a job and install it into your system scheduler (Task Scheduler / cron) to run automatically.' } },
+      { popover:{ title:'That is it! 🎉', description:'Tip: hover the little <b>i</b> icons anywhere for detailed help. Happy cleaning!' } },
+    ],
+  });
+  tour.drive();
+}
+$('btnTour').onclick=startTour;
+function maybeAutoTour(){
+  let done=null; try{ done=localStorage.getItem('icw_tour_done'); }catch(_){}
+  if(!done) setTimeout(startTour, 700);   // first access: show it once
+}
+
+loadMeta().then(()=>{ refreshConditional(); restore(); restoreUiState(); maybeAutoTour(); });
 
 // Blink the provider user/password tooltips at random intervals to draw the
 // eye - only while NOT connected, and only for tips that are actually shown.
