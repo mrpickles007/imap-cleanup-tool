@@ -80,29 +80,26 @@ tailwind.config = { theme: { extend: {
   .driver-popover.icw-tour .driver-popover-arrow-side-bottom.driver-popover-arrow{border-bottom-color:#111927}
 </style>
 </head>
-<body class="font-sans text-cream min-h-screen">
+<body class="font-sans text-cream min-h-screen overflow-x-hidden">
 
 <header class="sticky top-0 z-30 backdrop-blur bg-ink/80 border-b border-line">
-  <div class="max-w-[1600px] mx-auto px-6 py-3 flex items-center gap-4">
-    <img src="/logo.png" alt="logo" class="h-14 w-auto drop-shadow">
-    <div class="flex-1">
-      <h1 class="font-display text-lg font-bold tracking-tight">IMAP Cleanup Tool</h1>
-      <p class="text-muted text-xs -mt-0.5">Bulk-clean your mailbox · local web UI <span id="ver"></span></p>
-    </div>
-    <div class="flex items-center gap-3 text-sm">
+  <div class="max-w-[1600px] mx-auto px-4 sm:px-6 py-2 sm:py-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+    <img src="/logo.png" alt="IMAP Cleanup Tool" class="h-9 sm:h-12 w-auto drop-shadow">
+    <div class="flex items-center gap-2 sm:gap-3 text-sm ml-auto">
       <button id="btnTour" class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream hover:border-brand" title="Replay the guided tour">❔ Tour</button>
       <span id="dot" class="w-2.5 h-2.5 rounded-full bg-muted"></span>
-      <span id="status" class="text-muted">disconnected</span>
+      <span id="status" class="text-muted hidden sm:inline">disconnected</span>
     </div>
+    <p class="text-muted text-[11px] sm:text-xs basis-full">Bulk-clean your mailbox · local web UI <span id="ver"></span></p>
   </div>
-  <div class="max-w-[1600px] mx-auto px-6 pt-3 pb-4 flex gap-2">
+  <div class="max-w-[1600px] mx-auto px-4 sm:px-6 pt-1.5 pb-3 flex gap-2">
     <div class="tab active" data-tab="cleanup">Cleanup</div>
     <div class="tab" data-tab="scheduling">Scheduling</div>
     <div class="tab" data-tab="llm">LLM</div>
   </div>
 </header>
 
-<main class="max-w-[1600px] mx-auto px-6 py-6">
+<main class="max-w-[1600px] mx-auto px-4 sm:px-6 py-6">
 
 <!-- ============================ CLEANUP TAB ============================ -->
 <div id="tab-cleanup" class="grid lg:grid-cols-5 gap-5">
