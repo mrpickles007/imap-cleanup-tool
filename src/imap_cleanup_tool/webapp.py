@@ -1014,6 +1014,18 @@ def create_app():
     def logo() -> FileResponse:
         return FileResponse(ASSETS_DIR / "logo.png")
 
+    @app.get("/favicon.ico")
+    def favicon() -> FileResponse:
+        return FileResponse(ASSETS_DIR / "favicon.ico")
+
+    @app.get("/apple-touch-icon.png")
+    def apple_touch_icon() -> FileResponse:
+        return FileResponse(ASSETS_DIR / "apple-touch-icon.png")
+
+    @app.get("/favicon-32.png")
+    def favicon_32() -> FileResponse:
+        return FileResponse(ASSETS_DIR / "favicon-32.png")
+
     if STATIC_DIR.is_dir():
         app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app
