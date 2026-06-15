@@ -253,7 +253,7 @@ def create_app():
         sid: str
         name: str
 
-    class AIReportIn(BaseModel):
+    class AIReportIn(Match):
         sid: str
         folders: list[str] = Field(default_factory=lambda: ["INBOX"])
         threshold: float = 6.0
@@ -611,14 +611,32 @@ def create_app():
         except llm.LLMError as exc:
             raise HTTPException(400, str(exc)) from exc
 
+    def _ai_scope(body: "AIReportIn"):
+        """Resolve the optional match scope for AI (filter, or whole folder)."""
+        if body.match_mode == "rule" and body.rule_tree:
+            try:
+                return set(), set(), set(), compile_search(
+                    node_from_dict(body.rule_tree))
+            except (RuleError, KeyError, TypeError) as exc:
+                raise HTTPException(400, f"Invalid rule: {exc}") from exc
+        if (body.targets_text or "").strip():
+            try:
+                a, d, e = parse_targets_text(body.targets_text)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            return a, d, e, None
+        return set(), set(), set(), None      # no filter -> whole folder
+
     def _ai_build(sess: "Session", body: "AIReportIn", folders, exclude,
-                  rs: "RunState", model_cfg):
+                  rs: "RunState", model_cfg, scope):
         """Heuristic report + optional LLM evaluation (attaches verdicts)."""
+        addresses, domains, exact_domains, search_argument = scope
         report = core.build_ai_report(
             sess.conn, folders, threshold=body.threshold,
             sample_size=body.sample_size, exclude=exclude,
-            weights=body.weights, batch_size=body.batch_size,
-            should_stop=rs.stop.is_set)
+            weights=body.weights, addresses=addresses, domains=domains,
+            exact_domains=exact_domains, search_argument=search_argument,
+            batch_size=body.batch_size, should_stop=rs.stop.is_set)
         if model_cfg:
             core.logger.info("Asking %s to evaluate %d flagged sender(s) ...",
                              model_cfg["model"], report["flagged_count"])
@@ -652,9 +670,10 @@ def create_app():
         folders = body.folders or ["INBOX"]
         exclude = set((body.exclude or "").splitlines()) | {sess.user}
         model_cfg = _load_ai_model(body)
+        scope = _ai_scope(body)        # resolve here so 400s reach the client
 
         def work(rs: RunState) -> None:
-            report = _ai_build(sess, body, folders, exclude, rs, model_cfg)
+            report = _ai_build(sess, body, folders, exclude, rs, model_cfg, scope)
             rs.result = {"report": report}
             core.logger.info("=> AI report ready: %d of %d sender(s) flagged "
                              "(threshold %.1f). Use 'Download report' for the JSON.",
@@ -676,9 +695,10 @@ def create_app():
         exclude = set((body.exclude or "").splitlines()) | {sess.user}
         model_cfg = _load_ai_model(body)
         gmail = "gmail" in (sess.host or "").lower()
+        scope = _ai_scope(body)        # resolve here so 400s reach the client
 
         def work(rs: RunState) -> None:
-            report = _ai_build(sess, body, folders, exclude, rs, model_cfg)
+            report = _ai_build(sess, body, folders, exclude, rs, model_cfg, scope)
             confirmed = {s["sender"].lower() for s in report["senders"]
                          if s.get("flagged") and (s.get("verdict") or {}).get("delete")}
             rs.result = {"report": report, "to_delete": sorted(confirmed)}

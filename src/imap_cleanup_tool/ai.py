@@ -40,36 +40,68 @@ def build_messages(report: dict) -> tuple[str, str]:
     return _SYSTEM, user
 
 
-def parse_verdicts(content: str) -> dict:
-    """Parse the model's JSON reply into {sender_lower: {delete, reason, confidence}}.
-
-    Tolerant of code fences or stray prose around the JSON object.
-    """
+def _extract_json(content: str):
+    """Pull the first JSON object out of the reply (tolerant of fences/prose)."""
     if not content:
-        return {}
+        return None
     text = content.strip()
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if match:
         text = match.group(0)
     try:
-        data = json.loads(text)
+        return json.loads(text)
     except (json.JSONDecodeError, TypeError):
-        return {}
+        return None
+
+
+def validate_verdicts(content: str) -> dict:
+    """Validate the reply with **pydantic** and return the flat verdicts dict.
+
+    Raises ``ValueError`` if the reply is not valid JSON or not the expected
+    schema - the caller uses that to retry the model.
+    """
+    from pydantic import BaseModel, ValidationError
+
+    class _Verdict(BaseModel):
+        sender: str
+        delete: bool
+        reason: str = ""
+        confidence: float | None = None
+
+    class _Response(BaseModel):
+        verdicts: list[_Verdict]
+
+    raw = _extract_json(content)
+    if raw is None:
+        raise ValueError("reply is not valid JSON")
+    try:
+        parsed = _Response.model_validate(raw)
+    except ValidationError as exc:
+        raise ValueError(f"reply does not match the expected schema: {exc}") from exc
     out: dict = {}
-    for v in (data.get("verdicts") or []):
-        sender = (v.get("sender") or "").strip().lower()
+    for v in parsed.verdicts:
+        sender = v.sender.strip().lower()
         if sender:
-            out[sender] = {"delete": bool(v.get("delete")),
-                           "reason": v.get("reason", ""),
-                           "confidence": v.get("confidence")}
+            out[sender] = {"delete": v.delete, "reason": v.reason,
+                           "confidence": v.confidence}
     return out
 
 
-def evaluate(report: dict, model_cfg: dict) -> dict:
-    """Call the LLM and return {verdicts, prompt_tokens, completion_tokens, cost}.
+def parse_verdicts(content: str) -> dict:
+    """Lenient parse: returns {} on any problem (no retry)."""
+    try:
+        return validate_verdicts(content)
+    except ValueError:
+        return {}
 
-    ``model_cfg`` is an llm.load_model() dict (model, api_key, api_base, costs).
-    Raises RuntimeError if the ``[ai]`` extra (litellm) is not installed.
+
+def evaluate(report: dict, model_cfg: dict, max_retries: int = 3) -> dict:
+    """Call the LLM (with up to ``max_retries`` attempts to get valid JSON).
+
+    Returns {verdicts, prompt_tokens, completion_tokens, cost} (tokens summed
+    across attempts). ``model_cfg`` is an llm.load_model() dict. Raises
+    RuntimeError if litellm (the ``[ai]`` extra) is missing or the model never
+    returns a schema-valid JSON reply.
     """
     try:
         import litellm
@@ -86,16 +118,29 @@ def evaluate(report: dict, model_cfg: dict) -> dict:
         kwargs["api_key"] = model_cfg["api_key"]
     if model_cfg.get("api_base"):
         kwargs["api_base"] = model_cfg["api_base"]
-    try:
-        resp = litellm.completion(response_format={"type": "json_object"}, **kwargs)
-    except Exception:  # pragma: no cover - model may not support response_format
-        resp = litellm.completion(**kwargs)
 
-    content = resp.choices[0].message.content
-    verdicts = parse_verdicts(content)
-    usage = getattr(resp, "usage", None)
-    pt = int(getattr(usage, "prompt_tokens", 0) or 0)
-    ct = int(getattr(usage, "completion_tokens", 0) or 0)
+    pt = ct = 0
+    verdicts = None
+    last_err = ""
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = litellm.completion(response_format={"type": "json_object"},
+                                      **kwargs)
+        except Exception:  # pragma: no cover - model may not support the param
+            resp = litellm.completion(**kwargs)
+        usage = getattr(resp, "usage", None)
+        pt += int(getattr(usage, "prompt_tokens", 0) or 0)
+        ct += int(getattr(usage, "completion_tokens", 0) or 0)
+        try:
+            verdicts = validate_verdicts(resp.choices[0].message.content)
+            break
+        except ValueError as exc:
+            last_err = str(exc)
+            continue
+    if verdicts is None:
+        raise RuntimeError(f"The model did not return valid JSON after "
+                           f"{max_retries} attempts ({last_err}).")
+
     cost = None
     if model_cfg.get("track_costs"):
         cost = round(pt / 1e6 * float(model_cfg.get("cost_input", 0) or 0)

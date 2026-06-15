@@ -443,7 +443,7 @@ tailwind.config = { theme: { extend: {
 <div id="tab-llm" class="hidden grid lg:grid-cols-2 gap-5">
   <section class="bg-panel border border-line rounded-xl p-5">
     <h2 class="font-display font-semibold text-brand-light mb-3">Add / edit a model</h2>
-    <p class="text-xs text-muted mb-3">The model used by <b>AI Cleanup</b>. Powered by <b>litellm</b>, so cloud and <b>local</b> models use the same form. The API key is stored in a local SQLite DB and can be <b>encrypted</b>. ⚠️ Remote models send email samples to that provider - for privacy prefer a <b>local</b> model (Ollama).</p>
+    <p class="text-xs text-muted mb-3">The model used by <b>AI Cleanup</b>. <b>Local-first &amp; BYOA</b> (Bring Your Own API key): run a free <b>local</b> model (Ollama) so nothing leaves your machine, or <b>bring your own key</b> for any cloud model (OpenAI, OpenRouter, ...). Powered by <b>litellm</b>, so both use the same form. The key is stored in a local SQLite DB and can be <b>encrypted</b>, and is <b>never committed</b>. ⚠️ Remote models send only sender <b>subjects + stats</b> (never the message body) to that provider - for full privacy prefer a <b>local</b> model.</p>
     <div class="grid grid-cols-2 gap-3">
       <label class="text-xs text-muted">Name <input id="llmName" class="field mt-1" placeholder="my-model"></label>
       <label class="text-xs text-muted">Type
@@ -679,11 +679,14 @@ function refreshConditional(){
   $('emptyFolder').disabled = ai;
   const empty=$('emptyFolder').checked;
   $('aiCleanup').disabled = empty;          // empty folder overrides everything
-  const off = empty || ai;                  // both ignore the match + other actions
-  $('scanMode').disabled=rule || off;
+  // AI Cleanup uses the match (filter, or whole folder when empty) exactly like
+  // Move, so it does NOT dim the match - only Empty folder does.
+  const matchOff = empty;
+  const off = empty || ai;                  // these actions are N/A under AI
+  $('scanMode').disabled=rule || matchOff;
   $('scanNote').classList.toggle('hidden', !rule);
   const full=$('scanMode').value==='full';
-  $('subdomains').disabled = rule || !full || off; if(rule || !full || off) $('subdomains').checked=false;
+  $('subdomains').disabled = rule || !full || matchOff; if(rule || !full || matchOff) $('subdomains').checked=false;
   const gmail=gmailHost();
   $('emptyNote').classList.toggle('hidden', !empty);
   $('moveMode').disabled=off; if(off)$('moveMode').checked=false;
@@ -693,7 +696,7 @@ function refreshConditional(){
   const gtrash=$('gmailTrash').checked;
   $('expunge').disabled = gtrash || move || off; if(gtrash||move||off)$('expunge').checked=false;
   $('expungeNote').classList.toggle('hidden', !gtrash);
-  $('paneTargets').classList.toggle('dim',off); $('paneRule').classList.toggle('dim',off);
+  $('paneTargets').classList.toggle('dim',matchOff); $('paneRule').classList.toggle('dim',matchOff);
   // Under AI Cleanup, Run does the AI flow (report + LLM + delete); Count is N/A.
   $('btnRun').title = ai ? 'AI Cleanup: heuristic + LLM, then delete the confirmed senders (dry-run simulates)' : '';
   $('btnCount').disabled = ai;
@@ -980,7 +983,8 @@ $('aiCleanup').onchange=refreshConditional;
 $('aiThreshold').oninput=()=>{ $('thrVal').textContent=parseFloat($('aiThreshold').value).toFixed(1); };
 $('aiModel').onchange=updateAiSecret;
 function aiPayload(){
-  return { sid:SID, folders:selectedFolders.length?selectedFolders:['INBOX'],
+  // Like Move: AI honors the active filter (targets/rule), or the whole folder.
+  return { sid:SID, ...matchPayload(), folders:selectedFolders.length?selectedFolders:['INBOX'],
     threshold:parseFloat($('aiThreshold').value)||6, sample_size:parseInt($('aiSample').value)||5,
     exclude:$('aiExclude').value, batch_size:parseInt($('batch').value)||500,
     model:$('aiModel').value||'', secret:$('aiSecret').value||'',

@@ -500,26 +500,40 @@ def build_ai_report(conn: imaplib.IMAP4_SSL, folders: list[str], *,
                     threshold: float = 6.0, sample_size: int = 5,
                     exclude: set[str] | None = None,
                     weights: dict | None = None,
+                    addresses: set[str] | None = None,
+                    domains: set[str] | None = None,
+                    exact_domains: set[str] | None = None,
+                    search_argument: str | None = None,
                     batch_size: int = UID_CHUNK_SIZE,
                     should_stop: StopCheck | None = None) -> dict:
     """Aggregate messages by sender and compute a 0-10 heuristic spam score.
 
-    Returns a JSON-friendly report; senders scoring >= ``threshold`` are flagged
-    (those are the ones worth sending to an LLM) and carry a small sample of
-    subjects. Local-only: no network, no LLM.
+    Scope: if a ``search_argument`` (rule) or ``addresses``/``domains`` (target
+    list) is given, only those messages are analysed; otherwise the **whole
+    folder** is analysed (like move-all). Returns a JSON-friendly report; senders
+    scoring >= ``threshold`` are flagged and carry a small sample of subjects.
+    Local-only: no network, no LLM.
     """
     weights = {**DEFAULT_WEIGHTS, **(weights or {})}
     exclude = {e.strip().lower() for e in (exclude or set()) if e.strip()}
+    has_filter = bool(search_argument or addresses or domains or exact_domains)
     agg: dict[str, dict] = {}
     for folder in folders:
         status, _ = conn.select(_quote_mailbox(folder), readonly=True)
         if status != "OK":
             logger.warning("Cannot open %r - skipping.", folder)
             continue
-        status, data = conn.uid("SEARCH", None, "ALL")
-        uids = data[0].split() if status == "OK" and data and data[0] else []
-        logger.info("AI report: scanning %d message(s) in %r ...",
-                    len(uids), folder)
+        if search_argument:
+            uids = sorted(search_rule(conn, search_argument), key=int)
+        elif addresses or domains or exact_domains:
+            uids = sorted(search_targets(conn, addresses or set(),
+                                         domains or set(), exact_domains or set(),
+                                         should_stop), key=int)
+        else:
+            status, data = conn.uid("SEARCH", None, "ALL")
+            uids = data[0].split() if status == "OK" and data and data[0] else []
+        logger.info("AI report: scanning %d message(s) in %r (%s) ...",
+                    len(uids), folder, "filtered" if has_filter else "whole folder")
         for sender, date_h, seen, unsub, bulk, subject in _fetch_sender_meta(
                 conn, uids, batch_size, should_stop):
             if sender.lower() in exclude:

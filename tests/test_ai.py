@@ -34,9 +34,64 @@ class FakeAIConn:
         return ("OK", [b""])
 
 
+class ScopingConn(FakeAIConn):
+    """Like FakeAIConn but honours SEARCH scope (FROM term / rule) and records it."""
+
+    def __init__(self, messages):
+        super().__init__(messages)
+        self.searches = []                 # every SEARCH argument tuple seen
+
+    def uid(self, cmd, *args):
+        if cmd == "SEARCH":
+            self.searches.append(args)
+            # args: (None, "ALL") | (None, "FROM", '"term"') | (None, *rule_parts)
+            if len(args) >= 2 and args[1] == "ALL":
+                wanted = list(range(len(self.messages)))
+            elif len(args) >= 3 and args[1] == "FROM":
+                term = args[2].strip('"').lower()
+                wanted = [i for i, m in enumerate(self.messages)
+                          if term in m.get("from", "").lower()]
+            else:                          # a compiled rule -> match SUBJECT term
+                term = (args[-1] or "").strip('"').lower()
+                wanted = [i for i, m in enumerate(self.messages)
+                          if term in m.get("subject", "").lower()]
+            ids = " ".join(str(i + 1) for i in wanted)
+            return ("OK", [ids.encode() if ids else None])
+        if cmd == "FETCH":
+            wanted = {int(x) for x in args[0].split(b",") if x}
+            status, out = super().uid(cmd, *args)
+            return (status, [t for i, t in enumerate(out, start=1) if i in wanted])
+        return super().uid(cmd, *args)
+
+
 class AiReportTests(unittest.TestCase):
     def _report(self, msgs, **kw):
         return core.build_ai_report(FakeAIConn(msgs), ["INBOX"], **kw)
+
+    def test_scope_whole_folder_when_no_filter(self):
+        msgs = [{"from": "a@x.com", "date": "", "subject": "s", "seen": False},
+                {"from": "b@y.com", "date": "", "subject": "s", "seen": False}]
+        conn = ScopingConn(msgs)
+        rep = core.build_ai_report(conn, ["INBOX"], threshold=0)
+        self.assertEqual(rep["total_senders"], 2)
+        self.assertEqual(conn.searches[0], (None, "ALL"))   # whole folder
+
+    def test_scope_by_target_addresses(self):
+        msgs = [{"from": "a@x.com", "date": "", "subject": "s", "seen": False},
+                {"from": "b@y.com", "date": "", "subject": "s", "seen": False}]
+        conn = ScopingConn(msgs)
+        rep = core.build_ai_report(conn, ["INBOX"], threshold=0,
+                                   addresses={"a@x.com"})
+        self.assertEqual([s["sender"] for s in rep["senders"]], ["a@x.com"])
+        self.assertNotIn((None, "ALL"), conn.searches)      # never scanned all
+
+    def test_scope_by_rule(self):
+        msgs = [{"from": "a@x.com", "date": "", "subject": "Invoice", "seen": False},
+                {"from": "b@y.com", "date": "", "subject": "Sale", "seen": False}]
+        conn = ScopingConn(msgs)
+        rep = core.build_ai_report(conn, ["INBOX"], threshold=0,
+                                   search_argument='SUBJECT "Invoice"')
+        self.assertEqual([s["sender"] for s in rep["senders"]], ["a@x.com"])
 
     def test_newsletter_flagged_friend_not(self):
         msgs = [
@@ -90,6 +145,89 @@ class LLMHelpersTests(unittest.TestCase):
     def test_parse_verdicts_bad_input(self):
         self.assertEqual(ai.parse_verdicts(""), {})
         self.assertEqual(ai.parse_verdicts("not json"), {})
+
+    def test_validate_verdicts_rejects_bad_json(self):
+        with self.assertRaises(ValueError):
+            ai.validate_verdicts("not json")
+
+    def test_validate_verdicts_rejects_bad_schema(self):
+        # "delete" must be a bool; a string that isn't bool-ish must fail.
+        with self.assertRaises(ValueError):
+            ai.validate_verdicts('{"verdicts":[{"sender":"a@b.com",'
+                                 '"delete":"maybe"}]}')
+
+    def test_validate_verdicts_ok(self):
+        out = ai.validate_verdicts('{"verdicts":[{"sender":"A@B.com",'
+                                   '"delete":true}]}')
+        self.assertTrue(out["a@b.com"]["delete"])
+
+    def test_evaluate_retries_then_succeeds(self):
+        """evaluate() retries the model until it returns valid JSON."""
+        replies = ["garbage", "still bad",
+                   '{"verdicts":[{"sender":"x@y.com","delete":true}]}']
+
+        class _Msg:
+            def __init__(self, c): self.content = c
+
+        class _Choice:
+            def __init__(self, c): self.message = _Msg(c)
+
+        class _Usage:
+            prompt_tokens = 10
+            completion_tokens = 5
+
+        class _Resp:
+            def __init__(self, c):
+                self.choices = [_Choice(c)]
+                self.usage = _Usage()
+
+        calls = {"n": 0}
+
+        def fake_completion(**kw):
+            r = _Resp(replies[calls["n"]])
+            calls["n"] += 1
+            return r
+
+        import sys
+        import types
+        fake = types.ModuleType("litellm")
+        fake.completion = fake_completion
+        sys.modules["litellm"] = fake
+        try:
+            report = {"senders": [{"sender": "x@y.com", "flagged": True,
+                      "count": 1, "unread_ratio": 1.0, "per_week": 1,
+                      "list_unsubscribe": True, "score": 9, "samples": []}]}
+            ev = ai.evaluate(report, {"model": "test/m"}, max_retries=3)
+            self.assertEqual(calls["n"], 3)
+            self.assertTrue(ev["verdicts"]["x@y.com"]["delete"])
+            self.assertEqual(ev["prompt_tokens"], 30)   # summed across attempts
+        finally:
+            del sys.modules["litellm"]
+
+    def test_evaluate_raises_after_max_retries(self):
+        class _Msg:
+            content = "never valid"
+
+        class _Choice:
+            message = _Msg()
+
+        class _Resp:
+            choices = [_Choice()]
+            usage = None
+
+        import sys
+        import types
+        fake = types.ModuleType("litellm")
+        fake.completion = lambda **kw: _Resp()
+        sys.modules["litellm"] = fake
+        try:
+            report = {"senders": [{"sender": "x@y.com", "flagged": True,
+                      "count": 1, "unread_ratio": 1.0, "per_week": 1,
+                      "list_unsubscribe": True, "score": 9, "samples": []}]}
+            with self.assertRaises(RuntimeError):
+                ai.evaluate(report, {"model": "test/m"}, max_retries=3)
+        finally:
+            del sys.modules["litellm"]
 
     def test_build_messages_only_flagged(self):
         report = {"senders": [

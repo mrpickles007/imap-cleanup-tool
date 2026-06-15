@@ -177,8 +177,20 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
     if cfg.get("encrypted"):
         print("[ERROR] Encrypted model configs can't run unattended.")
         return 2
+    # Scope like the Move feature: filter by --rule/--targets, else whole folder.
+    search_argument = None
+    addresses: set[str] = set()
+    domains: set[str] = set()
+    exact_domains: set[str] = set()
+    if args.rule:
+        search_argument = compile_search(parse_rule_expression(args.rule))
+    elif args.targets:
+        addresses, domains, exact_domains = load_targets(args.targets)
     report = core.build_ai_report(conn, folders, threshold=args.ai_threshold,
                                   sample_size=args.ai_sample, exclude={user},
+                                  addresses=addresses, domains=domains,
+                                  exact_domains=exact_domains,
+                                  search_argument=search_argument,
                                   batch_size=args.batch_size)
     try:
         ev = ai.evaluate(report, cfg)

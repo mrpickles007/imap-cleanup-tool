@@ -21,9 +21,14 @@ UI is an optional extra (FastAPI).
 - **Count** how many emails a filter matches before deleting anything.
 - **Move** matched emails to another folder instead of deleting them, and
   **create** new folders (or **labels** on Gmail) right from the app.
-- **AI Cleanup** (optional): score senders with a heuristic, then let an **LLM**
-  (cloud or **local** via Ollama) decide what is junk and delete it - with a
-  configurable threshold, a report-only mode, and per-model cost tracking.
+- 🤖 **AI Cleanup** (optional, and a bit magic): a **local** heuristic scores
+  every sender, then an **LLM** decides what is junk and deletes it - with a
+  configurable threshold, a report-only mode, and per-model cost tracking. It is
+  **local-first** (run a free local model via Ollama, nothing leaves your
+  machine) and **BYOA - Bring Your Own API key** (or plug in any cloud model,
+  OpenAI / OpenRouter / ..., with your own key). Only sender **subjects + stats**
+  are ever sent to a model, never message bodies. Works on a filter or a whole
+  folder - just like Move. See [AI Cleanup](#ai-cleanup).
 - **Gmail mode**: moves matches to Trash (the only way to truly delete on Gmail).
 - **Empty a whole folder** (e.g. Trash) without scanning.
 - **List senders** with counts and export them to CSV (with timestamp).
@@ -433,6 +438,12 @@ same Move setting and destination into the saved job).
 
 *Optional - install the AI extra:* `pip install "imap-cleanup-tool[ai]"`.
 
+> **Local-first, and BYOA (Bring Your Own API key).** AI Cleanup runs great on a
+> **free local model** (Ollama) so nothing ever leaves your machine - or you can
+> **bring your own API key** for any cloud model (OpenAI, OpenRouter, ...). Your
+> key, your model, your choice. Either way, only sender **subjects + stats** are
+> sent to the model - **never the message body**.
+
 AI Cleanup hands "which of these do I actually want?" to a model, safely:
 
 1. **Heuristic pre-filter (local).** Every sender gets a 0-10 **spam score** from
@@ -440,11 +451,16 @@ AI Cleanup hands "which of these do I actually want?" to a model, safely:
    messages, send **frequency**, `Precedence: bulk`, and sender patterns
    (`noreply@`, `newsletter@`...). Weights are calibrated and **tunable**.
 2. **LLM verdict.** Only senders at or above your **threshold** (default 6) are
-   sent to the model, with a few sample subjects each; it replies in strict JSON
-   which to delete.
+   sent to the model, with a few sample **subjects** each (never the body); it
+   replies in strict JSON which to delete. The reply is **validated with
+   pydantic**, and the model is **retried up to 3 times** before giving up.
 3. **Generate report** stops there (download the JSON; nothing changes). **Run**
    also deletes the confirmed senders (dry-run simulates; Gmail uses the Trash
    label). Your own address is always excluded - add more exclusions in the panel.
+
+Like **Move**, AI Cleanup honors the active **filter** (target list or rule) when
+one is set, or scans the **whole folder** when none is - so you can point it at a
+single noisy domain or let it sweep everything.
 
 **Models** are configured in the **LLM** tab (powered by litellm):
 
