@@ -461,8 +461,14 @@ AI Cleanup hands "which of these do I actually want?" to a model, safely:
    pydantic**, and the model is **retried up to 3 times** before giving up.
 3. **Generate report** stops there (download a **CSV** you can open in Excel; the
    log also shows how many emails are potentially deletable). **Run**
-   also deletes the confirmed senders (dry-run simulates; Gmail uses the Trash
-   label).
+   also deletes the confirmed senders (dry-run simulates).
+
+AI Cleanup deletes the **same way as a normal run**: on a regular server the
+messages are flagged `\Deleted` and, if you tick **Expunge**, immediately removed
+for good (otherwise they linger until an expunge). On **Gmail** they are moved to
+the **Trash** and are not permanently gone until the Trash is emptied (the UI
+reminds you and offers to set that up - see [Gmail notes](#gmail-notes)). On the
+CLI add `--expunge` for permanent removal.
 
 Your own mailbox address is **pre-filled in the Exclude box when you connect**, so
 self-sent mail is skipped by default. **Remove that line** if you want your own
@@ -634,6 +640,12 @@ saved job to view (or download) its run history.
    `[Gmail]/All Mail`, `[Gmail]/Spam` (localised, e.g. `[Gmail]/Cestino`).
 4. Use `--gmail-trash`: a plain delete in `INBOX` only removes the label, not
    the message. Target `[Gmail]/All Mail` to catch archived mail too.
+5. **Trash is not permanent deletion.** On Gmail, deleting (including AI Cleanup)
+   moves mail to `[Gmail]/Trash`; it stays there until the Trash is emptied. The
+   web UI shows a reminder after any run that trashed mail and offers to select
+   the Trash folder with **Empty folder** ticked - press Run to remove it for
+   good. On the CLI, run `--empty-folder` against `[Gmail]/Trash` (or wait for
+   Gmail's automatic 30-day purge).
 
 ---
 

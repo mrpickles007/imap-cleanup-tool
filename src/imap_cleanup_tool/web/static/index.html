@@ -694,7 +694,10 @@ function refreshConditional(){
   $('moveDestRow').classList.toggle('hidden', !move);
   $('gmailTrash').disabled = !gmail || move || off; if(!gmail||move||off)$('gmailTrash').checked=false;
   const gtrash=$('gmailTrash').checked;
-  $('expunge').disabled = gtrash || move || off; if(gtrash||move||off)$('expunge').checked=false;
+  // Expunge stays available under AI Cleanup (so AI deletions can be permanent),
+  // except on Gmail where AI always uses Trash, making expunge moot.
+  const expungeOff = empty || move || (ai && gmail);
+  $('expunge').disabled = gtrash || expungeOff; if(gtrash||expungeOff)$('expunge').checked=false;
   $('expungeNote').classList.toggle('hidden', !gtrash);
   $('paneTargets').classList.toggle('dim',matchOff); $('paneRule').classList.toggle('dim',matchOff);
   // Under AI Cleanup, Run does the AI flow (report + LLM + delete); Count is N/A.
@@ -816,15 +819,39 @@ function setBusy(busy){
   $('btnRun').textContent= busy?'Working…':'▶ Run';
 }
 function pollDelay(){ return document.hidden ? 3000 : 1300; }
-function startPolling(){ setBusy(true); pollLog(); }
+let gmailTrashSeen=false;
+function startPolling(){ gmailTrashSeen=false; setBusy(true); pollLog(); }
 async function pollLog(){
   try{
     const d=await (await fetch(`/api/log/${SID}?cursor=${logCursor}`)).json();
     if(typeof d.cursor==='number') logCursor=d.cursor;
-    if(d.lines && d.lines.length) pushLines(d.lines);
+    if(d.lines && d.lines.length){ pushLines(d.lines);
+      // Detect a real (non dry-run) move to Gmail Trash so we can remind the user.
+      if(d.lines.some(l=> l.indexOf('Gmail Trash')!==-1 && l.indexOf('[DRY-RUN]')===-1)) gmailTrashSeen=true;
+    }
     if(d.running){ poll=setTimeout(pollLog, pollDelay()); }
-    else { poll=null; if(d.status && d.status!=='running') log('- '+d.status+(d.error?(': '+d.error):'')+' -'); setBusy(false); curRunId=null; persistLog(); }
+    else { poll=null; if(d.status && d.status!=='running') log('- '+d.status+(d.error?(': '+d.error):'')+' -'); setBusy(false); curRunId=null; persistLog();
+      if(gmailTrashSeen && d.status==='done'){ gmailTrashSeen=false; showTrashNotice(); }
+    }
   }catch(e){ poll=null; setBusy(false); log('[ERROR] '+e.message); }
+}
+// Gmail moves "deleted" mail to Trash; it is not gone until the Trash is emptied.
+// After any run (normal or AI) that trashed mail, offer to set up the cleanup.
+async function showTrashNotice(){
+  const ok = await confirmDialog({
+    title:'Moved to Gmail Trash',
+    message:'On Gmail, deleted emails are moved to the Trash - they are NOT permanently removed yet. To delete them for good you must empty the Trash folder (select Trash, tick "Empty folder", then Run). Set that up now?',
+    okText:'Select Trash + Empty folder'});
+  if(!ok) return;
+  const trash = knownFolders.find(f=>/(^|\/)\[?gmail\]?\/?trash$/i.test(f.name))
+             || knownFolders.find(f=>/trash$/i.test(f.name))
+             || knownFolders.find(f=>/trash/i.test(f.name));
+  if(!trash){ log('[INFO] No Trash folder found automatically - select it manually, tick "Empty folder", then Run.'); return; }
+  selectedFolders=[trash.name]; renderFolders();
+  if($('aiCleanup').checked) $('aiCleanup').checked=false;   // empty-folder overrides AI
+  $('emptyFolder').checked=true; refreshConditional();
+  $('emptyFolder').scrollIntoView({behavior:'smooth',block:'center'});
+  log('Trash "'+trash.name+'" selected and "Empty folder" enabled - press Run to permanently delete the trashed emails.');
 }
 async function startJob(path, body){
   if(!SID){ log('[ERROR] Not connected.'); return; }
