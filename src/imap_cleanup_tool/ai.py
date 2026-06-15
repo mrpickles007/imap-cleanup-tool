@@ -138,17 +138,30 @@ def _evaluate_batch(litellm, base_kwargs: dict, senders: list[dict],
                        f"{max_retries} attempts ({last_err}).")
 
 
+def _batch_cost(model_cfg: dict, pt: int, ct: int):
+    """Cost for pt/ct tokens, or None when the model has no cost tracking."""
+    if not model_cfg.get("track_costs"):
+        return None
+    return round(pt / 1e6 * float(model_cfg.get("cost_input", 0) or 0)
+                 + ct / 1e6 * float(model_cfg.get("cost_output", 0) or 0), 6)
+
+
 def evaluate(report: dict, model_cfg: dict, max_retries: int = 3,
              batch_size: int = LLM_BATCH_SIZE, should_stop=None,
-             timeout: int = LLM_TIMEOUT) -> dict:
+             timeout: int = LLM_TIMEOUT, record_cost=None) -> dict:
     """Ask the LLM which flagged senders to delete, in batches.
 
     Flagged senders are sent ``batch_size`` at a time (each call retried up to
     ``max_retries`` for valid JSON, with a per-request ``timeout``); progress is
     logged and ``should_stop`` is honored between batches. Returns
     {verdicts, prompt_tokens, completion_tokens, cost}. ``model_cfg`` is an
-    llm.load_model() dict. Raises RuntimeError if litellm (the ``[ai]`` extra) is
-    missing or a batch never returns schema-valid JSON.
+    llm.load_model() dict.
+
+    ``record_cost(prompt_tokens, completion_tokens, cost)`` is called **after each
+    batch** so token usage is tracked even if a later batch fails or the run is
+    stopped (the API has already billed for completed batches). Raises
+    RuntimeError if litellm (the ``[ai]`` extra) is missing or a batch never
+    returns schema-valid JSON.
     """
     try:
         import litellm
@@ -175,12 +188,10 @@ def evaluate(report: dict, model_cfg: dict, max_retries: int = 3,
         verdicts.update(v)
         pt += bpt
         ct += bct
+        if record_cost is not None and (bpt or bct):
+            record_cost(bpt, bct, _batch_cost(model_cfg, bpt, bct) or 0)
         logger.info("LLM evaluated %d/%d flagged sender(s) ...",
                     min(start + batch_size, total), total)
 
-    cost = None
-    if model_cfg.get("track_costs"):
-        cost = round(pt / 1e6 * float(model_cfg.get("cost_input", 0) or 0)
-                     + ct / 1e6 * float(model_cfg.get("cost_output", 0) or 0), 6)
     return {"verdicts": verdicts, "prompt_tokens": pt,
-            "completion_tokens": ct, "cost": cost}
+            "completion_tokens": ct, "cost": _batch_cost(model_cfg, pt, ct)}

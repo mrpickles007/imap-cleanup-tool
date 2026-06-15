@@ -250,14 +250,15 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
 
     ev = None
     if cfg is not None:
+        # Record cost per batch so a failed/interrupted run still tracks usage.
+        recorder = None
+        if cfg.get("track_costs"):
+            recorder = lambda p, c, co: log_cost(args.ai_model, p, c, co)
         try:
-            ev = ai.evaluate(report, cfg)
+            ev = ai.evaluate(report, cfg, record_cost=recorder)
         except RuntimeError as exc:
             print(f"[ERROR] {exc}")
             return 5
-        if cfg.get("track_costs"):
-            log_cost(args.ai_model, ev["prompt_tokens"],
-                     ev["completion_tokens"], ev["cost"] or 0)
         for s in report["senders"]:
             if s.get("flagged"):
                 s["verdict"] = ev["verdicts"].get(s["sender"].lower())

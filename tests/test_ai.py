@@ -287,6 +287,43 @@ class LLMHelpersTests(unittest.TestCase):
         finally:
             del sys.modules["litellm"]
 
+    def test_evaluate_records_cost_per_batch(self):
+        import sys
+        import types
+
+        def fake_completion(**kw):
+            import json as _j
+            user = kw["messages"][1]["content"]
+            items = _j.loads(user.split("\n", 1)[1])
+            verdicts = [{"sender": it["sender"], "delete": False} for it in items]
+
+            class _Resp:
+                choices = [type("C", (), {"message": type(
+                    "M", (), {"content": _j.dumps({"verdicts": verdicts})})()})()]
+                usage = type("U", (), {"prompt_tokens": 1000,
+                                       "completion_tokens": 500})()
+            return _Resp()
+
+        fake = types.ModuleType("litellm")
+        fake.completion = fake_completion
+        sys.modules["litellm"] = fake
+        recorded = []
+        try:
+            senders = [{"sender": f"s{i}@x.com", "flagged": True, "count": 1,
+                        "unread_ratio": 1.0, "per_week": 1,
+                        "list_unsubscribe": True, "score": 9, "samples": []}
+                       for i in range(3)]
+            cfg = {"model": "m", "track_costs": True,
+                   "cost_input": 0.15, "cost_output": 0.60}
+            ev = ai.evaluate({"senders": senders}, cfg, batch_size=2,
+                             record_cost=lambda p, c, co: recorded.append((p, c, co)))
+            self.assertEqual(len(recorded), 2)            # ceil(3/2) batches
+            # per-batch cost logged; total matches the sum
+            self.assertAlmostEqual(sum(r[2] for r in recorded), ev["cost"], places=6)
+            self.assertEqual(ev["prompt_tokens"], 2000)   # 2 batches * 1000
+        finally:
+            del sys.modules["litellm"]
+
     def test_evaluate_stops_between_batches(self):
         import sys
         import types

@@ -642,8 +642,14 @@ def create_app():
         if model_cfg:
             core.logger.info("Asking %s to evaluate %d flagged sender(s) ...",
                              model_cfg["model"], report["flagged_count"])
+            # Log cost per batch so even a stopped/failed run records what the API
+            # already billed (the final summary below covers a clean finish).
+            recorder = None
+            if model_cfg.get("track_costs"):
+                recorder = lambda p, c, co: llm.log_cost(body.model, p, c, co)
             try:
-                ev = ai.evaluate(report, model_cfg, should_stop=rs.stop.is_set)
+                ev = ai.evaluate(report, model_cfg, should_stop=rs.stop.is_set,
+                                 record_cost=recorder)
             except core.StopRequested:
                 raise
             except Exception as exc:  # pylint: disable=broad-exception-caught
@@ -655,9 +661,6 @@ def create_app():
                              "prompt_tokens": ev["prompt_tokens"],
                              "completion_tokens": ev["completion_tokens"],
                              "cost": ev["cost"]}
-            if model_cfg.get("track_costs"):
-                llm.log_cost(body.model, ev["prompt_tokens"],
-                             ev["completion_tokens"], ev["cost"] or 0)
             core.logger.info("LLM done: %d to delete · %d/%d tokens · cost %s",
                              sum(1 for v in ev["verdicts"].values() if v["delete"]),
                              ev["prompt_tokens"], ev["completion_tokens"],
