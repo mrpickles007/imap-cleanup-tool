@@ -50,6 +50,14 @@ def _connect() -> sqlite3.Connection:
         " cost_input REAL NOT NULL DEFAULT 0,"
         " cost_output REAL NOT NULL DEFAULT 0,"
         " created_at TEXT)")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS costs ("
+        " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " model_name TEXT NOT NULL,"
+        " ts TEXT,"
+        " prompt_tokens INTEGER NOT NULL DEFAULT 0,"
+        " completion_tokens INTEGER NOT NULL DEFAULT 0,"
+        " cost REAL NOT NULL DEFAULT 0)")
     return conn
 
 
@@ -163,3 +171,42 @@ def delete_model(name: str) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def log_cost(model_name: str, prompt_tokens: int, completion_tokens: int,
+             cost: float) -> None:
+    """Append one LLM call to the persistent per-model cost log."""
+    conn = _connect()
+    try:
+        conn.execute(
+            "INSERT INTO costs (model_name, ts, prompt_tokens, completion_tokens,"
+            " cost) VALUES (?, ?, ?, ?, ?)",
+            (model_name, datetime.now().astimezone().isoformat(timespec="seconds"),
+             int(prompt_tokens or 0), int(completion_tokens or 0),
+             float(cost or 0)))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def cost_log(model_name: str, limit: int = 200) -> dict:
+    """Return recent cost entries for a model plus an all-time total."""
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT ts, prompt_tokens, completion_tokens, cost FROM costs "
+            "WHERE model_name=? ORDER BY id DESC LIMIT ?",
+            (model_name, int(limit))).fetchall()
+        tot = conn.execute(
+            "SELECT COUNT(*) c, COALESCE(SUM(prompt_tokens),0) pt,"
+            " COALESCE(SUM(completion_tokens),0) ct, COALESCE(SUM(cost),0) cost"
+            " FROM costs WHERE model_name=?", (model_name,)).fetchone()
+    finally:
+        conn.close()
+    return {"model": model_name,
+            "entries": [{"ts": r["ts"], "prompt_tokens": r["prompt_tokens"],
+                         "completion_tokens": r["completion_tokens"],
+                         "cost": r["cost"]} for r in rows],
+            "total": {"calls": tot["c"], "prompt_tokens": tot["pt"],
+                      "completion_tokens": tot["ct"],
+                      "cost": round(tot["cost"], 6)}}

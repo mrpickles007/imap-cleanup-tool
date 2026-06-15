@@ -238,6 +238,7 @@ tailwind.config = { theme: { extend: {
           <span class="tip"><span class="ic">i</span><span class="bub">The LLM that judges the flagged senders. Configure models in the <b>LLM</b> tab. The local heuristic report works even without a model.</span></span>
           <select id="aiModel" class="field mt-1"></select>
         </label>
+        <input id="aiSecret" type="password" class="field hidden" placeholder="model password (encrypted model)">
         <label class="text-xs text-muted block">Spam-score threshold: <b id="thrVal" class="text-cream">6.0</b> / 10
           <span class="tip"><span class="ic">i</span><span class="bub">Only senders scoring at or above this are flagged (and later sent to the LLM / deleted on Run). Higher = stricter, fewer senders.</span></span>
           <input id="aiThreshold" type="range" min="0" max="10" step="0.5" value="6" class="w-full mt-1">
@@ -668,9 +669,10 @@ function refreshConditional(){
   $('expunge').disabled = gtrash || move || off; if(gtrash||move||off)$('expunge').checked=false;
   $('expungeNote').classList.toggle('hidden', !gtrash);
   $('paneTargets').classList.toggle('dim',off); $('paneRule').classList.toggle('dim',off);
-  // Phase 1: AI Cleanup does report-only, so the match-based Run/Count are disabled while it's on.
-  $('btnRun').disabled = ai; $('btnRun').title = ai ? 'With AI Cleanup, use "Generate report" (AI deletion arrives with model config)' : '';
+  // Under AI Cleanup, Run does the AI flow (report + LLM + delete); Count is N/A.
+  $('btnRun').title = ai ? 'AI Cleanup: heuristic + LLM, then delete the confirmed senders (dry-run simulates)' : '';
   $('btnCount').disabled = ai;
+  updateAiSecret();
 }
 
 /* ---------- folders ---------- */
@@ -781,7 +783,7 @@ function optionsPayload(){
 
 /* ---------- run + polling + stop ---------- */
 function setBusy(busy){
-  $('btnRun').disabled=busy || $('aiCleanup').checked; $('btnSenders').disabled=busy;
+  $('btnRun').disabled=busy; $('btnSenders').disabled=busy;
   $('btnStop').classList.toggle('hidden',!busy);
   $('btnRun').textContent= busy?'Working…':'▶ Run';
 }
@@ -936,12 +938,19 @@ $('moveDestNew').oninput=updateJobSummary;
 /* ---------- AI cleanup (heuristic report) ---------- */
 $('aiCleanup').onchange=refreshConditional;
 $('aiThreshold').oninput=()=>{ $('thrVal').textContent=parseFloat($('aiThreshold').value).toFixed(1); };
+$('aiModel').onchange=updateAiSecret;
 function aiPayload(){
   return { sid:SID, folders:selectedFolders.length?selectedFolders:['INBOX'],
     threshold:parseFloat($('aiThreshold').value)||6, sample_size:parseInt($('aiSample').value)||5,
     exclude:$('aiExclude').value, batch_size:parseInt($('batch').value)||500,
+    model:$('aiModel').value||'', secret:$('aiSecret').value||'',
+    dry_run:$('dryRun').checked, expunge:$('expunge').checked,
     weights:{ list_unsubscribe:parseFloat($('wUnsub').value)||0, unread_ratio:parseFloat($('wUnread').value)||0,
       bulk:parseFloat($('wBulk').value)||0, sender_pattern:parseFloat($('wPattern').value)||0, frequency:parseFloat($('wFreq').value)||0 } };
+}
+function updateAiSecret(){
+  const sel=$('aiModel'); const m=LLM_MODELS.find(x=>x.name===(sel?sel.value:''));
+  if($('aiSecret')) $('aiSecret').classList.toggle('hidden', !(m && m.encrypted));
 }
 $('btnAiReport').onclick=async()=>{ if(!SID){ log('[ERROR] Not connected.'); return; } if(!(await ensureFolderChosen())) return;
   const p=aiPayload(); log('Generating AI report on: '+p.folders.join(', ')+' …'); startJob('/api/ai-report', p); };
@@ -960,6 +969,7 @@ async function loadLLMModels(){
     if(!LLM_MODELS.length){ const o=document.createElement('option'); o.value=''; o.textContent='— no model configured (see LLM tab) —'; sel.appendChild(o); }
     LLM_MODELS.forEach(m=>{ const o=document.createElement('option'); o.value=m.name; o.textContent=m.name+' ('+m.model+')'; sel.appendChild(o); });
     if(cur && LLM_MODELS.some(m=>m.name===cur)) sel.value=cur;
+    updateAiSecret();
   }
   const box=$('llmList');
   if(box){ box.innerHTML='';
@@ -1036,6 +1046,14 @@ async function ensureFolderChosen(){
   return await confirmDialog({title:'No folder selected', message:'You have not selected any folder. The action will run on INBOX by default.\n\nProceed on INBOX?', okText:'Use INBOX'});
 }
 $('btnRun').onclick=async ()=>{
+  if($('aiCleanup').checked){
+    if(!SID){ log('[ERROR] Not connected.'); return; }
+    if(!(await ensureFolderChosen())) return;
+    if(!$('aiModel').value){ log('[ERROR] Choose a model in the AI panel (configure one in the LLM tab).'); return; }
+    const ap=aiPayload();
+    if(!ap.dry_run && !(await confirmDialog({title:'AI Cleanup - not a dry-run', message:'The AI will judge the flagged senders and DELETE the confirmed ones in:\n'+ap.folders.join(', ')+'\n\nContinue?', okText:'Run AI cleanup', danger:true}))) return;
+    log((ap.dry_run?'[DRY-RUN] ':'')+'AI Cleanup on: '+ap.folders.join(', ')+' …'); startJob('/api/ai-run', ap); return;
+  }
   if(!(await ensureFolderChosen())) return;
   const p=Object.assign({sid:SID}, matchPayload(), optionsPayload());
   if(!p.dry_run){

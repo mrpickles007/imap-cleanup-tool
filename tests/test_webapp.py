@@ -199,6 +199,10 @@ class WebApiTests(unittest.TestCase):
         r2 = self.client.get("/api/ai-report.json/nope")
         self.assertEqual(r2.status_code, 440)
 
+    def test_ai_run_without_session_is_rejected(self):
+        r = self.client.post("/api/ai-run", json={"sid": "nope", "model": "m"})
+        self.assertEqual(r.status_code, 440)
+
     def test_llm_models_crud(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(llm, "config_dir", return_value=Path(tmp)):

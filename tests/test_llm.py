@@ -53,6 +53,17 @@ class LLMConfigTests(unittest.TestCase):
                 llm.delete_model("m")
                 self.assertEqual(llm.list_models(), [])
 
+    def test_cost_log(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(llm, "config_dir", return_value=Path(tmp)):
+                llm.log_cost("m", 1000, 200, 0.05)
+                llm.log_cost("m", 500, 100, 0.02)
+                log = llm.cost_log("m")
+                self.assertEqual(log["total"]["calls"], 2)
+                self.assertEqual(log["total"]["prompt_tokens"], 1500)
+                self.assertAlmostEqual(log["total"]["cost"], 0.07)
+                self.assertEqual(len(log["entries"]), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

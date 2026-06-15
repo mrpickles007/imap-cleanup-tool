@@ -33,7 +33,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from . import __version__, core, llm, profiles, scheduler
+from . import __version__, ai, core, llm, profiles, scheduler
 from .rules import RuleError, compile_search, node_from_dict
 from .targets import parse_targets_text
 
@@ -261,6 +261,10 @@ def create_app():
         exclude: str = ""                    # one address per line
         weights: dict | None = None
         batch_size: int = core.UID_CHUNK_SIZE
+        model: str = ""                      # LLM config name (optional)
+        secret: str = ""                     # password for an encrypted model
+        dry_run: bool = True                 # used by /api/ai-run
+        expunge: bool = False                # used by /api/ai-run
 
     class LLMModelIn(BaseModel):
         name: str
@@ -593,21 +597,60 @@ def create_app():
         run_state = _start_run(sess, "count", work)
         return {"run_id": run_state.run_id}
 
+    def _load_ai_model(body: "AIReportIn"):
+        """Load the chosen LLM config (raising 400 on problems), or None."""
+        name = (body.model or "").strip()
+        if not name:
+            return None
+        try:
+            return llm.load_model(name, body.secret)
+        except llm.LLMError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    def _ai_build(sess: "Session", body: "AIReportIn", folders, exclude,
+                  rs: "RunState", model_cfg):
+        """Heuristic report + optional LLM evaluation (attaches verdicts)."""
+        report = core.build_ai_report(
+            sess.conn, folders, threshold=body.threshold,
+            sample_size=body.sample_size, exclude=exclude,
+            weights=body.weights, batch_size=body.batch_size,
+            should_stop=rs.stop.is_set)
+        if model_cfg:
+            core.logger.info("Asking %s to evaluate %d flagged sender(s) ...",
+                             model_cfg["model"], report["flagged_count"])
+            try:
+                ev = ai.evaluate(report, model_cfg)
+            except (RuntimeError, Exception) as exc:  # pylint: disable=broad-exception-caught
+                raise RuntimeError(f"LLM call failed: {exc}") from exc
+            for s in report["senders"]:
+                if s.get("flagged"):
+                    s["verdict"] = ev["verdicts"].get(s["sender"].lower())
+            report["llm"] = {"model": model_cfg["model"],
+                             "prompt_tokens": ev["prompt_tokens"],
+                             "completion_tokens": ev["completion_tokens"],
+                             "cost": ev["cost"]}
+            if model_cfg.get("track_costs"):
+                llm.log_cost(body.model, ev["prompt_tokens"],
+                             ev["completion_tokens"], ev["cost"] or 0)
+            core.logger.info("LLM done: %d to delete · %d/%d tokens · cost %s",
+                             sum(1 for v in ev["verdicts"].values() if v["delete"]),
+                             ev["prompt_tokens"], ev["completion_tokens"],
+                             ev["cost"])
+        return report
+
     @app.post("/api/ai-report")
     def ai_report(body: AIReportIn) -> dict[str, Any]:
-        """Build the local heuristic per-sender spam-score report (no LLM)."""
+        """Heuristic per-sender report; if a model is chosen, also LLM verdicts.
+        Report only - never deletes."""
         sess = _session(body.sid)
         if sess.run and sess.run.status == "running":
             raise HTTPException(409, "An operation is already running.")
         folders = body.folders or ["INBOX"]
         exclude = set((body.exclude or "").splitlines()) | {sess.user}
+        model_cfg = _load_ai_model(body)
 
         def work(rs: RunState) -> None:
-            report = core.build_ai_report(
-                sess.conn, folders, threshold=body.threshold,
-                sample_size=body.sample_size, exclude=exclude,
-                weights=body.weights, batch_size=body.batch_size,
-                should_stop=rs.stop.is_set)
+            report = _ai_build(sess, body, folders, exclude, rs, model_cfg)
             rs.result = {"report": report}
             core.logger.info("=> AI report ready: %d of %d sender(s) flagged "
                              "(threshold %.1f). Use 'Download report' for the JSON.",
@@ -616,6 +659,45 @@ def create_app():
 
         run_state = _start_run(sess, "ai-report", work)
         return {"run_id": run_state.run_id}
+
+    @app.post("/api/ai-run")
+    def ai_run(body: AIReportIn) -> dict[str, Any]:
+        """Heuristic + LLM evaluation, then DELETE the senders the LLM confirms."""
+        sess = _session(body.sid)
+        if sess.run and sess.run.status == "running":
+            raise HTTPException(409, "An operation is already running.")
+        if not (body.model or "").strip():
+            raise HTTPException(400, "Choose a model for AI Cleanup (LLM tab).")
+        folders = body.folders or ["INBOX"]
+        exclude = set((body.exclude or "").splitlines()) | {sess.user}
+        model_cfg = _load_ai_model(body)
+        gmail = "gmail" in (sess.host or "").lower()
+
+        def work(rs: RunState) -> None:
+            report = _ai_build(sess, body, folders, exclude, rs, model_cfg)
+            confirmed = {s["sender"].lower() for s in report["senders"]
+                         if s.get("flagged") and (s.get("verdict") or {}).get("delete")}
+            rs.result = {"report": report, "to_delete": sorted(confirmed)}
+            if not confirmed:
+                core.logger.info("=> AI confirmed nothing to delete.")
+                return
+            core.logger.info("AI confirmed %d sender(s) to delete.", len(confirmed))
+            total = 0
+            for folder in folders:
+                total += core.process_folder(
+                    sess.conn, folder, addresses=confirmed, dry_run=body.dry_run,
+                    expunge=body.expunge, gmail_trash=gmail,
+                    batch_size=body.batch_size, scan_mode="search",
+                    should_stop=rs.stop.is_set)
+            verb = "would be deleted" if body.dry_run else "deleted"
+            core.logger.info("=> AI Cleanup: %d message(s) %s.", total, verb)
+
+        run_state = _start_run(sess, "ai-run", work)
+        return {"run_id": run_state.run_id}
+
+    @app.get("/api/llm-costs/{name}")
+    def llm_costs(name: str) -> dict[str, Any]:
+        return llm.cost_log(name)
 
     @app.get("/api/ai-report.json/{sid}")
     def ai_report_json(sid: str) -> Response:

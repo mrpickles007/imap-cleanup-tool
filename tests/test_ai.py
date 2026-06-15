@@ -2,7 +2,7 @@
 
 import unittest
 
-from imap_cleanup_tool import core
+from imap_cleanup_tool import ai, core
 
 
 class FakeAIConn:
@@ -72,6 +72,38 @@ class AiReportTests(unittest.TestCase):
             "list_unsubscribe": 1, "unread_ratio": 0, "bulk": 0,
             "sender_pattern": 0, "frequency": 0})
         self.assertEqual(rep["senders"][0]["score"], 10.0)
+
+
+class LLMHelpersTests(unittest.TestCase):
+    def test_parse_verdicts_plain(self):
+        out = ai.parse_verdicts(
+            '{"verdicts":[{"sender":"A@B.com","delete":true,"reason":"junk",'
+            '"confidence":0.9},{"sender":"c@d.com","delete":false}]}')
+        self.assertTrue(out["a@b.com"]["delete"])      # lowercased key
+        self.assertFalse(out["c@d.com"]["delete"])
+
+    def test_parse_verdicts_tolerates_fences_and_prose(self):
+        out = ai.parse_verdicts(
+            'Sure!\n```json\n{"verdicts":[{"sender":"x@y.com","delete":true}]}\n```')
+        self.assertTrue(out["x@y.com"]["delete"])
+
+    def test_parse_verdicts_bad_input(self):
+        self.assertEqual(ai.parse_verdicts(""), {})
+        self.assertEqual(ai.parse_verdicts("not json"), {})
+
+    def test_build_messages_only_flagged(self):
+        report = {"senders": [
+            {"sender": "spam@x.com", "flagged": True, "count": 5,
+             "unread_ratio": 1.0, "per_week": 3, "list_unsubscribe": True,
+             "score": 9, "samples": [{"subject": "Sale"}]},
+            {"sender": "friend@x.com", "flagged": False, "count": 1,
+             "unread_ratio": 0, "per_week": 0.1, "list_unsubscribe": False,
+             "score": 1, "samples": []},
+        ]}
+        system, user = ai.build_messages(report)
+        self.assertIn("STRICT JSON", system)
+        self.assertIn("spam@x.com", user)
+        self.assertNotIn("friend@x.com", user)
 
 
 if __name__ == "__main__":
