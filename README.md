@@ -2,7 +2,7 @@
   <img src="https://raw.githubusercontent.com/mrpickles007/imap-cleanup-tool/main/src/imap_cleanup_tool/assets/logo.png" alt="IMAP Cleanup Tool logo" width="360">
 </p>
 
-<h1 align="center">IMAP Cleaner</h1>
+<h1 align="center">IMAP Cleanup Tool</h1>
 
 <p align="center">
   <a href="https://pypi.org/project/imap-cleanup-tool/"><img src="https://img.shields.io/pypi/v/imap-cleanup-tool" alt="PyPI version"></a>
