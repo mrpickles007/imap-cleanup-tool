@@ -459,11 +459,23 @@ AI Cleanup hands "which of these do I actually want?" to a model, safely:
    sent to the model, with a few sample **subjects** each (never the body); it
    replies in strict JSON which to delete. The reply is **validated with
    pydantic**, and the model is **retried up to 3 times** before giving up.
-3. **Generate report** stops there (download a **CSV** you can open in Excel; the
-   log also shows how many emails are potentially deletable). **Run**
-   also deletes the confirmed senders (dry-run simulates). Tick **Skip LLM
-   (heuristic only)** to generate the report from the local score alone - no LLM
-   call, so it is free and much faster (CLI: `--ai-report-only` without a model).
+3. **Verdict to action** - see the two buttons below.
+
+### Generate report vs Run
+
+- **Generate report** - builds the report and **changes nothing**. By default it
+  also asks the LLM for a verdict on each flagged sender (so the report shows what
+  *would* be deleted); download it as **CSV** (Excel-friendly), and the log shows
+  how many emails are potentially deletable. CLI: `--ai-cleanup --ai-report-only`.
+- **Skip LLM (heuristic only)** - a small checkbox next to the buttons. When
+  ticked, **Generate report uses only the local heuristic score** - **no LLM call**,
+  so it is free, much faster, and nothing leaves your machine; the report simply
+  has no per-sender AI verdicts. CLI: `--ai-report-only` *without* `--ai-model`.
+- **Run** - builds the report **and deletes** the senders the LLM confirms
+  (dry-run simulates). **Run always calls the chosen LLM model, even if "Skip LLM"
+  is ticked** - deleting is driven by the LLM verdict, so a model is required for
+  Run. "Skip LLM" only affects *Generate report*, never *Run*. CLI: `--ai-cleanup
+  --ai-model NAME` (omit `--dry-run` to actually delete).
 
 AI Cleanup deletes the **same way as a normal run**: on a regular server the
 messages are flagged `\Deleted` and, if you tick **Expunge**, immediately removed
