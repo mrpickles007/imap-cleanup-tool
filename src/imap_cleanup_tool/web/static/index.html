@@ -47,6 +47,26 @@ tailwind.config = { theme: { extend: {
   .tab{padding:7px 16px;border-radius:9px;font-weight:600;color:#94a0bd;cursor:pointer}
   .tab.active{background:#1890d8;color:#0b1020}
   .dim{opacity:.45}
+  /* Guided tour (driver.js) themed to the web UI */
+  .driver-popover.icw-tour{background:#111927;color:#eef1f7;border:1px solid #27324a;border-radius:14px;
+    box-shadow:0 22px 55px rgba(0,0,0,.55);font-family:"Inter",system-ui,sans-serif;max-width:340px}
+  .driver-popover.icw-tour .driver-popover-title{font-family:"Sora",system-ui,sans-serif;font-weight:700;font-size:16px;color:#fff;margin-bottom:4px}
+  .driver-popover.icw-tour .driver-popover-description{color:#c4ccde;font-size:13.5px;line-height:1.55}
+  .driver-popover.icw-tour .driver-popover-description b{color:#eef1f7}
+  .driver-popover.icw-tour .driver-popover-progress-text{color:#94a0bd;font-size:12px;font-weight:600}
+  .driver-popover.icw-tour .driver-popover-footer button{font-family:"Inter",system-ui,sans-serif;font-weight:600;font-size:13px;
+    border-radius:9px;padding:7px 13px;text-shadow:none;display:inline-flex;align-items:center;gap:6px;border:1px solid transparent;transition:.15s;cursor:pointer}
+  .driver-popover.icw-tour .driver-popover-prev-btn{background:rgba(255,255,255,.04);border-color:#27324a;color:#eef1f7}
+  .driver-popover.icw-tour .driver-popover-prev-btn:hover{border-color:#1890d8;background:rgba(24,144,216,.10)}
+  .driver-popover.icw-tour .driver-popover-next-btn{background:#1890d8;color:#06101f;box-shadow:0 6px 16px rgba(24,144,216,.35)}
+  .driver-popover.icw-tour .driver-popover-next-btn:hover{background:#3aa6ec}
+  .driver-popover.icw-tour .driver-popover-close-btn{color:#94a0bd}
+  .driver-popover.icw-tour .driver-popover-close-btn:hover{color:#fff}
+  .driver-popover.icw-tour button svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+  .driver-popover.icw-tour .driver-popover-arrow-side-left.driver-popover-arrow{border-left-color:#111927}
+  .driver-popover.icw-tour .driver-popover-arrow-side-right.driver-popover-arrow{border-right-color:#111927}
+  .driver-popover.icw-tour .driver-popover-arrow-side-top.driver-popover-arrow{border-top-color:#111927}
+  .driver-popover.icw-tour .driver-popover-arrow-side-bottom.driver-popover-arrow{border-bottom-color:#111927}
 </style>
 </head>
 <body class="font-sans text-cream min-h-screen">
@@ -1100,8 +1120,10 @@ function startTour(){
   const ct=document.querySelector('.tab[data-tab="cleanup"]'); if(ct) ct.click();   // tour lives on the Cleanup tab
   const driver=window.driver.js.driver;
   const tour=driver({
-    showProgress:true, allowClose:true, overlayOpacity:0.65,
-    nextBtnText:'Next', prevBtnText:'Back', doneBtnText:'Done',
+    showProgress:true, allowClose:true, overlayOpacity:0.65, popoverClass:'icw-tour',
+    prevBtnText:'<svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>Back',
+    nextBtnText:'Next<svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>',
+    doneBtnText:'<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Done',
     onDestroyed:()=>{ try{ localStorage.setItem('icw_tour_done','1'); }catch(_){} },
     steps:[
       { popover:{ title:'Welcome to IMAP Cleanup Tool 👋', description:'A quick 1-minute tour of the main areas. Everything runs locally and <b>dry-run is on by default</b>, so nothing changes until you decide. You can replay this anytime from the <b>❔ Tour</b> button.' } },
@@ -1110,8 +1132,9 @@ function startTour(){
       { element:'#secMatch', popover:{ title:'3 · What to match', description:'Match by a <b>target list</b> (senders/domains) or build a <b>rule</b> visually with AND/OR groups - no syntax to learn.' } },
       { element:'#secOptions', popover:{ title:'4 · Options', description:'Choose the action: delete, <b>Move</b> to another folder, Gmail-trash, Expunge, or Empty folder. <b>Dry-run</b> (on by default) only reports - turn it off to act for real.' } },
       { element:'#btnCount', popover:{ title:'5 · Count first', description:'See exactly how many emails match before touching anything.' } },
-      { element:'#btnRun', popover:{ title:'6 · Run', description:'Run the action. With dry-run on it just previews; without it you get a clear confirmation first. Use Stop to cancel a long run.' } },
-      { element:'.tab[data-tab="scheduling"]', popover:{ title:'7 · Schedule it', description:'In the <b>Scheduling</b> tab you can turn these settings into a job and install it into your system scheduler (Task Scheduler / cron) to run automatically.' } },
+      { element:'#btnSenders', popover:{ title:'6 · List senders', description:'See who is filling your mailbox - unique senders with message counts - and export the list to CSV to decide what to clean.' } },
+      { element:'#btnRun', popover:{ title:'7 · Run', description:'Run the action. With dry-run on it just previews; without it you get a clear confirmation first. Use Stop to cancel a long run.' } },
+      { element:'.tab[data-tab="scheduling"]', popover:{ title:'8 · Schedule it', description:'In the <b>Scheduling</b> tab you can turn these settings into a job and install it into your system scheduler (Task Scheduler / cron) to run automatically.' } },
       { popover:{ title:'That is it! 🎉', description:'Tip: hover the little <b>i</b> icons anywhere for detailed help. Happy cleaning!' } },
     ],
   });
