@@ -53,6 +53,24 @@ class LLMConfigTests(unittest.TestCase):
                 llm.delete_model("m")
                 self.assertEqual(llm.list_models(), [])
 
+    def test_seed_defaults_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(llm, "config_dir", return_value=Path(tmp)):
+                llm.ensure_default_models()
+                names = {m["name"] for m in llm.list_models()}
+                self.assertIn("gpt-4o-mini", names)
+                self.assertIn("ollama-llama3", names)
+                # the cloud default carries no API key (uses the env var)
+                gpt = next(m for m in llm.list_models()
+                           if m["name"] == "gpt-4o-mini")
+                self.assertFalse(gpt["has_key"])
+                self.assertEqual(llm.load_model("gpt-4o-mini")["api_key"], "")
+                # a deleted default is NOT recreated on the next call
+                llm.delete_model("gpt-4o-mini")
+                llm.ensure_default_models()
+                self.assertNotIn(
+                    "gpt-4o-mini", {m["name"] for m in llm.list_models()})
+
     def test_cost_log(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(llm, "config_dir", return_value=Path(tmp)):

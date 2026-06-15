@@ -220,6 +220,7 @@ def create_app():
 
     _install_log_dispatch()
     _start_reaper()
+    llm.ensure_default_models()      # seed gpt-4o-mini + Ollama on first run
 
     # ----- request models -------------------------------------------------- #
     class ConnIn(BaseModel):

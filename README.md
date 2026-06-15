@@ -462,7 +462,10 @@ Like **Move**, AI Cleanup honors the active **filter** (target list or rule) whe
 one is set, or scans the **whole folder** when none is - so you can point it at a
 single noisy domain or let it sweep everything.
 
-**Models** are configured in the **LLM** tab (powered by litellm):
+**Models** are configured in the **LLM** tab (powered by litellm). On first run
+the tool seeds two ready-to-use defaults you can edit or delete: **`gpt-4o-mini`**
+(cloud, no key stored - set `OPENAI_API_KEY` or paste a key) and
+**`ollama-llama3`** (free, local via Ollama). More options:
 
 - **Local & private (recommended):** an Ollama model (e.g. `ollama/llama3`) keeps
   everything on your machine. ⚠️ A **remote** model (OpenAI, OpenRouter, ...)
@@ -470,6 +473,11 @@ single noisy domain or let it sweep everything.
   sends subjects + stats, never message bodies.
 - API keys live in a local SQLite DB, optionally **encrypted** (encrypted = not
   usable in scheduling, like connection profiles). Keys are never committed.
+- **Prefer an environment variable?** Leave the model's API-key field **blank**
+  and export the provider's standard variable instead - e.g.
+  `OPENAI_API_KEY` (OpenAI), `OPENROUTER_API_KEY` (OpenRouter). litellm picks it
+  up automatically, so the key never touches disk. (PowerShell:
+  `$env:OPENAI_API_KEY = "sk-..."`; bash: `export OPENAI_API_KEY=sk-...`.)
 - Optional **cost tracking**: set the price per million tokens and get a
   per-model cost log.
 

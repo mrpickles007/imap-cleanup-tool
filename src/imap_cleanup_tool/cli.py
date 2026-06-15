@@ -165,7 +165,8 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
             user: str) -> int:
     """AI cleanup: heuristic report -> LLM verdict -> delete confirmed senders."""
     from . import ai
-    from .llm import LLMError, load_model, log_cost
+    from .llm import LLMError, ensure_default_models, load_model, log_cost
+    ensure_default_models()        # so gpt-4o-mini / Ollama exist out of the box
     if not args.ai_model:
         print("[ERROR] --ai-cleanup requires --ai-model NAME.")
         return 2

@@ -58,6 +58,8 @@ def _connect() -> sqlite3.Connection:
         " prompt_tokens INTEGER NOT NULL DEFAULT 0,"
         " completion_tokens INTEGER NOT NULL DEFAULT 0,"
         " cost REAL NOT NULL DEFAULT 0)")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
     return conn
 
 
@@ -73,20 +75,56 @@ def _derive_key(secret: str, salt: bytes) -> bytes:
     return base64.urlsafe_b64encode(kdf.derive(secret.encode("utf-8")))
 
 
+# Models seeded on first run so AI Cleanup works out of the box: a popular cloud
+# model (no key stored - litellm reads OPENAI_API_KEY from the environment) and a
+# free local one (Ollama). Users can edit or delete them; once seeded they are
+# not recreated (a deleted default stays deleted).
+_DEFAULT_MODELS = [
+    # name, model, api_base, track_costs, cost_input, cost_output
+    ("gpt-4o-mini", "gpt-4o-mini", None, True, 0.15, 0.60),
+    ("ollama-llama3", "ollama/llama3", "http://localhost:11434", False, 0.0, 0.0),
+]
+
+
+def ensure_default_models() -> None:
+    """Seed the default models once (idempotent). Safe to call on every startup."""
+    conn = _connect()
+    try:
+        seeded = conn.execute(
+            "SELECT value FROM meta WHERE key='models_seeded'").fetchone()
+        if seeded:
+            return
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        for name, model, api_base, tc, ci, co in _DEFAULT_MODELS:
+            conn.execute(
+                "INSERT OR IGNORE INTO models (name, model, api_base, encrypted,"
+                " salt, secret, track_costs, cost_input, cost_output, created_at)"
+                " VALUES (?, ?, ?, 0, NULL, ?, ?, ?, ?, ?)",
+                (name, model, api_base, b"", 1 if tc else 0,
+                 float(ci), float(co), now))
+        conn.execute(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES "
+            "('models_seeded', ?)", (now,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def list_models() -> list[dict]:
     """Return saved models (metadata + cost settings, never the API key)."""
     conn = _connect()
     try:
         rows = conn.execute(
             "SELECT name, model, api_base, encrypted, track_costs, cost_input,"
-            " cost_output FROM models ORDER BY name COLLATE NOCASE").fetchall()
+            " cost_output, secret FROM models"
+            " ORDER BY name COLLATE NOCASE").fetchall()
     finally:
         conn.close()
     return [{"name": r["name"], "model": r["model"], "api_base": r["api_base"],
              "encrypted": bool(r["encrypted"]),
              "track_costs": bool(r["track_costs"]),
              "cost_input": r["cost_input"], "cost_output": r["cost_output"],
-             "has_key": True}
+             "has_key": bool(r["secret"])}
             for r in rows]
 
 
