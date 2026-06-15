@@ -81,13 +81,25 @@ def _safe_job_name(name: str) -> str:
 
 
 def _folder_dicts(conn) -> list[dict]:
-    """Folder rows for the UI: name, message count, and a ``protected`` flag
-    (system folders the user must not delete)."""
+    """Folder rows for the UI: name, message count, a ``protected`` flag (system
+    folders the user must not delete), and ``special`` use (e.g. "trash") read
+    from the LIST flags so it works regardless of localized folder names."""
     names = core.list_folders(conn)
     counts = core.folder_message_counts(conn, names)
+    attrs = core.folder_attributes(conn)
     protected = core.protected_folder_names(conn)
+
+    def special(name: str) -> str:
+        flags = {f.lower() for f in attrs.get(name, [])}
+        if "\\trash" in flags:
+            return "trash"
+        if "\\junk" in flags:
+            return "junk"
+        return ""
+
     return [{"name": n, "count": counts.get(n),
-             "protected": n in protected or n.upper() == "INBOX"}
+             "protected": n in protected or n.upper() == "INBOX",
+             "special": special(n)}
             for n in names]
 
 FIELD_OPERATORS = {

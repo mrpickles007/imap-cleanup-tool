@@ -968,6 +968,8 @@ async function pollLog(){
     if(d.running){ poll=setTimeout(pollLog, pollDelay()); }
     else { poll=null; if(d.status && d.status!=='running') log('- '+d.status+(d.error?(': '+d.error):'')+' -'); setBusy(false); curRunId=null; persistLog();
       loadAiReports();   // a finished run may have saved a new report
+      // Deletion changes folder counts - refresh the folder list (unified flow).
+      if(pendingRefreshFolders && d.status==='done'){ pendingRefreshFolders=false; refreshFoldersQuiet(); }
       if(gmailTrashSeen && d.status==='done'){ gmailTrashSeen=false; showTrashNotice(); }
     }
   }catch(e){ poll=null; setBusy(false); log('[ERROR] '+e.message); }
@@ -980,20 +982,31 @@ async function showTrashNotice(){
     message:'On Gmail, deleted emails are moved to the Trash - they are NOT permanently removed yet. To delete them for good you must empty the Trash folder (select Trash, tick "Empty folder", then Run). Set that up now?',
     okText:'Select Trash + Empty folder'});
   if(!ok) return;
-  const trash = knownFolders.find(f=>/(^|\/)\[?gmail\]?\/?trash$/i.test(f.name))
-             || knownFolders.find(f=>/trash$/i.test(f.name))
-             || knownFolders.find(f=>/trash/i.test(f.name));
+  // Prefer the server-reported special-use flag (works for localized names like
+  // "[Gmail]/Cestino"); fall back to name matching across common languages.
+  const trash = knownFolders.find(f=>f.special==='trash')
+             || knownFolders.find(f=>/(^|\/)\[?gmail\]?\/?(trash|bin)$/i.test(f.name))
+             || knownFolders.find(f=>/trash|bin|cestino|papelera|corbeille|papierkorb|lixeira|prullenbak|kosz|סל/i.test(f.name));
   if(!trash){ log('[INFO] No Trash folder found automatically - select it manually, tick "Empty folder", then Run.'); return; }
+  switchTab('cleanup');
   selectedFolders=[trash.name]; renderFolders();
-  if($('aiCleanup').checked) $('aiCleanup').checked=false;   // empty-folder overrides AI
+  $('aiCleanup').checked=false;          // leave AI Cleanup; switch to empty-folder
   $('emptyFolder').checked=true; refreshConditional();
   $('emptyFolder').scrollIntoView({behavior:'smooth',block:'center'});
   log('Trash "'+trash.name+'" selected and "Empty folder" enabled - press Run to permanently delete the trashed emails.');
 }
-async function startJob(path, body){
+let pendingRefreshFolders=false;
+async function startJob(path, body, refreshFolders){
   if(!SID){ log('[ERROR] Not connected.'); return; }
+  pendingRefreshFolders=!!refreshFolders;
   try{ const d=await api(path, body); curRunId=d.run_id; startPolling(); }
   catch(e){ log('[ERROR] '+e.message); }
+}
+async function refreshFoldersQuiet(){
+  if(!SID) return;
+  try{ const d=await api('/api/refresh-folders',{sid:SID}); knownFolders=d.folders||[]; renderFolders();
+    setStatus(true,'connected · '+knownFolders.length+' folders'); }
+  catch(e){ /* ignore */ }
 }
 
 /* ---------- scheduling ---------- */
@@ -1425,7 +1438,7 @@ $('btnRun').onclick=async ()=>{
     if(!$('aiModel').value){ log('[ERROR] Choose a model in the AI panel (configure one in the LLM tab).'); return; }
     const ap=aiPayload();
     if(!ap.dry_run && !(await confirmDialog({title:'AI Cleanup - not a dry-run', message:'The AI will judge the flagged senders and DELETE the confirmed ones in:\n'+ap.folders.join(', ')+'\n\nContinue?', okText:'Run AI cleanup', danger:true}))) return;
-    log((ap.dry_run?'[DRY-RUN] ':'')+'AI Cleanup on: '+ap.folders.join(', ')+' …'); startJob('/api/ai-run', ap); return;
+    log((ap.dry_run?'[DRY-RUN] ':'')+'AI Cleanup on: '+ap.folders.join(', ')+' …'); startJob('/api/ai-run', ap, !ap.dry_run); return;
   }
   if(!(await ensureFolderChosen())) return;
   const p=Object.assign({sid:SID}, matchPayload(), optionsPayload());
@@ -1441,7 +1454,7 @@ $('btnRun').onclick=async ()=>{
     else { what='Flag matched messages as deleted in';
       note='\n\nNote: without Expunge, messages are only flagged \\Deleted (hidden but recoverable) - they are NOT permanently removed. Enable Expunge to delete for good.'; }
     if(!(await confirmDialog({title:'This is not a dry-run', message:'About to '+what+':\n'+p.folders.join(', ')+note+'\n\nContinue?', okText:'Run for real', danger:true}))) return; }
-  log((p.dry_run?'[DRY-RUN] ':'')+'Starting on: '+p.folders.join(', ')); startJob('/api/run',p);
+  log((p.dry_run?'[DRY-RUN] ':'')+'Starting on: '+p.folders.join(', ')); startJob('/api/run',p, !p.dry_run);
 };
 async function confirmJobOverwrite(){
   const safe=($('jobName').value.trim()||'job').replace(/[^A-Za-z0-9_-]+/g,'_')||'job';

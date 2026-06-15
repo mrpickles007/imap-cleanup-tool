@@ -463,8 +463,12 @@ AI Cleanup hands "which of these do I actually want?" to a model, safely:
    (`noreply@`, `newsletter@`...). Weights are calibrated and **tunable**.
 2. **LLM verdict.** Only senders at or above your **threshold** (default 6) are
    sent to the model, with a few sample **subjects** each (never the body); it
-   replies in strict JSON which to delete. The reply is **validated with
-   pydantic**, and the model is **retried up to 3 times** before giving up.
+   replies in strict JSON which to delete. The prompt has an explicit
+   **safeguard**: it must KEEP anything that looks like online orders/receipts,
+   appointments/bookings, medical/health, travel, banking/tax, security/2FA, or
+   personal mail - only obvious bulk (newsletters, promotions, notifications) is
+   marked deletable. The reply is **validated with pydantic**, and the model is
+   **retried up to 3 times** before giving up.
 3. **Verdict to action** - see the two buttons below.
 
 ### Generate report vs Run

@@ -377,6 +377,13 @@ class LLMHelpersTests(unittest.TestCase):
         finally:
             del sys.modules["litellm"]
 
+    def test_system_prompt_has_safeguards(self):
+        system, _ = ai.build_messages({"senders": []})
+        low = system.lower()
+        for kw in ("order", "appointment", "medical", "security", "personal"):
+            self.assertIn(kw, low)
+        self.assertIn("STRICT JSON", system)
+
     def test_build_messages_only_flagged(self):
         report = {"senders": [
             {"sender": "spam@x.com", "flagged": True, "count": 5,
