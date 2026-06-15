@@ -112,6 +112,7 @@ tailwind.config = { theme: { extend: {
     <div class="tab" data-tab="scheduling"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>Scheduling</div>
     <div class="tab" data-tab="llm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="15" x2="4" y2="15"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="15" x2="23" y2="15"/></svg>LLM</div>
     <div class="tab" data-tab="notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifications</div>
+    <div class="tab" data-tab="spam"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Spam addresses</div>
   </div>
 </header>
 
@@ -132,6 +133,7 @@ tailwind.config = { theme: { extend: {
       <button class="navitem" data-tab="scheduling"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>Scheduling</button>
       <button class="navitem" data-tab="llm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="15" x2="4" y2="15"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="15" x2="23" y2="15"/></svg>LLM</button>
       <button class="navitem" data-tab="notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifications</button>
+      <button class="navitem" data-tab="spam"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Spam addresses</button>
     </nav>
     <button id="btnTour2" class="navitem mt-1" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Replay tour</button>
     <p class="text-muted text-[11px] mt-auto px-1">local web UI <span id="ver2"></span></p>
@@ -599,6 +601,51 @@ tailwind.config = { theme: { extend: {
     <p id="smNotifyMsg" class="text-[11px] mt-2 text-muted"></p>
     <h3 class="font-display font-semibold text-brand-light mt-5 mb-2 text-sm">Saved SMTP profiles</h3>
     <div id="smList" class="space-y-2 text-sm"><p class="text-muted text-xs">No profiles yet.</p></div>
+  </section>
+</div>
+
+<!-- ============================ SPAM ADDRESSES TAB ============================ -->
+<div id="tab-spam" class="hidden">
+  <section class="bg-panel border border-line rounded-xl p-5">
+    <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+      <h2 class="font-display font-semibold text-brand-light">Spam addresses <span id="spamAccount" class="text-muted text-xs font-normal"></span></h2>
+      <div class="flex items-center gap-2">
+        <input id="spamSearch" class="field text-sm" style="max-width:12rem" placeholder="Search address…">
+        <select id="spamPageSize" class="field text-sm" style="width:auto" title="Rows per page"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
+      </div>
+    </div>
+    <p class="text-xs text-muted mb-3">Senders flagged by <b>AI Cleanup</b> (report or run) for the connected mailbox, with their heuristic <b>spam score</b> and the <b>LLM verdict</b>. Select rows to <b>remove</b> them from the list or <b>flag as spam on the server</b> (moves their inbox mail to the Junk/Spam folder so future mail is trained as spam). Each connection has its own list.</p>
+    <div class="flex items-center gap-2 flex-wrap mb-3">
+      <label class="flex items-center gap-1.5 text-xs text-muted"><input id="spamSelectAll" type="checkbox"> Select all (this page)</label>
+      <button id="spamSelectAllAcct" type="button" class="text-xs text-brand-light hover:underline">select all <span id="spamTotalCount"></span></button>
+      <span class="flex-1"></span>
+      <button id="spamFlag" class="px-3 py-1.5 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm" disabled>Flag as spam on server</button>
+      <button id="spamRemove" class="px-3 py-1.5 rounded-lg border border-line text-danger hover:underline text-sm" disabled>Remove from list</button>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm border-collapse">
+        <thead><tr class="text-muted text-xs text-left border-b border-line">
+          <th class="py-2 pr-2 w-6"></th>
+          <th class="py-2 pr-3">Sender</th>
+          <th class="py-2 px-2 text-center">Score</th>
+          <th class="py-2 px-2 text-center">Msgs</th>
+          <th class="py-2 px-2 text-center">Unread</th>
+          <th class="py-2 px-2 text-center">/week</th>
+          <th class="py-2 px-2">Signals</th>
+          <th class="py-2 px-2">LLM verdict</th>
+        </tr></thead>
+        <tbody id="spamBody"><tr><td colspan="8" class="py-6 text-center text-muted text-xs">No spam addresses yet - run an AI Cleanup report first.</td></tr></tbody>
+      </table>
+    </div>
+    <div class="flex items-center justify-between mt-3 text-sm">
+      <span id="spamRange" class="text-muted text-xs"></span>
+      <div class="flex items-center gap-2">
+        <button id="spamPrev" class="px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream disabled:opacity-40" disabled>‹ Prev</button>
+        <span id="spamPage" class="text-muted text-xs"></span>
+        <button id="spamNext" class="px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream disabled:opacity-40" disabled>Next ›</button>
+      </div>
+    </div>
+    <p id="spamMsg" class="text-[11px] mt-2 text-muted"></p>
   </section>
 </div>
 
@@ -1140,7 +1187,7 @@ async function loadJobs(){
 }
 
 /* ---------- events ---------- */
-const TABS=['cleanup','scheduling','llm','notifications'];
+const TABS=['cleanup','scheduling','llm','notifications','spam'];
 function switchTab(name){
   if(!TABS.includes(name)) name='cleanup';
   try{ localStorage.setItem('icw_tab', name); }catch(_){}
@@ -1149,6 +1196,7 @@ function switchTab(name){
   if(name==='scheduling'){ populateJobProfiles(); updateSchedInputs(); loadJobs(); loadLLMModels().then(populateJobAiModels); }
   if(name==='llm'){ loadLLMModels(); }
   if(name==='notifications'){ loadSmtp(); }
+  if(name==='spam'){ spamState.offset=0; loadSpam(); }
   closeDrawer();
 }
 document.querySelectorAll('.tab,.navitem').forEach(t=>{ if(t.dataset.tab) t.onclick=()=>switchTab(t.dataset.tab); });
@@ -1370,6 +1418,79 @@ if($('btnSendTest')) $('btnSendTest').onclick=async()=>{
   try{ await api('/api/notify-settings',{ notify_to:$('smTo').value });   // ensure recipient is saved
     const r=await api('/api/smtp-send-test',{name, secret}); $('smNotifyMsg').textContent='✓ Test email sent to '+r.sent; $('smNotifyMsg').className='text-[11px] mt-2 text-ok'; }
   catch(e){ $('smNotifyMsg').textContent='✗ '+e.message; $('smNotifyMsg').className='text-[11px] mt-2 text-danger'; }
+};
+
+/* ---------- Spam addresses tab ---------- */
+const spamState={offset:0, limit:25, total:0, search:'', sel:new Set()};
+function spamMsg(t,cls){ $('spamMsg').textContent=t||''; $('spamMsg').className='text-[11px] mt-2 '+(cls||'text-muted'); }
+function fmtPct(x){ return x==null?'':Math.round(x*100)+'%'; }
+async function loadSpam(){
+  if(!SID){ return; }
+  spamState.limit=parseInt($('spamPageSize').value)||25;
+  try{
+    const d=await (await fetch(`/api/spam/${SID}?offset=${spamState.offset}&limit=${spamState.limit}&q=${encodeURIComponent(spamState.search)}`)).json();
+    spamState.total=d.total; renderSpam(d.items||[]);
+  }catch(e){ spamMsg('Error: '+e.message,'text-danger'); }
+}
+function renderSpam(items){
+  $('spamAccount').textContent = SID? ('· '+($('user').value||'')) : '· not connected';
+  $('spamTotalCount').textContent='('+spamState.total+')';
+  const body=$('spamBody'); body.innerHTML='';
+  if(!items.length){ body.innerHTML='<tr><td colspan="8" class="py-6 text-center text-muted text-xs">No spam addresses'+(spamState.search?' match your search':' yet - run an AI Cleanup report first')+'.</td></tr>'; }
+  items.forEach(it=>{
+    const tr=document.createElement('tr'); tr.className='border-b border-line/60 hover:bg-white/5';
+    const sig=[it.list_unsubscribe?'unsub':'', it.bulk?'bulk':'', it.sender_pattern?'pattern':''].filter(Boolean).join(', ')||'-';
+    let verdict='<span class="text-muted">- not evaluated</span>';
+    if(it.verdict_delete===true) verdict='<span class="text-danger font-semibold">delete</span>';
+    else if(it.verdict_delete===false) verdict='<span class="text-ok font-semibold">keep</span>';
+    const conf = it.verdict_confidence!=null? ' ('+Math.round(it.verdict_confidence*100)+'%)':'';
+    const reason = it.verdict_reason? '<div class="text-muted text-[11px]">'+escapeHtml(it.verdict_reason)+'</div>':'';
+    const checked=spamState.sel.has(it.address)?'checked':'';
+    const sevClass = it.score>=8?'text-danger':(it.score>=6?'text-warn':'text-cream');
+    tr.innerHTML='<td class="py-2 pr-2"><input type="checkbox" data-addr="'+escapeHtml(it.address)+'" '+checked+'></td>'
+      +'<td class="py-2 pr-3 break-all">'+escapeHtml(it.address)+'</td>'
+      +'<td class="py-2 px-2 text-center font-semibold '+sevClass+'">'+(it.score!=null?it.score:'')+'</td>'
+      +'<td class="py-2 px-2 text-center">'+(it.messages||0)+'</td>'
+      +'<td class="py-2 px-2 text-center">'+fmtPct(it.unread_ratio)+'</td>'
+      +'<td class="py-2 px-2 text-center">'+(it.per_week!=null?it.per_week:'')+'</td>'
+      +'<td class="py-2 px-2 text-muted text-xs">'+sig+'</td>'
+      +'<td class="py-2 px-2">'+verdict+conf+reason+'</td>';
+    tr.querySelector('input').onchange=(e)=>{ const a=e.target.dataset.addr; if(e.target.checked) spamState.sel.add(a); else spamState.sel.delete(a); updateSpamSel(); };
+    body.appendChild(tr);
+  });
+  // pagination
+  const start=spamState.total?spamState.offset+1:0, end=Math.min(spamState.offset+spamState.limit, spamState.total);
+  $('spamRange').textContent=spamState.total?('Showing '+start+'-'+end+' of '+spamState.total):'';
+  const pages=Math.max(1, Math.ceil(spamState.total/spamState.limit)), cur=Math.floor(spamState.offset/spamState.limit)+1;
+  $('spamPage').textContent='Page '+cur+' / '+pages;
+  $('spamPrev').disabled=spamState.offset<=0; $('spamNext').disabled=end>=spamState.total;
+  $('spamSelectAll').checked = items.length>0 && items.every(it=>spamState.sel.has(it.address));
+  updateSpamSel();
+}
+function updateSpamSel(){
+  const n=spamState.sel.size; $('spamFlag').disabled=!n; $('spamRemove').disabled=!n;
+  $('spamRemove').textContent = n? ('Remove from list ('+n+')') : 'Remove from list';
+  $('spamFlag').textContent = n? ('Flag as spam on server ('+n+')') : 'Flag as spam on server';
+}
+if($('spamSelectAll')) $('spamSelectAll').onchange=(e)=>{ document.querySelectorAll('#spamBody input[type=checkbox]').forEach(cb=>{ cb.checked=e.target.checked; const a=cb.dataset.addr; if(e.target.checked) spamState.sel.add(a); else spamState.sel.delete(a); }); updateSpamSel(); };
+if($('spamSelectAllAcct')) $('spamSelectAllAcct').onclick=async()=>{ try{ const r=await api('/api/spam-select-all',{sid:SID,addresses:[]}); (r.addresses||[]).forEach(a=>spamState.sel.add(a)); spamMsg('Selected all '+spamState.sel.size+' address(es) across pages.','text-muted'); loadSpam(); }catch(e){ spamMsg('Error: '+e.message,'text-danger'); } };
+if($('spamPrev')) $('spamPrev').onclick=()=>{ spamState.offset=Math.max(0, spamState.offset-spamState.limit); loadSpam(); };
+if($('spamNext')) $('spamNext').onclick=()=>{ spamState.offset+=spamState.limit; loadSpam(); };
+if($('spamPageSize')) $('spamPageSize').onchange=()=>{ spamState.offset=0; loadSpam(); };
+let spamSearchT=null;
+if($('spamSearch')) $('spamSearch').oninput=()=>{ clearTimeout(spamSearchT); spamSearchT=setTimeout(()=>{ spamState.search=$('spamSearch').value.trim(); spamState.offset=0; loadSpam(); },300); };
+if($('spamRemove')) $('spamRemove').onclick=async()=>{
+  const addrs=[...spamState.sel]; if(!addrs.length) return;
+  if(!(await confirmDialog({title:'Remove from spam list', message:'Remove '+addrs.length+' address(es) from this account\'s spam list? (does not touch the mailbox)', okText:'Remove'}))) return;
+  try{ const r=await api('/api/spam-delete',{sid:SID,addresses:addrs}); spamState.sel.clear(); spamMsg('Removed '+r.removed+' address(es).','text-ok'); spamState.offset=0; loadSpam(); }
+  catch(e){ spamMsg('Error: '+e.message,'text-danger'); }
+};
+if($('spamFlag')) $('spamFlag').onclick=async()=>{
+  const addrs=[...spamState.sel]; if(!addrs.length) return;
+  if(!(await confirmDialog({title:'Flag as spam on server', message:'Move INBOX messages from '+addrs.length+' sender(s) to the Junk/Spam folder on the server? This trains the spam filter for future mail.', okText:'Flag as spam', danger:true}))) return;
+  spamMsg('Flagging on the server…','text-muted');
+  try{ const r=await api('/api/spam-flag',{sid:SID,addresses:addrs}); spamMsg('✓ Flagged '+r.flagged+' sender(s): moved '+r.moved+' message(s) to "'+r.folder+'".','text-ok'); refreshFoldersQuiet(); }
+  catch(e){ spamMsg('✗ '+e.message,'text-danger'); }
 };
 $('togglePass').onclick=()=>{ const p=$('password'); p.type=p.type==='password'?'text':'password'; $('togglePass').textContent=p.type==='password'?'show':'hide'; };
 document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const mode=document.querySelector('input[name=mode]:checked').value; try{localStorage.setItem('icw_mode',mode);}catch(_){} const rule=mode==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); refreshConditional(); });

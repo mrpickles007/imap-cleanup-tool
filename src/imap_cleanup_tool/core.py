@@ -381,6 +381,16 @@ def folder_attributes(conn: imaplib.IMAP4_SSL) -> dict[str, list[str]]:
     return result
 
 
+def special_folder(conn: imaplib.IMAP4_SSL, flag: str) -> str | None:
+    """Return the folder carrying a special-use LIST flag (e.g. ``\\Junk``,
+    ``\\Trash``), regardless of its localized name, or None if absent."""
+    want = flag.lower()
+    for name, flags in folder_attributes(conn).items():
+        if want in {f.lower() for f in flags}:
+            return name
+    return None
+
+
 def protected_folder_names(conn: imaplib.IMAP4_SSL) -> set[str]:
     """Names of system folders that must not be deleted (INBOX + special-use)."""
     names = {n for n, flags in folder_attributes(conn).items()

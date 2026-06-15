@@ -62,6 +62,7 @@ features are optional extras (see [Install](#install)).
 - [Remote / headless server (SSH port forwarding)](#remote--headless-server-ssh-port-forwarding)
 - [Scheduling](#scheduling)
 - [Email notifications](#email-notifications)
+- [Spam addresses](#spam-addresses)
 - [Gmail notes](#gmail-notes)
 
 ---
@@ -680,6 +681,27 @@ Get an email when a cleanup finishes. Configure it in the **Notifications** tab:
 Sending uses the Python standard library (`smtplib`), so notifications also fire
 for scheduled CLI jobs. Scheduled jobs require a **non-encrypted** active profile
 (no one is there to type the passphrase).
+
+---
+
+## Spam addresses
+
+Every **AI Cleanup** report or run records the flagged senders (the potential
+spam) into a per-account list, shown in the **Spam addresses** tab. Each
+connected mailbox has its own list.
+
+For every address you see the data the tool computed - the 0-10 **heuristic spam
+score**, message count, unread ratio, weekly frequency, the signals
+(`List-Unsubscribe`, bulk, sender pattern), and the **LLM verdict** (keep/delete +
+reason + confidence) when a model was used.
+
+- **Browse** with search and **pagination** (rows per page configurable).
+- **Select** rows (or *select all* across pages) for **bulk** actions.
+- **Remove from list** - drops them from this list only (does not touch the
+  mailbox).
+- **Flag as spam on the server** - moves those senders' inbox mail to the
+  server's **Junk/Spam** folder (found via its special-use flag, so it works with
+  localized names), which trains the provider's spam filter for future mail.
 
 ---
 

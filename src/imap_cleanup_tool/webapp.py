@@ -33,7 +33,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from . import __version__, ai, core, llm, notifications, profiles, scheduler
+from . import (__version__, ai, core, llm, notifications, profiles, scheduler,
+               spamstore)
 from .rules import RuleError, compile_search, node_from_dict
 from .targets import parse_targets_text
 
@@ -326,6 +327,10 @@ def create_app():
         notify_to: str | None = None
         notify_jobs: bool | None = None
         notify_runs: bool | None = None
+
+    class SpamActionIn(BaseModel):
+        sid: str
+        addresses: list[str] = Field(default_factory=list)
 
     class SendersIn(BaseModel):
         sid: str
@@ -821,6 +826,16 @@ def create_app():
         except OSError as exc:
             core.logger.warning("Could not save the report to disk: %s", exc)
 
+    def _record_spam(sess: "Session", report, source: str) -> None:
+        """Save the flagged senders to this account's Spam addresses list."""
+        try:
+            n = spamstore.record_from_report(sess.user, report, source)
+            if n:
+                core.logger.info("Saved %d sender(s) to the Spam addresses list "
+                                 "(see the Spam addresses tab).", n)
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            core.logger.warning("Could not save spam addresses: %s", exc)
+
     @app.post("/api/ai-report")
     def ai_report(body: AIReportIn) -> dict[str, Any]:
         """Heuristic per-sender report; if a model is chosen, also LLM verdicts.
@@ -845,6 +860,7 @@ def create_app():
                              body.threshold, report.get("flagged_messages", 0))
             _log_llm_total(report)
             _save_ai_report(report)
+            _record_spam(sess, report, "report")
 
         run_state = _start_run(sess, "ai-report", work)
         return {"run_id": run_state.run_id}
@@ -870,6 +886,7 @@ def create_app():
             rs.result = {"report": report, "to_delete": sorted(confirmed)}
             _log_llm_total(report)
             _save_ai_report(report)
+            _record_spam(sess, report, "run")
             if not confirmed:
                 core.logger.info("=> AI confirmed nothing to delete.")
                 return
@@ -932,6 +949,50 @@ def create_app():
         return Response(
             content=path.read_text(encoding="utf-8"), media_type="text/csv",
             headers={"Content-Disposition": f"attachment; filename={name}"})
+
+    # ----- Spam addresses (per-account list from AI Cleanup) --------------- #
+    @app.get("/api/spam/{sid}")
+    def spam_list(sid: str, offset: int = 0, limit: int = 25,
+                  q: str = "") -> dict[str, Any]:
+        sess = _session(sid)
+        return spamstore.list_addresses(sess.user, offset=offset, limit=limit,
+                                        search=q)
+
+    @app.post("/api/spam-delete")
+    def spam_delete(body: SpamActionIn) -> dict[str, Any]:
+        sess = _session(body.sid)
+        n = spamstore.delete_addresses(sess.user, body.addresses)
+        return {"removed": n}
+
+    @app.post("/api/spam-select-all")
+    def spam_select_all(body: SpamActionIn) -> dict[str, Any]:
+        """All spam addresses for the account (used by 'select all' bulk ops)."""
+        sess = _session(body.sid)
+        return {"addresses": spamstore.all_addresses(sess.user)}
+
+    @app.post("/api/spam-flag")
+    def spam_flag(body: SpamActionIn) -> dict[str, Any]:
+        """Flag senders as spam on the server: move their INBOX mail to Junk/Spam."""
+        sess = _session(body.sid)
+        if sess.run and sess.run.status == "running":
+            raise HTTPException(409, "An operation is already running.")
+        addrs = {a.strip().lower() for a in (body.addresses or []) if a.strip()}
+        if not addrs:
+            raise HTTPException(400, "No addresses selected.")
+        with sess.lock:
+            junk = core.special_folder(sess.conn, "\\Junk")
+            if not junk:
+                raise HTTPException(
+                    400, "No Spam/Junk folder found on this server.")
+            try:
+                moved = core.process_folder(
+                    sess.conn, "INBOX", addresses=addrs, move=True,
+                    dest_folder=junk, dry_run=False, scan_mode="search")
+            except (OSError, core.imaplib.IMAP4.error) as exc:
+                raise HTTPException(400, f"Flag-as-spam failed: {exc}") from exc
+        core.logger.info("Flagged %d sender(s) as spam: moved %d INBOX message(s) "
+                         "to %r.", len(addrs), moved, junk)
+        return {"flagged": len(addrs), "moved": moved, "folder": junk}
 
     @app.get("/api/log/{sid}")
     def get_log(sid: str, cursor: int = 0) -> dict[str, Any]:
