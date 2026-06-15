@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "imap-cleanup-tool"
-version = "0.6.0"
+version = "0.7.0"
 description = "Delete or move IMAP emails by sender, domain, or nested rules - CLI and local web UI."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -42,6 +42,8 @@ dependencies = []
 # Local web UI (FastAPI + uvicorn; cryptography for encrypted connection
 # profiles). Install with: pip install "imap-cleanup-tool[web]"
 web = ["fastapi>=0.110", "uvicorn[standard]>=0.27", "cryptography>=42"]
+# AI Cleanup: LLM access via litellm (cloud or local). Optional; imported lazily.
+ai = ["litellm>=1.0", "cryptography>=42"]
 # Tools for development and packaging.
 dev = ["pylint", "build", "twine"]
 

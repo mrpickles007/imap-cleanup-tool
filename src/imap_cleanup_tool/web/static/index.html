@@ -98,6 +98,7 @@ tailwind.config = { theme: { extend: {
   <div class="max-w-[1600px] mx-auto px-6 pt-3 pb-4 flex gap-2">
     <div class="tab active" data-tab="cleanup">Cleanup</div>
     <div class="tab" data-tab="scheduling">Scheduling</div>
+    <div class="tab" data-tab="llm">LLM</div>
   </div>
 </header>
 
@@ -233,6 +234,10 @@ tailwind.config = { theme: { extend: {
         <input id="aiCleanup" type="checkbox">
       </label>
       <div id="aiPanel" class="hidden mb-3 rounded-lg border border-line bg-ink/40 p-3 space-y-2">
+        <label class="text-xs text-muted block">Model
+          <span class="tip"><span class="ic">i</span><span class="bub">The LLM that judges the flagged senders. Configure models in the <b>LLM</b> tab. The local heuristic report works even without a model.</span></span>
+          <select id="aiModel" class="field mt-1"></select>
+        </label>
         <label class="text-xs text-muted block">Spam-score threshold: <b id="thrVal" class="text-cream">6.0</b> / 10
           <span class="tip"><span class="ic">i</span><span class="bub">Only senders scoring at or above this are flagged (and later sent to the LLM / deleted on Run). Higher = stricter, fewer senders.</span></span>
           <input id="aiThreshold" type="range" min="0" max="10" step="0.5" value="6" class="w-full mt-1">
@@ -417,6 +422,60 @@ tailwind.config = { theme: { extend: {
       <span class="text-[11px] text-muted">Runs via the system scheduler (Task Scheduler / cron) - even when this app is closed.</span>
     </div>
     <div id="jobsList" class="space-y-2 text-sm"></div>
+  </section>
+</div>
+
+<!-- ============================ LLM TAB ============================ -->
+<div id="tab-llm" class="hidden grid lg:grid-cols-2 gap-5">
+  <section class="bg-panel border border-line rounded-xl p-5">
+    <h2 class="font-display font-semibold text-brand-light mb-3">Add / edit a model</h2>
+    <p class="text-xs text-muted mb-3">The model used by <b>AI Cleanup</b>. Powered by <b>litellm</b>, so cloud and <b>local</b> models use the same form. The API key is stored in a local SQLite DB and can be <b>encrypted</b>. ⚠️ Remote models send email samples to that provider - for privacy prefer a <b>local</b> model (Ollama).</p>
+    <div class="grid grid-cols-2 gap-3">
+      <label class="text-xs text-muted">Name <input id="llmName" class="field mt-1" placeholder="my-model"></label>
+      <label class="text-xs text-muted">Type
+        <select id="llmType" class="field mt-1"><option value="remote">Remote (cloud)</option><option value="local">Local (Ollama)</option></select>
+      </label>
+      <label class="text-xs text-muted col-span-2">Model string
+        <span class="tip"><span class="ic">i</span><span class="bub">A <b>litellm</b> model id. Examples: <code>gpt-4o-mini</code>, <code>openrouter/meta-llama/llama-3.1-8b-instruct</code>, <code>ollama/llama3</code>.</span></span>
+        <input id="llmModel" class="field mt-1" list="llmPresets" value="gpt-4o-mini">
+        <datalist id="llmPresets">
+          <option value="gpt-4o-mini"></option><option value="gpt-4o"></option>
+          <option value="openrouter/meta-llama/llama-3.1-8b-instruct"></option>
+          <option value="ollama/llama3"></option><option value="ollama/mistral"></option>
+        </datalist>
+      </label>
+      <label class="text-xs text-muted col-span-2">API base URL (optional)
+        <span class="tip"><span class="ic">i</span><span class="bub">Custom endpoint. For local <b>Ollama</b> usually <code>http://localhost:11434</code>. Leave empty for the provider default.</span></span>
+        <input id="llmApiBase" class="field mt-1" placeholder="(default) or http://localhost:11434">
+      </label>
+      <label class="text-xs text-muted col-span-2">API key
+        <span class="tip"><span class="ic">i</span><span class="bub">Stored locally (SQLite), <b>never committed</b>. Not needed for local models. Tick "Encrypt" to protect it (encrypted = not usable in scheduling).</span></span>
+        <div class="flex gap-2 mt-1"><input id="llmKey" type="password" class="field" placeholder="sk-..."><button id="llmKeyToggle" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream">show</button></div>
+      </label>
+    </div>
+    <label class="flex items-center justify-between text-sm py-2 mt-1">
+      <span class="flex items-center">Encrypt the API key
+        <span class="tip"><span class="ic">i</span><span class="bub">Encrypts the key with a password (never stored). An <b>encrypted</b> model cannot run in scheduled jobs (no one to type the password).</span></span>
+      </span>
+      <input id="llmEncrypt" type="checkbox">
+    </label>
+    <div id="llmSecretRow" class="hidden mb-1"><input id="llmSecret" type="password" class="field" placeholder="encryption password"></div>
+    <label class="flex items-center justify-between text-sm py-2">
+      <span class="flex items-center">Keep track of costs
+        <span class="tip"><span class="ic">i</span><span class="bub">Logs token usage and computes cost from the prices below (per <b>million</b> tokens). A per-model cost log is shown in the list.</span></span>
+      </span>
+      <input id="llmTrack" type="checkbox">
+    </label>
+    <div id="llmCostRow" class="hidden grid grid-cols-2 gap-3">
+      <label class="text-xs text-muted">Input $ / 1M tokens <input id="llmCostIn" type="number" step="0.01" min="0" value="0" class="field mt-1"></label>
+      <label class="text-xs text-muted">Output $ / 1M tokens <input id="llmCostOut" type="number" step="0.01" min="0" value="0" class="field mt-1"></label>
+    </div>
+    <div class="flex gap-2 mt-3"><button id="btnSaveLLM" class="bg-brand hover:bg-brand-light text-ink font-semibold rounded-lg px-4 py-2">Save model</button></div>
+    <p id="llmMsg" class="text-[11px] mt-2 text-muted"></p>
+  </section>
+  <section class="bg-panel border border-line rounded-xl p-5">
+    <h2 class="font-display font-semibold text-brand-light mb-3">Configured models</h2>
+    <div id="llmList" class="space-y-2 text-sm"><p class="text-muted text-xs">No models yet.</p></div>
   </section>
 </div>
 
@@ -864,7 +923,9 @@ document.querySelectorAll('.tab').forEach(t=> t.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
   $('tab-cleanup').classList.toggle('hidden', t.dataset.tab!=='cleanup');
   $('tab-scheduling').classList.toggle('hidden', t.dataset.tab!=='scheduling');
+  $('tab-llm').classList.toggle('hidden', t.dataset.tab!=='llm');
   if(t.dataset.tab==='scheduling'){ populateJobProfiles(); updateSchedInputs(); loadJobs(); }
+  if(t.dataset.tab==='llm'){ loadLLMModels(); }
 });
 $('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider').value)||0]; if(p){ if(p.host)$('host').value=p.host; if(p.port)$('port').value=p.port; if(p.host==='imap.gmail.com'){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} } applyProviderTips(); refreshConditional(); };
 $('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional; $('gmailTrash').onchange=refreshConditional;
@@ -888,6 +949,41 @@ $('btnAiDownload').onclick=async()=>{ if(!SID){ log('[ERROR] Not connected.'); r
   try{ const r=await fetch('/api/ai-report.json/'+SID); if(!r.ok){ const d=await r.json().catch(()=>({})); throw new Error(errText(d,r.status)); }
     download('ai_report_'+humanStamp()+'.json', await r.text()); log('AI report downloaded.'); }
   catch(e){ log('[ERROR] '+e.message); } };
+
+/* ---------- LLM model configs (LLM tab) ---------- */
+let LLM_MODELS=[];
+async function loadLLMModels(){
+  try{ const d=await (await fetch('/api/llm-models')).json(); LLM_MODELS=d.models||[]; }
+  catch(e){ LLM_MODELS=[]; }
+  const sel=$('aiModel');
+  if(sel){ const cur=sel.value; sel.innerHTML='';
+    if(!LLM_MODELS.length){ const o=document.createElement('option'); o.value=''; o.textContent='— no model configured (see LLM tab) —'; sel.appendChild(o); }
+    LLM_MODELS.forEach(m=>{ const o=document.createElement('option'); o.value=m.name; o.textContent=m.name+' ('+m.model+')'; sel.appendChild(o); });
+    if(cur && LLM_MODELS.some(m=>m.name===cur)) sel.value=cur;
+  }
+  const box=$('llmList');
+  if(box){ box.innerHTML='';
+    if(!LLM_MODELS.length){ box.innerHTML='<p class="text-muted text-xs">No models yet.</p>'; }
+    else LLM_MODELS.forEach(m=>{
+      const row=document.createElement('div'); row.className='flex items-center justify-between bg-ink border border-line rounded-lg px-3 py-2';
+      const badges=[m.encrypted?'🔒 encrypted':'', m.model.startsWith('ollama/')?'local':'', m.track_costs?('costs $'+m.cost_input+'/$'+m.cost_output+' per 1M'):''].filter(Boolean).map(b=>'<span class="text-muted text-xs">· '+escapeHtml(b)+'</span>').join(' ');
+      row.innerHTML='<span class="truncate"><b>'+escapeHtml(m.name)+'</b> <span class="text-muted text-xs">'+escapeHtml(m.model)+'</span> '+badges+'</span>';
+      const del=document.createElement('button'); del.className='text-danger text-xs hover:underline flex-none ml-2'; del.textContent='delete';
+      del.onclick=async()=>{ if(!(await confirmDialog({title:'Delete model', message:'Delete model config "'+m.name+'"?', okText:'Delete', danger:true}))) return; await api('/api/llm-models/'+encodeURIComponent(m.name),null,'DELETE'); loadLLMModels(); };
+      row.appendChild(del); box.appendChild(row);
+    });
+  }
+}
+if($('llmType')) $('llmType').onchange=()=>{ if($('llmType').value==='local'){ if(!$('llmModel').value.startsWith('ollama/')) $('llmModel').value='ollama/llama3'; if(!$('llmApiBase').value) $('llmApiBase').value='http://localhost:11434'; } };
+if($('llmKeyToggle')) $('llmKeyToggle').onclick=()=>{ const k=$('llmKey'); k.type=k.type==='password'?'text':'password'; $('llmKeyToggle').textContent=k.type==='password'?'show':'hide'; };
+if($('llmEncrypt')) $('llmEncrypt').onchange=()=>$('llmSecretRow').classList.toggle('hidden', !$('llmEncrypt').checked);
+if($('llmTrack')) $('llmTrack').onchange=()=>$('llmCostRow').classList.toggle('hidden', !$('llmTrack').checked);
+if($('btnSaveLLM')) $('btnSaveLLM').onclick=async()=>{
+  try{
+    await api('/api/llm-models',{ name:$('llmName').value, model:$('llmModel').value, api_key:$('llmKey').value, api_base:$('llmApiBase').value, encrypt:$('llmEncrypt').checked, secret:$('llmSecret').value, track_costs:$('llmTrack').checked, cost_input:parseFloat($('llmCostIn').value)||0, cost_output:parseFloat($('llmCostOut').value)||0 });
+    $('llmMsg').textContent='Saved.'; $('llmMsg').className='text-[11px] mt-2 text-ok'; $('llmKey').value=''; $('llmSecret').value=''; loadLLMModels();
+  }catch(e){ $('llmMsg').textContent='Error: '+e.message; $('llmMsg').className='text-[11px] mt-2 text-danger'; }
+};
 $('togglePass').onclick=()=>{ const p=$('password'); p.type=p.type==='password'?'text':'password'; $('togglePass').textContent=p.type==='password'?'show':'hide'; };
 document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const mode=document.querySelector('input[name=mode]:checked').value; try{localStorage.setItem('icw_mode',mode);}catch(_){} const rule=mode==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); refreshConditional(); });
 $('targets').addEventListener('input', ()=>{ try{localStorage.setItem('icw_targets',$('targets').value);}catch(_){} });
@@ -1217,7 +1313,7 @@ function maybeAutoTour(){
   if(!done) setTimeout(startTour, 700);   // first access: show it once
 }
 
-loadMeta().then(()=>{ refreshConditional(); restore(); restoreUiState(); maybeAutoTour(); });
+loadMeta().then(()=>{ refreshConditional(); restore(); restoreUiState(); loadLLMModels(); maybeAutoTour(); });
 
 // Blink the provider user/password tooltips at random intervals to draw the
 // eye - only while NOT connected, and only for tips that are actually shown.

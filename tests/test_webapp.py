@@ -9,7 +9,7 @@ try:
     import httpx  # noqa: F401  (required by fastapi TestClient)
     from fastapi.testclient import TestClient
 
-    from imap_cleanup_tool import profiles, scheduler
+    from imap_cleanup_tool import llm, profiles, scheduler
     from imap_cleanup_tool.webapp import create_app
     _HAVE_WEB = True
 except Exception:  # pragma: no cover - depends on optional deps
@@ -198,6 +198,19 @@ class WebApiTests(unittest.TestCase):
         self.assertEqual(r.status_code, 440)
         r2 = self.client.get("/api/ai-report.json/nope")
         self.assertEqual(r2.status_code, 440)
+
+    def test_llm_models_crud(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(llm, "config_dir", return_value=Path(tmp)):
+                r = self.client.post("/api/llm-models", json={
+                    "name": "m1", "model": "gpt-4o-mini", "api_key": "sk-x"})
+                self.assertEqual(r.status_code, 200)
+                models = self.client.get("/api/llm-models").json()["models"]
+                self.assertTrue(any(m["name"] == "m1" for m in models))
+                self.client.delete("/api/llm-models/m1")
+                self.assertFalse(any(
+                    m["name"] == "m1"
+                    for m in self.client.get("/api/llm-models").json()["models"]))
 
 
 if __name__ == "__main__":

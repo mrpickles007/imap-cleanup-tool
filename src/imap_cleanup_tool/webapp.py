@@ -33,7 +33,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from . import __version__, core, profiles, scheduler
+from . import __version__, core, llm, profiles, scheduler
 from .rules import RuleError, compile_search, node_from_dict
 from .targets import parse_targets_text
 
@@ -262,6 +262,17 @@ def create_app():
         weights: dict | None = None
         batch_size: int = core.UID_CHUNK_SIZE
 
+    class LLMModelIn(BaseModel):
+        name: str
+        model: str = "gpt-4o-mini"
+        api_key: str = ""
+        api_base: str = ""
+        encrypt: bool = False
+        secret: str = ""
+        track_costs: bool = False
+        cost_input: float = 0.0
+        cost_output: float = 0.0
+
     class SendersIn(BaseModel):
         sid: str
         folders: list[str] = Field(default_factory=lambda: ["INBOX"])
@@ -458,6 +469,27 @@ def create_app():
     @app.delete("/api/profiles/{name}")
     def delete_profile(name: str) -> dict[str, Any]:
         profiles.delete_profile(name)
+        return {"deleted": name}
+
+    # ----- LLM model configs (for AI Cleanup) ------------------------------ #
+    @app.get("/api/llm-models")
+    def get_llm_models() -> dict[str, Any]:
+        return {"models": llm.list_models()}
+
+    @app.post("/api/llm-models")
+    def save_llm_model(body: LLMModelIn) -> dict[str, Any]:
+        try:
+            name = llm.save_model(
+                body.name, body.model, body.api_key, body.api_base,
+                body.encrypt, body.secret, body.track_costs,
+                body.cost_input, body.cost_output)
+        except llm.LLMError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return {"saved": name}
+
+    @app.delete("/api/llm-models/{name}")
+    def delete_llm_model(name: str) -> dict[str, Any]:
+        llm.delete_model(name)
         return {"deleted": name}
 
     @app.post("/api/senders")
