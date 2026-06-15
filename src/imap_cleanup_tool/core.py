@@ -395,6 +395,13 @@ def delete_folder(conn: imaplib.IMAP4_SSL, name: str) -> str:
         raise ValueError("Empty folder name.")
     if name.upper() == "INBOX" or name in protected_folder_names(conn):
         raise ValueError(f"{name!r} is a system folder and cannot be deleted.")
+    # Deleting the *currently selected* mailbox makes many servers force a
+    # disconnect ("Selected mailbox was deleted, have to disconnect"). Park the
+    # selection on INBOX first - read-only, so nothing gets expunged.
+    try:
+        conn.select("INBOX", readonly=True)
+    except (OSError, imaplib.IMAP4.error):
+        pass
     try:
         conn.unsubscribe(_quote_mailbox(name))
     except (OSError, imaplib.IMAP4.error):

@@ -141,6 +141,8 @@ class DeleteFolderTests(unittest.TestCase):
         msg = core.delete_folder(conn, "Archive2025")
         self.assertIn("Deleted", msg)
         self.assertIn(("DELETE", '"Archive2025"'), conn.calls)
+        # must deselect (park on INBOX, read-only) before deleting
+        self.assertIn(("SELECT", "INBOX", True), conn.calls)
 
     def test_delete_protected_refused(self):
         with self.assertRaises(ValueError):
