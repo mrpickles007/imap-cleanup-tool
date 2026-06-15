@@ -21,6 +21,7 @@ from .targets import sender_matches
 
 UID_CHUNK_SIZE = 500
 GMAIL_STORE_CAP = 200  # Gmail chokes on large STORE commands.
+AI_FETCH_CHUNK = 50    # AI report header fetches: small batches = visible progress.
 
 logger = logging.getLogger("imap_cleanup_tool")
 
@@ -478,10 +479,18 @@ def _fetch_sender_meta(conn: imaplib.IMAP4_SSL, uids: list[bytes],
     from email import message_from_string
     fields = "(UID FLAGS BODY.PEEK[HEADER.FIELDS " \
              "(FROM DATE SUBJECT LIST-UNSUBSCRIBE PRECEDENCE)])"
-    for i in range(0, len(uids), batch_size):
+    # Cap the per-request size: a single FETCH of hundreds of comma-listed UIDs
+    # blocks with no feedback (and some servers stall on it). Smaller batches let
+    # us log progress and stay cancellable.
+    batch_size = max(1, min(batch_size, AI_FETCH_CHUNK))
+    total = len(uids)
+    done = 0
+    for i in range(0, total, batch_size):
         _check_stop(should_stop)
         chunk = uids[i:i + batch_size]
         status, data = conn.uid("FETCH", b",".join(chunk), fields)
+        done += len(chunk)
+        logger.info("  fetched headers %d/%d ...", done, total)
         if status != "OK" or not data:
             continue
         for part in data:
