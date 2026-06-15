@@ -80,7 +80,7 @@ tailwind.config = { theme: { extend: {
   .driver-popover.icw-tour .driver-popover-arrow-side-bottom.driver-popover-arrow{border-bottom-color:#111927}
 </style>
 </head>
-<body class="font-sans text-cream min-h-screen overflow-x-hidden">
+<body class="font-sans text-cream min-h-screen overflow-x-clip">
 
 <header class="sticky top-0 z-30 backdrop-blur bg-ink/80 border-b border-line">
   <div class="max-w-[1600px] mx-auto px-4 sm:px-6 py-2 sm:py-3 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -102,7 +102,7 @@ tailwind.config = { theme: { extend: {
 <main class="max-w-[1600px] mx-auto px-4 sm:px-6 py-6">
 
 <!-- ============================ CLEANUP TAB ============================ -->
-<div id="tab-cleanup" class="grid lg:grid-cols-5 gap-5">
+<div id="tab-cleanup" class="grid grid-cols-1 lg:grid-cols-5 gap-5">
 
   <div class="lg:col-span-3 space-y-5">
     <!-- Connection -->
@@ -378,7 +378,7 @@ tailwind.config = { theme: { extend: {
 </div>
 
 <!-- ============================ SCHEDULING TAB ============================ -->
-<div id="tab-scheduling" class="hidden grid lg:grid-cols-2 gap-5">
+<div id="tab-scheduling" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-5">
   <section class="bg-panel border border-line rounded-xl p-5">
     <h2 class="font-display font-semibold text-brand-light mb-3">New scheduled job</h2>
     <p class="text-xs text-muted mb-3">The job connects with a saved <b>profile</b>; folders, match and options come from the <b>Cleanup</b> tab. It runs the CLI on a schedule - different jobs can use different profiles (different accounts).</p>
@@ -446,7 +446,7 @@ tailwind.config = { theme: { extend: {
 </div>
 
 <!-- ============================ LLM TAB ============================ -->
-<div id="tab-llm" class="hidden grid lg:grid-cols-2 gap-5">
+<div id="tab-llm" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-5">
   <section class="bg-panel border border-line rounded-xl p-5">
     <h2 class="font-display font-semibold text-brand-light mb-3">Add / edit a model</h2>
     <p class="text-xs text-muted mb-3">The model used by <b>AI Cleanup</b>. <b>Local-first &amp; BYOA</b> (Bring Your Own API key): run a free <b>local</b> model (Ollama) so nothing leaves your machine, or <b>bring your own key</b> for any cloud model (OpenAI, OpenRouter, ...). Powered by <b>litellm</b>, so both use the same form. The key is stored in a local SQLite DB and can be <b>encrypted</b>, and is <b>never committed</b>. ⚠️ Remote models send only sender <b>subjects + stats</b> (never the message body) to that provider - for full privacy prefer a <b>local</b> model.</p>
