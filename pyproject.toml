@@ -4,15 +4,16 @@ build-backend = "hatchling.build"
 
 [project]
 name = "imap-cleanup-tool"
-version = "0.10.21"
-description = "Delete or move IMAP emails by sender, domain, or rules, plus local-first AI Cleanup (BYO API key) - CLI and web UI."
+version = "0.10.22"
+description = "AI-powered IMAP inbox cleanup (local-first, BYO API key) plus manual sender/domain/rule filters - CLI and web UI."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "Giulio Alberello", email = "support@imapcleanuptool.com" }]
 keywords = ["imap", "email", "gmail", "inbox", "cleanup", "email-cleanup",
-            "inbox-cleanup", "mailbox", "imap-client", "spam", "cli", "web",
-            "fastapi", "python", "ai", "llm", "litellm", "ollama"]
+            "inbox-cleanup", "inbox-cleaner", "mailbox", "imap-client", "spam",
+            "cli", "web", "local-webui", "fastapi", "python", "ai", "local-ai",
+            "local-ai-llm", "llm", "litellm", "ollama", "byoa"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
@@ -31,6 +32,7 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Communications :: Email",
     "Topic :: Communications :: Email :: Post-Office :: IMAP",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: System :: Systems Administration",
     "Topic :: Utilities",
 ]

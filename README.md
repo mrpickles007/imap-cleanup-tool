@@ -10,10 +10,15 @@
   <img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="License: AGPL-3.0-or-later">
 </p>
 
-Delete or move IMAP emails in bulk - by **sender**, by **domain**, or by
-**nested rules** (a query builder). Works from the **command line** and from a
-local **web interface**. The CLI uses only the Python standard library; the web
-UI is an optional extra (FastAPI).
+Clean your inbox **with AI, by hand, or both.** Let a **local-first LLM** decide
+what is junk and delete it - **BYOA (bring your own API key)**, or run a **free
+local model** via Ollama so nothing leaves your machine. Or write precise
+**sender / domain / nested-rule** filters yourself. Or **combine them** - point
+the AI at a single noisy domain, or let it sweep a whole folder.
+
+Bulk-delete or move IMAP emails from the **command line** and a local **web
+interface**. The CLI uses only the Python standard library; the web UI and the AI
+features are optional extras (see [Install](#install)).
 
 - Match by a target file (one sender/domain per line) **or** by a rule
   expression like `sender contains amazon.com OR (subject is Invoice AND date starts 2025-01-01)`.
@@ -160,16 +165,16 @@ Then install. The base package is the CLI only; the `[web]` extra installs the
 **same base package plus the web UI** in one go:
 
 ```bash
-pip install imap-cleanup-tool            # core CLI only
-pip install "imap-cleanup-tool[web]"     # core CLI + web UI (imap-cleanup-tool-web)
+pip install imap-cleanup-tool             # core CLI only
+pip install "imap-cleanup-tool[web]"      # core CLI + web UI (imap-cleanup-tool-web)
+pip install "imap-cleanup-tool[web,ai]"   # everything, incl. AI Cleanup (recommended)
 ```
 
-You do not need to install the base separately before `[web]` - the extra
-includes it. The CLI stays dependency-free; only the web UI pulls in FastAPI,
-uvicorn and cryptography (the last for encrypted connection profiles).
-
-For the optional **[AI Cleanup](#ai-cleanup)** feature, add the `[ai]` extra
-(pulls in `litellm`): `pip install "imap-cleanup-tool[web,ai]"`.
+You do not need to install the base separately before an extra - it is included.
+The CLI stays dependency-free; the `[web]` extra pulls in FastAPI/uvicorn (and
+cryptography for encrypted profiles), and the **`[ai]` extra** pulls in
+**`litellm`** for [AI Cleanup](#ai-cleanup) (cloud models or a local Ollama one).
+Want the AI features but not the web UI? `pip install "imap-cleanup-tool[ai]"`.
 
 ### From source
 
