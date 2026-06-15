@@ -11,6 +11,14 @@ from __future__ import annotations
 import json
 import re
 
+from .core import StopRequested, logger
+
+# Senders are sent to the model in batches: one giant request for hundreds of
+# senders overflows the model's output limit (truncated -> invalid JSON) and can
+# hang. Small batches keep each call bounded, cancellable and loggable.
+LLM_BATCH_SIZE = 25
+LLM_TIMEOUT = 120          # seconds per LLM request
+
 _SYSTEM = (
     "You are an email-triage assistant. The user wants to bulk-delete junk, "
     "newsletters and promotional mail they do not read. You receive senders "
@@ -23,21 +31,26 @@ _SYSTEM = (
     '"confidence":0.0}]}')
 
 
+def _sender_payload(s: dict) -> dict:
+    """The compact, body-free per-sender data sent to the model."""
+    return {
+        "sender": s["sender"], "messages": s["count"],
+        "unread_ratio": s["unread_ratio"], "per_week": s["per_week"],
+        "list_unsubscribe": s["list_unsubscribe"],
+        "heuristic_score": s["score"],
+        "sample_subjects": [x["subject"] for x in s.get("samples", [])],
+    }
+
+
+def _user_message(senders: list[dict]) -> str:
+    items = [_sender_payload(s) for s in senders]
+    return "Senders to evaluate:\n" + json.dumps(items, ensure_ascii=False)
+
+
 def build_messages(report: dict) -> tuple[str, str]:
     """Return (system, user) messages for the flagged senders in ``report``."""
-    items = []
-    for s in report.get("senders", []):
-        if not s.get("flagged"):
-            continue
-        items.append({
-            "sender": s["sender"], "messages": s["count"],
-            "unread_ratio": s["unread_ratio"], "per_week": s["per_week"],
-            "list_unsubscribe": s["list_unsubscribe"],
-            "heuristic_score": s["score"],
-            "sample_subjects": [x["subject"] for x in s.get("samples", [])],
-        })
-    user = "Senders to evaluate:\n" + json.dumps(items, ensure_ascii=False)
-    return _SYSTEM, user
+    flagged = [s for s in report.get("senders", []) if s.get("flagged")]
+    return _SYSTEM, _user_message(flagged)
 
 
 def _extract_json(content: str):
@@ -95,13 +108,47 @@ def parse_verdicts(content: str) -> dict:
         return {}
 
 
-def evaluate(report: dict, model_cfg: dict, max_retries: int = 3) -> dict:
-    """Call the LLM (with up to ``max_retries`` attempts to get valid JSON).
+def _call_once(litellm, kwargs: dict):
+    """One LLM call, preferring strict JSON mode but tolerating models without it."""
+    try:
+        return litellm.completion(response_format={"type": "json_object"},
+                                  **kwargs)
+    except Exception:  # pragma: no cover - model may not support the param
+        return litellm.completion(**kwargs)
 
-    Returns {verdicts, prompt_tokens, completion_tokens, cost} (tokens summed
-    across attempts). ``model_cfg`` is an llm.load_model() dict. Raises
-    RuntimeError if litellm (the ``[ai]`` extra) is missing or the model never
-    returns a schema-valid JSON reply.
+
+def _evaluate_batch(litellm, base_kwargs: dict, senders: list[dict],
+                    max_retries: int) -> tuple[dict, int, int]:
+    """Evaluate one batch of senders; returns (verdicts, prompt_tok, compl_tok)."""
+    kwargs = dict(base_kwargs)
+    kwargs["messages"] = [{"role": "system", "content": _SYSTEM},
+                          {"role": "user", "content": _user_message(senders)}]
+    pt = ct = 0
+    last_err = ""
+    for _ in range(max_retries):
+        resp = _call_once(litellm, kwargs)
+        usage = getattr(resp, "usage", None)
+        pt += int(getattr(usage, "prompt_tokens", 0) or 0)
+        ct += int(getattr(usage, "completion_tokens", 0) or 0)
+        try:
+            return validate_verdicts(resp.choices[0].message.content), pt, ct
+        except ValueError as exc:
+            last_err = str(exc)
+    raise RuntimeError(f"The model did not return valid JSON after "
+                       f"{max_retries} attempts ({last_err}).")
+
+
+def evaluate(report: dict, model_cfg: dict, max_retries: int = 3,
+             batch_size: int = LLM_BATCH_SIZE, should_stop=None,
+             timeout: int = LLM_TIMEOUT) -> dict:
+    """Ask the LLM which flagged senders to delete, in batches.
+
+    Flagged senders are sent ``batch_size`` at a time (each call retried up to
+    ``max_retries`` for valid JSON, with a per-request ``timeout``); progress is
+    logged and ``should_stop`` is honored between batches. Returns
+    {verdicts, prompt_tokens, completion_tokens, cost}. ``model_cfg`` is an
+    llm.load_model() dict. Raises RuntimeError if litellm (the ``[ai]`` extra) is
+    missing or a batch never returns schema-valid JSON.
     """
     try:
         import litellm
@@ -109,37 +156,27 @@ def evaluate(report: dict, model_cfg: dict, max_retries: int = 3) -> dict:
         raise RuntimeError("AI features need the [ai] extra: "
                            "pip install \"imap-cleanup-tool[ai]\"") from exc
 
-    system, user = build_messages(report)
-    kwargs = {"model": model_cfg["model"],
-              "messages": [{"role": "system", "content": system},
-                           {"role": "user", "content": user}],
-              "temperature": 0}
+    base_kwargs = {"model": model_cfg["model"], "temperature": 0,
+                   "timeout": timeout}
     if model_cfg.get("api_key"):
-        kwargs["api_key"] = model_cfg["api_key"]
+        base_kwargs["api_key"] = model_cfg["api_key"]
     if model_cfg.get("api_base"):
-        kwargs["api_base"] = model_cfg["api_base"]
+        base_kwargs["api_base"] = model_cfg["api_base"]
 
+    flagged = [s for s in report.get("senders", []) if s.get("flagged")]
+    total = len(flagged)
+    verdicts: dict = {}
     pt = ct = 0
-    verdicts = None
-    last_err = ""
-    for attempt in range(1, max_retries + 1):
-        try:
-            resp = litellm.completion(response_format={"type": "json_object"},
-                                      **kwargs)
-        except Exception:  # pragma: no cover - model may not support the param
-            resp = litellm.completion(**kwargs)
-        usage = getattr(resp, "usage", None)
-        pt += int(getattr(usage, "prompt_tokens", 0) or 0)
-        ct += int(getattr(usage, "completion_tokens", 0) or 0)
-        try:
-            verdicts = validate_verdicts(resp.choices[0].message.content)
-            break
-        except ValueError as exc:
-            last_err = str(exc)
-            continue
-    if verdicts is None:
-        raise RuntimeError(f"The model did not return valid JSON after "
-                           f"{max_retries} attempts ({last_err}).")
+    for start in range(0, total, max(1, batch_size)):
+        if should_stop is not None and should_stop():
+            raise StopRequested
+        batch = flagged[start:start + batch_size]
+        v, bpt, bct = _evaluate_batch(litellm, base_kwargs, batch, max_retries)
+        verdicts.update(v)
+        pt += bpt
+        ct += bct
+        logger.info("LLM evaluated %d/%d flagged sender(s) ...",
+                    min(start + batch_size, total), total)
 
     cost = None
     if model_cfg.get("track_costs"):

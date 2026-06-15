@@ -248,6 +248,73 @@ class LLMHelpersTests(unittest.TestCase):
         finally:
             del sys.modules["litellm"]
 
+    def test_evaluate_batches_flagged_senders(self):
+        """532-style large reports must be sent in batches, not one giant call."""
+        import sys
+        import types
+
+        calls = {"n": 0, "batch_sizes": []}
+
+        def fake_completion(**kw):
+            # echo a verdict for each sender in this batch's user message
+            calls["n"] += 1
+            user = kw["messages"][1]["content"]
+            import json as _j
+            items = _j.loads(user.split("\n", 1)[1])
+            calls["batch_sizes"].append(len(items))
+            verdicts = [{"sender": it["sender"], "delete": True} for it in items]
+
+            class _Resp:
+                choices = [type("C", (), {"message": type(
+                    "M", (), {"content": _j.dumps({"verdicts": verdicts})})()})()]
+                usage = type("U", (), {"prompt_tokens": 1,
+                                       "completion_tokens": 1})()
+            return _Resp()
+
+        fake = types.ModuleType("litellm")
+        fake.completion = fake_completion
+        sys.modules["litellm"] = fake
+        try:
+            senders = [{"sender": f"s{i}@x.com", "flagged": True, "count": 1,
+                        "unread_ratio": 1.0, "per_week": 1,
+                        "list_unsubscribe": True, "score": 9, "samples": []}
+                       for i in range(5)]
+            report = {"senders": senders}
+            ev = ai.evaluate(report, {"model": "m"}, batch_size=2)
+            self.assertEqual(calls["n"], 3)             # ceil(5/2) batches
+            self.assertEqual(calls["batch_sizes"], [2, 2, 1])
+            self.assertEqual(len(ev["verdicts"]), 5)    # all merged
+        finally:
+            del sys.modules["litellm"]
+
+    def test_evaluate_stops_between_batches(self):
+        import sys
+        import types
+        from imap_cleanup_tool.core import StopRequested
+
+        def fake_completion(**kw):
+            import json as _j
+
+            class _Resp:
+                choices = [type("C", (), {"message": type(
+                    "M", (), {"content": _j.dumps({"verdicts": []})})()})()]
+                usage = None
+            return _Resp()
+
+        fake = types.ModuleType("litellm")
+        fake.completion = fake_completion
+        sys.modules["litellm"] = fake
+        try:
+            senders = [{"sender": f"s{i}@x.com", "flagged": True, "count": 1,
+                        "unread_ratio": 1.0, "per_week": 1,
+                        "list_unsubscribe": True, "score": 9, "samples": []}
+                       for i in range(4)]
+            with self.assertRaises(StopRequested):
+                ai.evaluate({"senders": senders}, {"model": "m"}, batch_size=2,
+                            should_stop=lambda: True)
+        finally:
+            del sys.modules["litellm"]
+
     def test_evaluate_raises_after_max_retries(self):
         class _Msg:
             content = "never valid"

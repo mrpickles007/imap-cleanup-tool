@@ -643,8 +643,10 @@ def create_app():
             core.logger.info("Asking %s to evaluate %d flagged sender(s) ...",
                              model_cfg["model"], report["flagged_count"])
             try:
-                ev = ai.evaluate(report, model_cfg)
-            except (RuntimeError, Exception) as exc:  # pylint: disable=broad-exception-caught
+                ev = ai.evaluate(report, model_cfg, should_stop=rs.stop.is_set)
+            except core.StopRequested:
+                raise
+            except Exception as exc:  # pylint: disable=broad-exception-caught
                 raise RuntimeError(f"LLM call failed: {exc}") from exc
             for s in report["senders"]:
                 if s.get("flagged"):
