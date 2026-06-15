@@ -9,7 +9,7 @@ try:
     import httpx  # noqa: F401  (required by fastapi TestClient)
     from fastapi.testclient import TestClient
 
-    from imap_cleanup_tool import llm, profiles, scheduler
+    from imap_cleanup_tool import llm, notifications, profiles, scheduler
     from imap_cleanup_tool.webapp import create_app
     _HAVE_WEB = True
 except Exception:  # pragma: no cover - depends on optional deps
@@ -202,6 +202,29 @@ class WebApiTests(unittest.TestCase):
     def test_ai_run_without_session_is_rejected(self):
         r = self.client.post("/api/ai-run", json={"sid": "nope", "model": "m"})
         self.assertEqual(r.status_code, 440)
+
+    def test_smtp_profiles_and_settings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(notifications, "config_dir",
+                                   return_value=Path(tmp)):
+                self.assertEqual(
+                    self.client.get("/api/smtp-profiles").json()["profiles"], [])
+                r = self.client.post("/api/smtp-profiles", json={
+                    "name": "ses", "host": "email-smtp.x.amazonaws.com",
+                    "port": 587, "user": "AKIA", "password": "pw",
+                    "from_addr": "a@b.com"})
+                self.assertEqual(r.status_code, 200)
+                data = self.client.get("/api/smtp-profiles").json()
+                self.assertEqual(data["profiles"][0]["name"], "ses")
+                s = self.client.post("/api/notify-settings", json={
+                    "active": "ses", "notify_to": "me@x.com",
+                    "notify_jobs": True}).json()
+                self.assertEqual(s["active"], "ses")
+                self.assertTrue(s["notify_jobs"])
+                # missing host is a 400
+                bad = self.client.post("/api/smtp-profiles", json={
+                    "name": "x", "host": ""})
+                self.assertEqual(bad.status_code, 400)
 
     def test_saved_reports_list_and_download(self):
         with tempfile.TemporaryDirectory() as tmp:

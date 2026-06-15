@@ -33,7 +33,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from . import __version__, ai, core, llm, profiles, scheduler
+from . import __version__, ai, core, llm, notifications, profiles, scheduler
 from .rules import RuleError, compile_search, node_from_dict
 from .targets import parse_targets_text
 
@@ -50,6 +50,9 @@ PROVIDER_PRESETS = [
 ]
 
 
+SMTP_PROVIDERS_FILE = Path(__file__).parent / "web" / "smtp_providers.json"
+
+
 def _load_providers() -> list:
     """Load the IMAP provider presets from the (extensible) JSON config file."""
     try:
@@ -59,6 +62,17 @@ def _load_providers() -> list:
     except (OSError, ValueError):
         pass
     return PROVIDER_PRESETS
+
+
+def _load_smtp_providers() -> list:
+    """Load the SMTP provider presets from the (extensible) JSON config file."""
+    try:
+        data = json.loads(SMTP_PROVIDERS_FILE.read_text(encoding="utf-8"))
+        if isinstance(data, list) and data:
+            return data
+    except (OSError, ValueError):
+        pass
+    return [{"name": "Custom", "host": "", "port": 587, "security": "starttls"}]
 
 
 def _safe_job_name(name: str) -> str:
@@ -279,6 +293,28 @@ def create_app():
         cost_output: float = 0.0
         update_key: bool = True          # False = keep the stored key when editing
 
+    class SmtpProfileIn(BaseModel):
+        name: str
+        host: str
+        port: int = 587
+        security: str = "starttls"       # ssl | starttls | none
+        user: str = ""
+        password: str = ""
+        from_addr: str = ""
+        encrypt: bool = False
+        secret: str = ""
+        update_password: bool = True     # False = keep the stored password on edit
+
+    class SmtpActionIn(BaseModel):
+        name: str
+        secret: str = ""
+
+    class NotifySettingsIn(BaseModel):
+        active: str | None = None
+        notify_to: str | None = None
+        notify_jobs: bool | None = None
+        notify_runs: bool | None = None
+
     class SendersIn(BaseModel):
         sid: str
         folders: list[str] = Field(default_factory=lambda: ["INBOX"])
@@ -354,6 +390,7 @@ def create_app():
         return {
             "version": __version__,
             "providers": _load_providers(),
+            "smtp_providers": _load_smtp_providers(),
             "fields": list(FIELD_OPERATORS),
             "operators": FIELD_OPERATORS,
             "gmail_store_cap": core.GMAIL_STORE_CAP,
@@ -481,6 +518,71 @@ def create_app():
         profiles.delete_profile(name)
         return {"deleted": name}
 
+    # ----- SMTP profiles + email notifications ----------------------------- #
+    @app.get("/api/smtp-profiles")
+    def get_smtp_profiles() -> dict[str, Any]:
+        return {"profiles": notifications.list_profiles(),
+                "settings": notifications.get_settings()}
+
+    @app.post("/api/smtp-profiles")
+    def save_smtp_profile(body: SmtpProfileIn) -> dict[str, Any]:
+        try:
+            name = notifications.save_profile(
+                body.name, body.host, body.port, body.user, body.password,
+                from_addr=body.from_addr, security=body.security,
+                encrypt=body.encrypt, secret=body.secret,
+                update_password=body.update_password)
+        except notifications.NotifyError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return {"saved": name}
+
+    @app.delete("/api/smtp-profiles/{name}")
+    def delete_smtp_profile(name: str) -> dict[str, Any]:
+        notifications.delete_profile(name)
+        return {"deleted": name}
+
+    @app.post("/api/smtp-test")
+    def smtp_test(body: SmtpActionIn) -> dict[str, Any]:
+        try:
+            return notifications.test_connection(body.name, body.secret)
+        except notifications.NotifyError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.post("/api/smtp-send-test")
+    def smtp_send_test(body: SmtpActionIn) -> dict[str, Any]:
+        """Send a test email to the configured recipient via the named profile."""
+        s = notifications.get_settings()
+        if not s["notify_to"]:
+            raise HTTPException(400, "Set a recipient address first.")
+        try:
+            cfg = notifications.load_profile(body.name, body.secret)
+            notifications.send_email(
+                cfg, s["notify_to"], "[imap-cleanup-tool] Test email",
+                "This is a test email from imap-cleanup-tool. "
+                "Your SMTP notifications are working.")
+        except notifications.NotifyError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return {"sent": s["notify_to"]}
+
+    @app.post("/api/notify-settings")
+    def save_notify_settings(body: NotifySettingsIn) -> dict[str, Any]:
+        notifications.set_settings(
+            active=body.active, notify_to=body.notify_to,
+            notify_jobs=body.notify_jobs, notify_runs=body.notify_runs)
+        return notifications.get_settings()
+
+    def _notify_run(account, folders, total, *, dry_run, gmail,
+                    kind="Cleanup") -> None:
+        """Send a run-completion email if 'notify on runs' is enabled (best effort)."""
+        try:
+            subj, body = notifications.cleanup_summary(
+                account, folders, total, dry_run=dry_run, gmail=gmail, kind=kind)
+            if notifications.send_notification(subj, body, when="run"):
+                core.logger.info("Notification email sent to the configured "
+                                 "recipient.")
+        except notifications.NotifyError as exc:
+            core.logger.warning("Notification email not sent: %s", exc)
+
     # ----- LLM model configs (for AI Cleanup) ------------------------------ #
     @app.get("/api/llm-models")
     def get_llm_models() -> dict[str, Any]:
@@ -573,6 +675,9 @@ def create_app():
             verb = "would be processed" if body.dry_run else "processed"
             core.logger.info("Done. %d message(s) %s.", total, verb)
             rs.result = {"processed": total, "dry_run": body.dry_run}
+            kind = "Empty folder" if body.empty_folder else "Cleanup"
+            _notify_run(sess.user, folders, total, dry_run=body.dry_run,
+                        gmail=body.gmail_trash, kind=kind)
 
         run_state = _start_run(sess, "run", work)
         return {"run_id": run_state.run_id}
@@ -695,7 +800,10 @@ def create_app():
             n += 1
             path = _ai_reports_dir() / f"{base}_{n}.csv"
         try:
-            path.write_text(core.ai_report_csv(report), encoding="utf-8")
+            # newline="" so the csv's own \r\n is not re-translated to \r\r\n
+            # on Windows (which shows a blank row between every record).
+            path.write_text(core.ai_report_csv(report), encoding="utf-8",
+                            newline="")
             core.logger.info("Report saved to disk as %s (pick it from the "
                              "download list).", path.name)
         except OSError as exc:
@@ -763,6 +871,8 @@ def create_app():
                     should_stop=rs.stop.is_set)
             verb = "would be deleted" if body.dry_run else "deleted"
             core.logger.info("=> AI Cleanup: %d message(s) %s.", total, verb)
+            _notify_run(sess.user, folders, total, dry_run=body.dry_run,
+                        gmail=gmail, kind="AI Cleanup")
 
         run_state = _start_run(sess, "ai-run", work)
         return {"run_id": run_state.run_id}

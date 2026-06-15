@@ -61,6 +61,7 @@ features are optional extras (see [Install](#install)).
 - [AI Cleanup](#ai-cleanup)
 - [Remote / headless server (SSH port forwarding)](#remote--headless-server-ssh-port-forwarding)
 - [Scheduling](#scheduling)
+- [Email notifications](#email-notifications)
 - [Gmail notes](#gmail-notes)
 
 ---
@@ -652,6 +653,29 @@ password to decrypt an encrypted one.
 **Logs** - every scheduled run appends to a rolling log file under
 `<config dir>/logs/<job>.log`. In the *Scheduling* tab, click **logs** on any
 saved job to view (or download) its run history.
+
+---
+
+## Email notifications
+
+Get an email when a cleanup finishes. Configure it in the **Notifications** tab:
+
+- **SMTP profiles** - save one or more outgoing-mail servers (host, port,
+  security, username, password, From address). Works with any provider - Gmail,
+  **Amazon SES**, Outlook/Microsoft 365, SendGrid, Mailgun, Postmark, Brevo, etc.
+  The password is stored locally (SQLite) and can be **encrypted** with a
+  passphrase, exactly like connection profiles (an encrypted profile can't run in
+  scheduled jobs). Each profile has a **test connection** button.
+- **One active profile** + a recipient address. Toggle notifications for
+  **scheduled jobs** (default) and/or **interactive runs**. A **Send test email**
+  button confirms it all works.
+- For a **Gmail** account, the email reminds you that the messages were moved to
+  the Trash and must be emptied to delete them for good (e.g. schedule an
+  *Empty folder* job on `[Gmail]/Trash`).
+
+Sending uses the Python standard library (`smtplib`), so notifications also fire
+for scheduled CLI jobs. Scheduled jobs require a **non-encrypted** active profile
+(no one is there to type the passphrase).
 
 ---
 

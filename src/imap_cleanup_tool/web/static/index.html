@@ -46,8 +46,14 @@ tailwind.config = { theme: { extend: {
   .field{background:#0f1626;border:1px solid #33415c;border-radius:8px;padding:8px 10px;color:#eef1f7;font-size:14px;width:100%}
   .field::placeholder{color:#7c87a6}
   .field:focus{outline:none;border-color:#1890d8;box-shadow:0 0 0 2px rgba(24,144,216,.25)}
-  .tab{padding:7px 16px;border-radius:9px;font-weight:600;color:#94a0bd;cursor:pointer}
+  .tab{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:9px;font-weight:600;color:#94a0bd;cursor:pointer}
   .tab.active{background:#1890d8;color:#0b1020}
+  .tab svg{width:16px;height:16px}
+  /* offcanvas drawer nav items (mobile) */
+  .navitem{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;font-weight:600;color:#cdd6ee;cursor:pointer;border:1px solid transparent;text-align:left}
+  .navitem:hover{border-color:#27324a;background:rgba(255,255,255,.03)}
+  .navitem.active{background:#1890d8;color:#0b1020}
+  .navitem svg{width:18px;height:18px;flex:none}
   .dim{opacity:.45}
   /* Guided tour (driver.js) themed to the web UI */
   .driver-popover.icw-tour{background:#111927;color:#eef1f7;border:1px solid #27324a;border-radius:14px;
@@ -87,19 +93,50 @@ tailwind.config = { theme: { extend: {
 <header class="sticky top-0 z-30 backdrop-blur bg-ink/80 border-b border-line">
   <div class="max-w-[1600px] mx-auto px-4 sm:px-6 py-2 sm:py-3 flex flex-wrap items-center gap-x-3 gap-y-1">
     <img src="/logo.png" alt="IMAP Cleanup Tool" class="h-10 sm:h-14 w-auto drop-shadow">
-    <div class="flex items-center gap-2 sm:gap-3 text-sm ml-auto">
-      <button id="btnTour" class="text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream hover:border-brand" title="Replay the guided tour">❔ Tour</button>
+    <!-- desktop: status + tour -->
+    <div class="hidden sm:flex items-center gap-3 text-sm ml-auto">
+      <button id="btnTour" class="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream hover:border-brand" title="Replay the guided tour"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Tour</button>
       <span id="dot" class="w-2.5 h-2.5 rounded-full bg-muted"></span>
-      <span id="status" class="text-muted hidden sm:inline">disconnected</span>
+      <span id="status" class="text-muted">disconnected</span>
     </div>
-    <p class="text-muted text-[11px] sm:text-xs basis-full">Bulk-clean your mailbox · local web UI <span id="ver"></span></p>
+    <!-- mobile: hamburger (with a status dot) -->
+    <button id="btnMenu" class="sm:hidden ml-auto inline-flex items-center gap-2 px-3 h-10 rounded-lg border border-line text-cream hover:border-brand" aria-label="Open menu">
+      <span id="dotMini" class="w-2.5 h-2.5 rounded-full bg-muted"></span>
+      <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <p class="text-muted text-[11px] sm:text-xs basis-full hidden sm:block">Bulk-clean your mailbox · local web UI <span id="ver"></span></p>
   </div>
-  <div class="max-w-[1600px] mx-auto px-4 sm:px-6 pt-1.5 pb-3 flex gap-2">
-    <div class="tab active" data-tab="cleanup">Cleanup</div>
-    <div class="tab" data-tab="scheduling">Scheduling</div>
-    <div class="tab" data-tab="llm">LLM</div>
+  <!-- desktop tabs -->
+  <div class="hidden sm:flex max-w-[1600px] mx-auto px-4 sm:px-6 pt-1.5 pb-3 gap-2">
+    <div class="tab active" data-tab="cleanup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Cleanup</div>
+    <div class="tab" data-tab="scheduling"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>Scheduling</div>
+    <div class="tab" data-tab="llm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="15" x2="4" y2="15"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="15" x2="23" y2="15"/></svg>LLM</div>
+    <div class="tab" data-tab="notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifications</div>
   </div>
 </header>
+
+<!-- ===================== MOBILE OFFCANVAS ===================== -->
+<div id="drawer" class="fixed inset-0 z-40 hidden sm:hidden">
+  <div id="drawerBackdrop" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+  <aside class="absolute right-0 top-0 h-full w-72 max-w-[82%] bg-panel border-l border-line p-4 flex flex-col gap-1 shadow-2xl">
+    <div class="flex items-center justify-between mb-1">
+      <span class="font-display font-semibold text-brand-light">Menu</span>
+      <button id="drawerClose" class="w-9 h-9 inline-flex items-center justify-center rounded-lg border border-line text-muted hover:text-cream" aria-label="Close menu"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="flex items-center gap-2 text-sm px-1 py-2 mb-1 border-b border-line">
+      <span id="dot2" class="w-2.5 h-2.5 rounded-full bg-muted"></span>
+      <span id="status2" class="text-muted">disconnected</span>
+    </div>
+    <nav class="flex flex-col gap-1">
+      <button class="navitem active" data-tab="cleanup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Cleanup</button>
+      <button class="navitem" data-tab="scheduling"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>Scheduling</button>
+      <button class="navitem" data-tab="llm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="15" x2="4" y2="15"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="15" x2="23" y2="15"/></svg>LLM</button>
+      <button class="navitem" data-tab="notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifications</button>
+    </nav>
+    <button id="btnTour2" class="navitem mt-1" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Replay tour</button>
+    <p class="text-muted text-[11px] mt-auto px-1">local web UI <span id="ver2"></span></p>
+  </aside>
+</div>
 
 <main class="max-w-[1600px] mx-auto px-4 sm:px-6 py-6">
 
@@ -501,6 +538,70 @@ tailwind.config = { theme: { extend: {
   </section>
 </div>
 
+<!-- ============================ NOTIFICATIONS TAB ============================ -->
+<div id="tab-notifications" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-5">
+  <section class="bg-panel border border-line rounded-xl p-5">
+    <h2 class="font-display font-semibold text-brand-light mb-3">Add / edit an SMTP profile</h2>
+    <p class="text-xs text-muted mb-3">Outgoing mail server used to send notification emails. The password is stored locally (SQLite) and can be <b>encrypted</b> (an encrypted profile can't run in scheduled jobs). Supports any provider - Gmail, <b>Amazon SES</b>, Outlook, SendGrid, etc.</p>
+    <div class="grid grid-cols-2 gap-3">
+      <label class="text-xs text-muted">Name <input id="smName" class="field mt-1" placeholder="my-smtp"></label>
+      <label class="text-xs text-muted">Provider
+        <select id="smProvider" class="field mt-1"></select>
+      </label>
+      <label class="text-xs text-muted">Host <input id="smHost" class="field mt-1" placeholder="email-smtp.eu-west-1.amazonaws.com"></label>
+      <label class="text-xs text-muted">Port <input id="smPort" type="number" class="field mt-1" value="587"></label>
+      <label class="text-xs text-muted">Security
+        <select id="smSecurity" class="field mt-1"><option value="starttls">STARTTLS (587)</option><option value="ssl">SSL/TLS (465)</option><option value="none">None</option></select>
+      </label>
+      <label class="text-xs text-muted">From address <input id="smFrom" class="field mt-1" placeholder="alerts@yourdomain.com"></label>
+      <label class="text-xs text-muted col-span-2">Username
+        <span class="tip"><span class="ic">i</span><span class="bub" id="smPassTip">SMTP login. For Amazon SES use the <b>SES SMTP credentials</b>; for Gmail your full address + an App Password.</span></span>
+        <input id="smUser" class="field mt-1" placeholder="SMTP username">
+      </label>
+      <label class="text-xs text-muted col-span-2">Password
+        <div class="flex gap-2 mt-1"><input id="smKey" type="password" class="field" placeholder="SMTP password / API key"><button id="smKeyToggle" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream">show</button></div>
+      </label>
+    </div>
+    <label class="flex items-center justify-between text-sm py-2 mt-1">
+      <span class="flex items-center">Encrypt the password
+        <span class="tip"><span class="ic">i</span><span class="bub">Encrypts the password with a passphrase (never stored). An <b>encrypted</b> profile cannot send from scheduled jobs (no one to type it).</span></span>
+      </span>
+      <input id="smEncrypt" type="checkbox">
+    </label>
+    <div id="smSecretRow" class="hidden mb-1"><input id="smSecret" type="password" class="field" placeholder="encryption passphrase"></div>
+    <div class="flex gap-2 mt-3 flex-wrap">
+      <button id="btnSaveSmtp" class="bg-brand hover:bg-brand-light text-ink font-semibold rounded-lg px-4 py-2">Save profile</button>
+      <button id="btnCancelSmtp" type="button" class="hidden rounded-lg border border-line text-muted hover:text-cream px-4 py-2">Cancel edit</button>
+    </div>
+    <p id="smMsg" class="text-[11px] mt-2 text-muted"></p>
+  </section>
+  <section class="bg-panel border border-line rounded-xl p-5">
+    <h2 class="font-display font-semibold text-brand-light mb-3">Notifications</h2>
+    <p class="text-xs text-muted mb-3">Get an email when a cleanup finishes. One profile is <b>active</b>. By default emails are sent for <b>scheduled jobs</b>; you can also enable them for interactive <b>runs</b>. For Gmail accounts the email reminds you to empty the Trash.</p>
+    <label class="text-xs text-muted block">Active SMTP profile
+      <select id="smActive" class="field mt-1"></select>
+    </label>
+    <label class="text-xs text-muted block mt-3">Send notifications to
+      <input id="smTo" class="field mt-1" placeholder="you@example.com">
+    </label>
+    <label class="flex items-center justify-between text-sm py-2 mt-2">
+      <span>Notify for <b>scheduled jobs</b></span>
+      <input id="smNotifyJobs" type="checkbox">
+    </label>
+    <label class="flex items-center justify-between text-sm py-1">
+      <span>Notify for <b>interactive runs</b></span>
+      <input id="smNotifyRuns" type="checkbox">
+    </label>
+    <div class="flex gap-2 mt-3 flex-wrap">
+      <button id="btnSaveNotify" class="bg-brand hover:bg-brand-light text-ink font-semibold rounded-lg px-4 py-2">Save settings</button>
+      <button id="btnSendTest" type="button" class="rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand px-4 py-2 text-sm">Send test email</button>
+    </div>
+    <p id="smNotifyMsg" class="text-[11px] mt-2 text-muted"></p>
+    <h3 class="font-display font-semibold text-brand-light mt-5 mb-2 text-sm">Saved SMTP profiles</h3>
+    <div id="smList" class="space-y-2 text-sm"><p class="text-muted text-xs">No profiles yet.</p></div>
+  </section>
+</div>
+
 </main>
 
 <!-- Job-log modal -->
@@ -608,7 +709,11 @@ function persistLog(){ try{ localStorage.setItem('icw_log', JSON.stringify(logLi
 function pushLines(arr){ if(!arr||!arr.length) return; for(const l of arr) logLines.push(l); if(logLines.length>LOG_CAP) logLines=logLines.slice(-LOG_CAP); renderLog(); persistLog(); }
 function log(line){ pushLines(['['+new Date().toLocaleTimeString()+'] '+line]); }
 function restoreLog(){ try{ const s=JSON.parse(localStorage.getItem('icw_log')||'[]'); if(Array.isArray(s)){ logLines=s.slice(-LOG_CAP); renderLog(); } }catch(_){} }
-function setStatus(ok, text){ $('dot').className='w-2.5 h-2.5 rounded-full '+(ok?'bg-ok':'bg-muted'); $('status').textContent=text; $('status').className=ok?'text-ok':'text-muted'; }
+function setStatus(ok, text){
+  const dotCls='w-2.5 h-2.5 rounded-full '+(ok?'bg-ok':'bg-muted');
+  ['dot','dot2','dotMini'].forEach(id=>{ const e=$(id); if(e) e.className=dotCls; });
+  ['status','status2'].forEach(id=>{ const e=$(id); if(e){ e.textContent=text; e.className=ok?'text-ok':'text-muted'; } });
+}
 function connParams(){ return {host:$('host').value.trim(),port:parseInt($('port').value)||993,user:$('user').value.trim(),password:$('password').value,timeout:parseInt($('timeout').value)||120}; }
 
 function errText(data, status){
@@ -643,11 +748,33 @@ function confirmDialog(opts){
     ok.onclick=()=>done(true); $('confirmCancel').onclick=()=>done(false);
   });
 }
+/* Themed password/text prompt -> resolves to the typed string, or null on cancel. */
+function promptDialog(opts){
+  opts = opts || {};
+  return new Promise(resolve=>{
+    const ov=document.createElement('div');
+    ov.className='fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4';
+    ov.innerHTML='<div class="bg-panel border border-line rounded-xl p-5 w-full max-w-sm">'
+      +'<h3 class="font-display font-semibold text-brand-light mb-2">'+escapeHtml(opts.title||'Enter value')+'</h3>'
+      +'<p class="text-muted text-sm mb-3">'+escapeHtml(opts.message||'')+'</p>'
+      +'<input type="'+(opts.type||'password')+'" class="field" placeholder="'+escapeHtml(opts.placeholder||'')+'">'
+      +'<div class="flex justify-end gap-2 mt-4"><button data-x="c" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Cancel</button>'
+      +'<button data-x="o" class="px-4 py-2 rounded-lg font-semibold bg-brand text-ink hover:bg-brand-light">OK</button></div></div>';
+    document.body.appendChild(ov);
+    const inp=ov.querySelector('input'); setTimeout(()=>inp.focus(),50);
+    const done=(v)=>{ ov.remove(); resolve(v); };
+    ov.querySelector('[data-x=o]').onclick=()=>done(inp.value);
+    ov.querySelector('[data-x=c]').onclick=()=>done(null);
+    ov.onclick=(e)=>{ if(e.target===ov) done(null); };
+    inp.addEventListener('keydown',e=>{ if(e.key==='Enter') done(inp.value); if(e.key==='Escape') done(null); });
+  });
+}
 
 /* ---------- meta + restore ---------- */
 async function loadMeta(){
   META = await (await fetch('/api/meta')).json();
-  $('ver').textContent = META.version?('v'+META.version):'';
+  const vtxt = META.version?('v'+META.version):'';
+  $('ver').textContent = vtxt; if($('ver2')) $('ver2').textContent = vtxt;
   const sel=$('provider'); sel.innerHTML='';
   (META.providers||[]).forEach((p,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=p.name;sel.appendChild(o);});
   applyProviderTips();
@@ -1000,15 +1127,25 @@ async function loadJobs(){
 }
 
 /* ---------- events ---------- */
-document.querySelectorAll('.tab').forEach(t=> t.onclick=()=>{
-  try{ localStorage.setItem('icw_tab', t.dataset.tab); }catch(_){}
-  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
-  $('tab-cleanup').classList.toggle('hidden', t.dataset.tab!=='cleanup');
-  $('tab-scheduling').classList.toggle('hidden', t.dataset.tab!=='scheduling');
-  $('tab-llm').classList.toggle('hidden', t.dataset.tab!=='llm');
-  if(t.dataset.tab==='scheduling'){ populateJobProfiles(); updateSchedInputs(); loadJobs(); loadLLMModels().then(populateJobAiModels); }
-  if(t.dataset.tab==='llm'){ loadLLMModels(); }
-});
+const TABS=['cleanup','scheduling','llm','notifications'];
+function switchTab(name){
+  if(!TABS.includes(name)) name='cleanup';
+  try{ localStorage.setItem('icw_tab', name); }catch(_){}
+  document.querySelectorAll('.tab,.navitem').forEach(x=>{ if(x.dataset.tab) x.classList.toggle('active', x.dataset.tab===name); });
+  TABS.forEach(t=>{ const el=$('tab-'+t); if(el) el.classList.toggle('hidden', t!==name); });
+  if(name==='scheduling'){ populateJobProfiles(); updateSchedInputs(); loadJobs(); loadLLMModels().then(populateJobAiModels); }
+  if(name==='llm'){ loadLLMModels(); }
+  if(name==='notifications'){ loadSmtp(); }
+  closeDrawer();
+}
+document.querySelectorAll('.tab,.navitem').forEach(t=>{ if(t.dataset.tab) t.onclick=()=>switchTab(t.dataset.tab); });
+/* ---------- mobile offcanvas drawer ---------- */
+function openDrawer(){ $('drawer').classList.remove('hidden'); }
+function closeDrawer(){ const d=$('drawer'); if(d) d.classList.add('hidden'); }
+if($('btnMenu')) $('btnMenu').onclick=openDrawer;
+if($('drawerClose')) $('drawerClose').onclick=closeDrawer;
+if($('drawerBackdrop')) $('drawerBackdrop').onclick=closeDrawer;
+if($('btnTour2')) $('btnTour2').onclick=()=>{ closeDrawer(); if($('btnTour')) $('btnTour').click(); };
 $('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider').value)||0]; if(p){ if(p.host)$('host').value=p.host; if(p.port)$('port').value=p.port; if(p.host==='imap.gmail.com'){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} } applyProviderTips(); refreshConditional(); };
 $('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional; $('gmailTrash').onchange=refreshConditional;
 $('moveMode').onchange=()=>{ refreshConditional(); populateMoveDest(); updateJobSummary(); };
@@ -1132,6 +1269,95 @@ async function openCostLog(name){
 }
 $('costClose').onclick=()=>$('costModal').classList.add('hidden');
 $('costModal').onclick=(e)=>{ if(e.target.id==='costModal') $('costModal').classList.add('hidden'); };
+
+/* ---------- Notifications tab (SMTP profiles + settings) ---------- */
+let SMTP_PROFILES=[], SMTP_PROVIDERS_DONE=false, EDITING_SMTP=null;
+function fillSmtpProviders(){
+  if(SMTP_PROVIDERS_DONE) return; const sel=$('smProvider'); if(!sel) return;
+  (META.smtp_providers||[]).forEach((p,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=p.name; sel.appendChild(o); });
+  SMTP_PROVIDERS_DONE=true;
+}
+if($('smProvider')) $('smProvider').onchange=()=>{ const p=(META.smtp_providers||[])[parseInt($('smProvider').value)||0]; if(!p) return; if(p.host!==undefined)$('smHost').value=p.host; if(p.port)$('smPort').value=p.port; if(p.security)$('smSecurity').value=p.security; if($('smPassTip')) $('smPassTip').innerHTML=p.pass_tip||'SMTP login credentials for your provider.'; };
+if($('smKeyToggle')) $('smKeyToggle').onclick=()=>{ const k=$('smKey'); k.type=k.type==='password'?'text':'password'; $('smKeyToggle').textContent=k.type==='password'?'show':'hide'; };
+if($('smEncrypt')) $('smEncrypt').onchange=()=>$('smSecretRow').classList.toggle('hidden', !$('smEncrypt').checked);
+async function loadSmtp(){
+  fillSmtpProviders();
+  try{ const d=await (await fetch('/api/smtp-profiles')).json(); SMTP_PROFILES=d.profiles||[]; renderSmtp(d.settings||{}); }
+  catch(e){ /* ignore */ }
+}
+function renderSmtp(settings){
+  // active-profile dropdown
+  const act=$('smActive'); if(act){ const cur=settings.active||act.value; act.innerHTML='';
+    const none=document.createElement('option'); none.value=''; none.textContent='— none —'; act.appendChild(none);
+    SMTP_PROFILES.forEach(p=>{ const o=document.createElement('option'); o.value=p.name; o.textContent=p.name+' ('+p.host+')'; act.appendChild(o); });
+    act.value=cur||''; }
+  if($('smTo')) $('smTo').value=settings.notify_to||'';
+  if($('smNotifyJobs')) $('smNotifyJobs').checked=!!settings.notify_jobs;
+  if($('smNotifyRuns')) $('smNotifyRuns').checked=!!settings.notify_runs;
+  const box=$('smList'); if(box){ box.innerHTML='';
+    if(!SMTP_PROFILES.length){ box.innerHTML='<p class="text-muted text-xs">No profiles yet.</p>'; }
+    else SMTP_PROFILES.forEach(p=>{
+      const row=document.createElement('div'); row.className='flex items-center justify-between bg-ink border border-line rounded-lg px-3 py-2';
+      const badges=[p.encrypted?'🔒 encrypted':'', p.security].filter(Boolean).map(b=>'<span class="text-muted text-xs">· '+escapeHtml(b)+'</span>').join(' ');
+      row.innerHTML='<span class="truncate"><b>'+escapeHtml(p.name)+'</b> <span class="text-muted text-xs">'+escapeHtml(p.host)+':'+p.port+'</span> '+badges+'</span>';
+      const acts=document.createElement('span'); acts.className='flex gap-3 flex-none ml-2';
+      const test=document.createElement('button'); test.className='text-brand-light text-xs hover:underline'; test.textContent='test'; test.onclick=()=>smtpTest(p);
+      const ed=document.createElement('button'); ed.className='text-brand-light text-xs hover:underline'; ed.textContent='edit'; ed.onclick=()=>editSmtp(p);
+      const del=document.createElement('button'); del.className='text-danger text-xs hover:underline'; del.textContent='delete';
+      del.onclick=async()=>{ if(!(await confirmDialog({title:'Delete SMTP profile', message:'Delete "'+p.name+'"?', okText:'Delete', danger:true}))) return; await api('/api/smtp-profiles/'+encodeURIComponent(p.name),null,'DELETE'); loadSmtp(); };
+      acts.append(test,ed,del); row.appendChild(acts); box.appendChild(row);
+    });
+  }
+}
+async function smtpTest(p){
+  let secret=''; if(p.encrypted){ secret=await promptDialog({title:'Encrypted profile', message:'Enter the passphrase for "'+p.name+'" to test it.'}); if(secret==null) return; }
+  $('smNotifyMsg').textContent='Testing '+p.name+'…'; $('smNotifyMsg').className='text-[11px] mt-2 text-muted';
+  try{ const r=await api('/api/smtp-test',{name:p.name,secret:secret||''}); $('smNotifyMsg').textContent=r.ok?('✓ '+r.message):('✗ '+r.message); $('smNotifyMsg').className='text-[11px] mt-2 '+(r.ok?'text-ok':'text-danger'); }
+  catch(e){ $('smNotifyMsg').textContent='✗ '+e.message; $('smNotifyMsg').className='text-[11px] mt-2 text-danger'; }
+}
+function editSmtp(p){
+  EDITING_SMTP=p.name;
+  $('smName').value=p.name; $('smName').readOnly=true; $('smName').classList.add('opacity-60');
+  $('smHost').value=p.host; $('smPort').value=p.port; $('smSecurity').value=p.security||'starttls';
+  $('smUser').value=p.user||''; $('smFrom').value=p.from_addr||'';
+  $('smKey').value=''; $('smKey').placeholder=p.encrypted?'(leave blank to keep current)':'(leave blank to keep current)';
+  $('smEncrypt').checked=false; $('smSecretRow').classList.add('hidden'); $('smSecret').value='';
+  $('btnSaveSmtp').textContent='Update profile'; $('btnCancelSmtp').classList.remove('hidden');
+  $('smMsg').textContent='Editing "'+p.name+'" - name locked; leave the password blank to keep it.'; $('smMsg').className='text-[11px] mt-2 text-muted';
+  $('smName').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function resetSmtpForm(){
+  EDITING_SMTP=null;
+  ['smName','smHost','smUser','smFrom','smKey','smSecret'].forEach(id=>$(id).value='');
+  $('smName').readOnly=false; $('smName').classList.remove('opacity-60');
+  $('smPort').value='587'; $('smSecurity').value='starttls'; $('smKey').placeholder='SMTP password / API key';
+  $('smEncrypt').checked=false; $('smSecretRow').classList.add('hidden');
+  $('btnSaveSmtp').textContent='Save profile'; $('btnCancelSmtp').classList.add('hidden');
+}
+if($('btnCancelSmtp')) $('btnCancelSmtp').onclick=()=>{ resetSmtpForm(); $('smMsg').textContent=''; };
+if($('btnSaveSmtp')) $('btnSaveSmtp').onclick=async()=>{
+  try{
+    const editing=EDITING_SMTP!==null; const keyTyped=$('smKey').value.length>0;
+    const update_password = !editing || keyTyped;
+    await api('/api/smtp-profiles',{ name:$('smName').value, host:$('smHost').value, port:parseInt($('smPort').value)||587, security:$('smSecurity').value, user:$('smUser').value, password:$('smKey').value, from_addr:$('smFrom').value, encrypt:$('smEncrypt').checked, secret:$('smSecret').value, update_password });
+    const was=editing; resetSmtpForm(); $('smMsg').textContent=was?'Updated.':'Saved.'; $('smMsg').className='text-[11px] mt-2 text-ok'; loadSmtp();
+  }catch(e){ $('smMsg').textContent='Error: '+e.message; $('smMsg').className='text-[11px] mt-2 text-danger'; }
+};
+if($('btnSaveNotify')) $('btnSaveNotify').onclick=async()=>{
+  try{ await api('/api/notify-settings',{ active:$('smActive').value, notify_to:$('smTo').value, notify_jobs:$('smNotifyJobs').checked, notify_runs:$('smNotifyRuns').checked });
+    $('smNotifyMsg').textContent='Settings saved.'; $('smNotifyMsg').className='text-[11px] mt-2 text-ok'; }
+  catch(e){ $('smNotifyMsg').textContent='Error: '+e.message; $('smNotifyMsg').className='text-[11px] mt-2 text-danger'; }
+};
+if($('btnSendTest')) $('btnSendTest').onclick=async()=>{
+  const name=$('smActive').value; if(!name){ $('smNotifyMsg').textContent='Choose an active profile first.'; $('smNotifyMsg').className='text-[11px] mt-2 text-danger'; return; }
+  if(!$('smTo').value.trim()){ $('smNotifyMsg').textContent='Enter a recipient address first (and Save settings).'; $('smNotifyMsg').className='text-[11px] mt-2 text-danger'; return; }
+  const prof=SMTP_PROFILES.find(p=>p.name===name); let secret='';
+  if(prof && prof.encrypted){ secret=await promptDialog({title:'Encrypted profile', message:'Enter the passphrase for "'+name+'".'}); if(secret==null) return; }
+  $('smNotifyMsg').textContent='Sending test email…'; $('smNotifyMsg').className='text-[11px] mt-2 text-muted';
+  try{ await api('/api/notify-settings',{ notify_to:$('smTo').value });   // ensure recipient is saved
+    const r=await api('/api/smtp-send-test',{name, secret}); $('smNotifyMsg').textContent='✓ Test email sent to '+r.sent; $('smNotifyMsg').className='text-[11px] mt-2 text-ok'; }
+  catch(e){ $('smNotifyMsg').textContent='✗ '+e.message; $('smNotifyMsg').className='text-[11px] mt-2 text-danger'; }
+};
 $('togglePass').onclick=()=>{ const p=$('password'); p.type=p.type==='password'?'text':'password'; $('togglePass').textContent=p.type==='password'?'show':'hide'; };
 document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const mode=document.querySelector('input[name=mode]:checked').value; try{localStorage.setItem('icw_mode',mode);}catch(_){} const rule=mode==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); refreshConditional(); });
 $('targets').addEventListener('input', ()=>{ try{localStorage.setItem('icw_targets',$('targets').value);}catch(_){} });
@@ -1440,7 +1666,7 @@ function restoreUiState(){
   const rule=document.querySelector('input[name=mode]:checked').value==='rule';
   $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule);
   refreshConditional();
-  if(localStorage.getItem('icw_tab')==='scheduling'){ const tb=document.querySelector('.tab[data-tab="scheduling"]'); if(tb) tb.click(); }
+  const savedTab=localStorage.getItem('icw_tab'); if(savedTab && savedTab!=='cleanup') switchTab(savedTab);
 }
 
 setConnectedUI(false);

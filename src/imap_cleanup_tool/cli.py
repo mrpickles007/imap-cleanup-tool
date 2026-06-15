@@ -150,6 +150,27 @@ def _confirm(folders: list[str], empty: bool, gmail: bool,
     return input("Proceed? [y/N] ").strip().lower() in ("y", "yes")
 
 
+# "run" for a direct CLI invocation, "job" when executed via --run-job (a
+# scheduled job). Gates which notification toggle applies.
+_NOTIFY_WHEN = "run"
+
+
+def _notify_cli(args, folders: list[str], total: int, *, gmail: bool,
+                kind: str) -> None:
+    """Best-effort email notification after a CLI cleanup (never fatal)."""
+    try:
+        from . import notifications as nt
+        account = getattr(args, "user", None) or getattr(args, "host", "")
+        subject, body = nt.cleanup_summary(
+            account, folders, total, dry_run=args.dry_run, gmail=gmail,
+            kind=kind)
+        if nt.send_notification(subject, body, when=_NOTIFY_WHEN):
+            core.logger.info("Notification email sent to the configured "
+                             "recipient.")
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        core.logger.warning("Notification email not sent: %s", exc)
+
+
 def _run_operation(conn, args: argparse.Namespace, folders: list[str]) -> None:
     search_argument = None
     addresses: set[str] = set()
@@ -180,6 +201,9 @@ def _run_operation(conn, args: argparse.Namespace, folders: list[str]) -> None:
             dest_folder=args.dest_folder)
     verb = "would be acted on" if args.dry_run else "acted on"
     core.logger.info("Done. %d message(s) %s in total.", total, verb)
+    kind = "Move" if args.move else "Cleanup"
+    _notify_cli(args, folders, total,
+                gmail=args.gmail_trash and not args.move, kind=kind)
 
 
 def _parse_ai_weights(items: list[str]) -> dict:
@@ -298,7 +322,7 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
             batch_size=args.batch_size, scan_mode="search")
     verb = "would be deleted" if args.dry_run else "deleted"
     core.logger.info("Done. %d message(s) %s.", total, verb)
-    return 0
+    _notify_cli(args, folders, total, gmail=gmail, kind="AI Cleanup")
     return 0
 
 
@@ -319,6 +343,8 @@ def _run_saved_job(job) -> int:
     root.addHandler(handler)
     root.addHandler(logging.StreamHandler())
     root.info("=== Job %r started ===", job.name)
+    global _NOTIFY_WHEN
+    _NOTIFY_WHEN = "job"        # scheduled run -> use the 'notify on jobs' toggle
     try:
         code = main(job.args)
         root.info("=== Job %r finished (exit code %s) ===", job.name, code)
@@ -401,6 +427,7 @@ def main(argv: list[str] | None = None) -> int:
             total = sum(core.empty_folder(conn, f, args.dry_run)
                         for f in folders)
             core.logger.info("Done. %d message(s) processed.", total)
+            _notify_cli(args, folders, total, gmail=False, kind="Empty folder")
             return 0
 
         if args.move and not (args.dest_folder and args.dest_folder.strip()):
