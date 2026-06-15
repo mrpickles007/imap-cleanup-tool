@@ -279,7 +279,7 @@ tailwind.config = { theme: { extend: {
         <input id="aiSecret" type="password" class="field hidden" placeholder="model password (encrypted model)">
         <label class="text-xs text-muted block">Spam-score threshold: <b id="thrVal" class="text-cream">6.0</b> / 10
           <span class="tip"><span class="ic">i</span><span class="bub">Only senders scoring at or above this are flagged (and later sent to the LLM / deleted on Run). Higher = stricter, fewer senders.</span></span>
-          <input id="aiThreshold" type="range" min="0" max="10" step="0.5" value="6" class="w-full mt-1">
+          <input id="aiThreshold" type="range" min="0" max="10" step="0.1" value="6" class="w-full mt-1">
         </label>
         <label class="text-xs text-muted block">Sample emails per flagged sender
           <span class="tip"><span class="ic">i</span><span class="bub">How many example subjects per flagged sender go into the report (and to the LLM). Default 5.</span></span>
@@ -461,7 +461,7 @@ tailwind.config = { theme: { extend: {
         </label>
         <div id="jobAIRow" class="hidden grid grid-cols-2 gap-2 mt-2">
           <label class="text-xs text-muted col-span-2">Model <select id="jobAiModel" class="field mt-1"></select></label>
-          <label class="text-xs text-muted">Threshold <input id="jobAiThreshold" type="number" step="0.5" min="0" max="10" value="6" class="field mt-1"></label>
+          <label class="text-xs text-muted">Threshold <input id="jobAiThreshold" type="number" step="0.1" min="0" max="10" value="6" class="field mt-1"></label>
           <label class="text-xs text-muted">Sample <input id="jobAiSample" type="number" min="1" max="50" value="5" class="field mt-1"></label>
           <label class="flex items-center gap-1.5 text-xs text-muted col-span-2 cursor-pointer"><input id="jobAiReportOnly" type="checkbox"> Report only (save the report, delete nothing)
             <span class="tip"><span class="ic">i</span><span class="bub">The job builds the report and <b>deletes nothing</b>. The report is saved on disk and, if <b>email notifications for jobs</b> are enabled, sent as a <b>CSV attachment</b>.</span></span>
@@ -635,12 +635,12 @@ tailwind.config = { theme: { extend: {
         <select id="spamPageSize" class="field text-sm" style="width:auto" title="Rows per page"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
       </div>
     </div>
-    <p class="text-xs text-muted mb-3">Senders flagged by <b>AI Cleanup</b> (report or run) for the connected mailbox, with their heuristic <b>spam score</b> and the <b>LLM verdict</b>. Select rows to <b>remove</b> them from the list or <b>flag as spam on the server</b> (moves their inbox mail to the Junk/Spam folder so future mail is trained as spam). Each connection has its own list.</p>
+    <p class="text-xs text-muted mb-3">Senders flagged by <b>AI Cleanup</b> (report or run) for the connected mailbox, with their heuristic <b>spam score</b> and the <b>LLM verdict</b>. Select rows to <b>remove</b> them from the list, or <b>report the sender as spam</b> so the server learns to send their <b>future</b> mail to spam. (IMAP has no per-sender rule, so this works by moving the sender's mail into the Junk/Spam folder - the standard "report spam" signal that trains the provider's filter. Deleting unwanted mail is a separate action: AI Cleanup.) Each connection has its own list.</p>
     <div class="flex items-center gap-2 flex-wrap mb-3">
       <label class="flex items-center gap-1.5 text-xs text-muted"><input id="spamSelectAll" type="checkbox"> Select all (this page)</label>
       <button id="spamSelectAllAcct" type="button" class="text-xs text-brand-light hover:underline">select all <span id="spamTotalCount"></span></button>
       <span class="flex-1"></span>
-      <button id="spamFlag" class="px-3 py-1.5 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm" disabled>Flag as spam on server</button>
+      <button id="spamFlag" class="px-3 py-1.5 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm" disabled>Report sender as spam</button>
       <button id="spamRemove" class="px-3 py-1.5 rounded-lg border border-line text-danger hover:underline text-sm" disabled>Remove from list</button>
     </div>
     <div class="overflow-x-auto">
@@ -1513,7 +1513,7 @@ function renderSpam(items){
 function updateSpamSel(){
   const n=spamState.sel.size; $('spamFlag').disabled=!n; $('spamRemove').disabled=!n;
   $('spamRemove').textContent = n? ('Remove from list ('+n+')') : 'Remove from list';
-  $('spamFlag').textContent = n? ('Flag as spam on server ('+n+')') : 'Flag as spam on server';
+  $('spamFlag').textContent = n? ('Report sender as spam ('+n+')') : 'Report sender as spam';
 }
 if($('spamSelectAll')) $('spamSelectAll').onchange=(e)=>{ document.querySelectorAll('#spamBody input[type=checkbox]').forEach(cb=>{ cb.checked=e.target.checked; const a=cb.dataset.addr; if(e.target.checked) spamState.sel.add(a); else spamState.sel.delete(a); }); updateSpamSel(); };
 if($('spamSelectAllAcct')) $('spamSelectAllAcct').onclick=async()=>{ try{ const r=await api('/api/spam-select-all',{sid:SID,addresses:[]}); (r.addresses||[]).forEach(a=>spamState.sel.add(a)); spamMsg('Selected all '+spamState.sel.size+' address(es) across pages.','text-muted'); loadSpam(); }catch(e){ spamMsg('Error: '+e.message,'text-danger'); } };
@@ -1530,7 +1530,7 @@ if($('spamRemove')) $('spamRemove').onclick=async()=>{
 };
 if($('spamFlag')) $('spamFlag').onclick=async()=>{
   const addrs=[...spamState.sel]; if(!addrs.length) return;
-  if(!(await confirmDialog({title:'Flag as spam on server', message:'Move INBOX messages from '+addrs.length+' sender(s) to the Junk/Spam folder on the server? This trains the spam filter for future mail.', okText:'Flag as spam', danger:true}))) return;
+  if(!(await confirmDialog({title:'Report sender as spam', message:'Report '+addrs.length+' sender(s) to the server\'s spam filter so their FUTURE mail is auto-sent to spam?\n\nIMAP has no per-sender rule, so this moves their current inbox mail into the Junk/Spam folder - the standard "report spam" signal that trains the filter. (To just delete unwanted mail, use AI Cleanup instead.)', okText:'Report as spam', danger:true}))) return;
   spamMsg('Flagging on the server…','text-muted');
   try{ const r=await api('/api/spam-flag',{sid:SID,addresses:addrs}); spamMsg('✓ Flagged '+r.flagged+' sender(s): moved '+r.moved+' message(s) to "'+r.folder+'".','text-ok'); refreshFoldersQuiet(); }
   catch(e){ spamMsg('✗ '+e.message,'text-danger'); }

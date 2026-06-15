@@ -714,9 +714,13 @@ reason + confidence) when a model was used.
 - **Select** rows (or *select all* across pages) for **bulk** actions.
 - **Remove from list** - drops them from this list only (does not touch the
   mailbox).
-- **Flag as spam on the server** - moves those senders' inbox mail to the
-  server's **Junk/Spam** folder (found via its special-use flag, so it works with
-  localized names), which trains the provider's spam filter for future mail.
+- **Report sender as spam** - tells the server to treat the **sender** as spam so
+  their **future** mail is auto-routed to spam. IMAP has no per-sender rule API,
+  so this works the standard way: it moves the sender's current inbox mail into
+  the **Junk/Spam** folder (found via its special-use flag, so it works with
+  localized names) - the "report spam" signal that **trains the provider's
+  filter**. It marks the *sender*, not individual emails; to simply delete
+  unwanted mail use **AI Cleanup** instead.
 
 ---
 
