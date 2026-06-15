@@ -815,6 +815,7 @@ function optionsPayload(){
 /* ---------- run + polling + stop ---------- */
 function setBusy(busy){
   $('btnRun').disabled=busy; $('btnSenders').disabled=busy;
+  if(busy){ $('btnStop').disabled=false; $('btnStop').textContent='■ Stop'; }
   $('btnStop').classList.toggle('hidden',!busy);
   $('btnRun').textContent= busy?'Working…':'▶ Run';
 }
@@ -1143,7 +1144,7 @@ function prefillSelfExclude(){
 }
 $('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setStatus(false,'disconnected'); setConnectedUI(false); log('Disconnected.'); };
 $('btnValidate').onclick=async()=>{ try{ const d=await api('/api/validate-rule',{tree:toTree(ROOT)}); $('ruleOut').textContent='OK → SEARCH '+d.search; $('ruleOut').className='text-xs text-ok ml-2'; }catch(e){ $('ruleOut').textContent=e.message; $('ruleOut').className='text-xs text-danger ml-2'; } };
-$('btnStop').onclick=async()=>{ if(SID&&curRunId){ try{ await api(`/api/stop/${SID}/${curRunId}`); log('Stop requested…'); }catch(e){} } };
+$('btnStop').onclick=async()=>{ if(SID&&curRunId){ $('btnStop').disabled=true; $('btnStop').textContent='Stopping…'; try{ await api(`/api/stop/${SID}/${curRunId}`); log('Stop requested - finishing the current batch, then stopping…'); }catch(e){} } };
 $('btnSenders').onclick=async()=>{ if(!(await ensureFolderChosen())) return; log('Listing senders in: '+(selectedFolders.join(', ')||'INBOX')+' …'); startJob('/api/senders',{sid:SID,folders:selectedFolders.length?selectedFolders:['INBOX'],batch_size:parseInt($('batch').value)||500}); };
 function humanStamp(){ const d=new Date(), p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}`; }
 function defaultSendersName(){ return 'senders_'+humanStamp()+'.csv'; }
