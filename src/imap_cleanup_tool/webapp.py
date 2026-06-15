@@ -253,6 +253,15 @@ def create_app():
         sid: str
         name: str
 
+    class AIReportIn(BaseModel):
+        sid: str
+        folders: list[str] = Field(default_factory=lambda: ["INBOX"])
+        threshold: float = 6.0
+        sample_size: int = 5
+        exclude: str = ""                    # one address per line
+        weights: dict | None = None
+        batch_size: int = core.UID_CHUNK_SIZE
+
     class SendersIn(BaseModel):
         sid: str
         folders: list[str] = Field(default_factory=lambda: ["INBOX"])
@@ -551,6 +560,39 @@ def create_app():
 
         run_state = _start_run(sess, "count", work)
         return {"run_id": run_state.run_id}
+
+    @app.post("/api/ai-report")
+    def ai_report(body: AIReportIn) -> dict[str, Any]:
+        """Build the local heuristic per-sender spam-score report (no LLM)."""
+        sess = _session(body.sid)
+        if sess.run and sess.run.status == "running":
+            raise HTTPException(409, "An operation is already running.")
+        folders = body.folders or ["INBOX"]
+        exclude = set((body.exclude or "").splitlines()) | {sess.user}
+
+        def work(rs: RunState) -> None:
+            report = core.build_ai_report(
+                sess.conn, folders, threshold=body.threshold,
+                sample_size=body.sample_size, exclude=exclude,
+                weights=body.weights, batch_size=body.batch_size,
+                should_stop=rs.stop.is_set)
+            rs.result = {"report": report}
+            core.logger.info("=> AI report ready: %d of %d sender(s) flagged "
+                             "(threshold %.1f). Use 'Download report' for the JSON.",
+                             report["flagged_count"], report["total_senders"],
+                             body.threshold)
+
+        run_state = _start_run(sess, "ai-report", work)
+        return {"run_id": run_state.run_id}
+
+    @app.get("/api/ai-report.json/{sid}")
+    def ai_report_json(sid: str) -> Response:
+        sess = _session(sid)
+        report = (sess.run.result or {}).get("report") if sess.run else None
+        if not report:
+            raise HTTPException(404, "No report yet - generate one first.")
+        return Response(content=json.dumps(report, indent=2, ensure_ascii=False),
+                        media_type="application/json")
 
     @app.get("/api/log/{sid}")
     def get_log(sid: str, cursor: int = 0) -> dict[str, Any]:

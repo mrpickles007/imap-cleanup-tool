@@ -193,6 +193,12 @@ class WebApiTests(unittest.TestCase):
                              json={"sid": "nope", "name": "X"})
         self.assertEqual(r.status_code, 440)
 
+    def test_ai_report_without_session_is_rejected(self):
+        r = self.client.post("/api/ai-report", json={"sid": "nope"})
+        self.assertEqual(r.status_code, 440)
+        r2 = self.client.get("/api/ai-report.json/nope")
+        self.assertEqual(r2.status_code, 440)
+
 
 if __name__ == "__main__":
     unittest.main()

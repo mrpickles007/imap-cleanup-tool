@@ -450,6 +450,144 @@ def move_uids(conn: imaplib.IMAP4_SSL, uids: list[bytes], dest: str,
 
 
 # --------------------------------------------------------------------------- #
+# AI cleanup: heuristic per-sender report
+# --------------------------------------------------------------------------- #
+# Calibrated default weights (NOT equal) for the 0-1 sub-signals. Tunable from
+# the UI; the score is their weighted average, scaled to 0-10.
+DEFAULT_WEIGHTS = {
+    "list_unsubscribe": 3.5,   # presence of List-Unsubscribe -> bulk/newsletter
+    "unread_ratio": 3.0,       # share of unread messages (ignored = likely junk)
+    "bulk": 1.5,               # Precedence: bulk / list
+    "sender_pattern": 1.0,     # noreply@, newsletter@, notifications@, ...
+    "frequency": 1.0,          # how often this sender writes
+}
+_BULK_LOCALPARTS = re.compile(
+    r"^(no[-_.]?reply|do[-_.]?not[-_.]?reply|newsletter|news|notif\w*|mailer|"
+    r"marketing|updates?|alerts?|bounce|info|noreply)\b", re.IGNORECASE)
+
+
+def _seen_from_meta(meta: bytes) -> bool:
+    """True if the FETCH metadata line carries the \\Seen flag."""
+    match = re.search(rb"FLAGS\s*\(([^)]*)\)", meta)
+    return bool(match and b"\\Seen" in match.group(1))
+
+
+def _fetch_sender_meta(conn: imaplib.IMAP4_SSL, uids: list[bytes],
+                       batch_size: int, should_stop: StopCheck | None):
+    """Yield (sender, date_header, seen, has_unsub, is_bulk, subject) per message."""
+    from email import message_from_string
+    fields = "(UID FLAGS BODY.PEEK[HEADER.FIELDS " \
+             "(FROM DATE SUBJECT LIST-UNSUBSCRIBE PRECEDENCE)])"
+    for i in range(0, len(uids), batch_size):
+        _check_stop(should_stop)
+        chunk = uids[i:i + batch_size]
+        status, data = conn.uid("FETCH", b",".join(chunk), fields)
+        if status != "OK" or not data:
+            continue
+        for part in data:
+            if not (isinstance(part, tuple) and len(part) >= 2 and part[1]):
+                continue
+            seen = _seen_from_meta(part[0])
+            msg = message_from_string(part[1].decode(errors="replace"))
+            sender = extract_sender_email(msg.get("From", ""))
+            yield (sender or "(no sender)", msg.get("Date", ""), seen,
+                   bool(msg.get("List-Unsubscribe")),
+                   "bulk" in (msg.get("Precedence", "").lower()),
+                   decode_mime_header(msg.get("Subject", "")))
+
+
+def build_ai_report(conn: imaplib.IMAP4_SSL, folders: list[str], *,
+                    threshold: float = 6.0, sample_size: int = 5,
+                    exclude: set[str] | None = None,
+                    weights: dict | None = None,
+                    batch_size: int = UID_CHUNK_SIZE,
+                    should_stop: StopCheck | None = None) -> dict:
+    """Aggregate messages by sender and compute a 0-10 heuristic spam score.
+
+    Returns a JSON-friendly report; senders scoring >= ``threshold`` are flagged
+    (those are the ones worth sending to an LLM) and carry a small sample of
+    subjects. Local-only: no network, no LLM.
+    """
+    weights = {**DEFAULT_WEIGHTS, **(weights or {})}
+    exclude = {e.strip().lower() for e in (exclude or set()) if e.strip()}
+    agg: dict[str, dict] = {}
+    for folder in folders:
+        status, _ = conn.select(_quote_mailbox(folder), readonly=True)
+        if status != "OK":
+            logger.warning("Cannot open %r - skipping.", folder)
+            continue
+        status, data = conn.uid("SEARCH", None, "ALL")
+        uids = data[0].split() if status == "OK" and data and data[0] else []
+        logger.info("AI report: scanning %d message(s) in %r ...",
+                    len(uids), folder)
+        for sender, date_h, seen, unsub, bulk, subject in _fetch_sender_meta(
+                conn, uids, batch_size, should_stop):
+            if sender.lower() in exclude:
+                continue
+            s = agg.setdefault(sender, {"count": 0, "unread": 0, "unsub": False,
+                                        "bulk": False, "dates": [], "samples": []})
+            s["count"] += 1
+            if not seen:
+                s["unread"] += 1
+            s["unsub"] = s["unsub"] or unsub
+            s["bulk"] = s["bulk"] or bulk
+            if date_h:
+                s["dates"].append(date_h)
+            if len(s["samples"]) < sample_size:
+                s["samples"].append({"subject": subject or "(no subject)",
+                                     "date": date_h, "read": seen})
+
+    senders = []
+    wsum = sum(weights.values()) or 1.0
+    for sender, s in agg.items():
+        unread_ratio = s["unread"] / s["count"] if s["count"] else 0.0
+        per_week = _per_week(s["dates"], s["count"])
+        pattern = bool(_BULK_LOCALPARTS.match(sender.split("@", 1)[0]))
+        sig = {
+            "list_unsubscribe": 1.0 if s["unsub"] else 0.0,
+            "unread_ratio": round(unread_ratio, 3),
+            "bulk": 1.0 if s["bulk"] else 0.0,
+            "sender_pattern": 1.0 if pattern else 0.0,
+            "frequency": min(1.0, per_week / 5.0),
+        }
+        score = round(sum(weights[k] * sig[k] for k in weights) / wsum * 10, 1)
+        senders.append({
+            "sender": sender, "count": s["count"], "unread": s["unread"],
+            "unread_ratio": round(unread_ratio, 3),
+            "per_week": round(per_week, 2),
+            "list_unsubscribe": s["unsub"], "bulk": s["bulk"],
+            "sender_pattern": pattern, "score": score,
+            "flagged": score >= threshold,
+            "samples": s["samples"] if score >= threshold else [],
+        })
+    senders.sort(key=lambda x: x["score"], reverse=True)
+    flagged = [s for s in senders if s["flagged"]]
+    logger.info("AI report: %d sender(s), %d above threshold %.1f.",
+                len(senders), len(flagged), threshold)
+    return {"folders": folders, "threshold": threshold, "sample_size": sample_size,
+            "weights": weights, "total_senders": len(senders),
+            "flagged_count": len(flagged), "senders": senders}
+
+
+def _per_week(date_headers: list[str], count: int) -> float:
+    """Estimate messages-per-week from a list of Date headers."""
+    from email.utils import parsedate_to_datetime
+    parsed = []
+    for d in date_headers:
+        try:
+            dt = parsedate_to_datetime(d)
+            if dt is not None:
+                parsed.append(dt)
+        except (TypeError, ValueError):
+            continue
+    if len(parsed) < 2:
+        return float(count)            # treat as within a single week
+    span_days = (max(parsed) - min(parsed)).days
+    weeks = max(span_days / 7.0, 1 / 7.0)
+    return count / weeks
+
+
+# --------------------------------------------------------------------------- #
 # High-level per-folder operation
 # --------------------------------------------------------------------------- #
 def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,

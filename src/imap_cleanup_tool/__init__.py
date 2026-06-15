@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from .core import (
     StopRequested,
+    build_ai_report,
     connect,
     create_folder,
     delete_folder,
@@ -29,7 +30,7 @@ from .targets import load_targets, parse_targets_text, sender_matches
 from .rules import Condition, Group, compile_search, node_from_dict
 from .rule_parser import parse_rule_expression
 
-__version__ = "0.5.4"
+__version__ = "0.6.0"
 
 __all__ = [
     "__version__",
@@ -46,6 +47,7 @@ __all__ = [
     "move_uids",
     "create_folder",
     "delete_folder",
+    "build_ai_report",
     "empty_folder",
     "process_folder",
     "load_targets",
