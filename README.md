@@ -20,6 +20,12 @@ Bulk-delete or move IMAP emails from the **command line** and a local **web
 interface**. The CLI uses only the Python standard library; the web UI and the AI
 features are optional extras (see [Install](#install)).
 
+> 💡 **Friendly heads-up:** this tool is a *little* tricky to get the hang of -
+> because it has **tons of features**. The good news: **everything is documented
+> in tooltips.** Hover the little **ⓘ** icons in the web UI and you'll find a
+> plain-English explanation for every single option. So take a minute with this
+> README, and when in doubt, **read the tooltips** - they've got your back. 🙂
+
 - 🤖 **AI Cleanup (the headline):** a **local** heuristic scores every sender,
   then an **LLM** decides what is junk and deletes it - with a configurable
   threshold, a report-only mode, and per-model cost tracking. It is
