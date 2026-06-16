@@ -388,15 +388,17 @@ downloaded at all - so there is nothing to cache there.
 > still fetches every header (it can take a few minutes on a big, slow mailbox) -
 > that's it filling the cache. Every report after that is fast.
 
-**The flag controls both reading and writing the cache.** With it **off**, the
-cache is neither used nor updated. If you run a report with the flag **off** while
-a cache already exists for that account, the web UI **asks first**: choose
-*Proceed* to **delete** the cache and run without it, or *Skip*, re-tick **Enable
-local cache**, and run again to reuse it. (On the CLI an existing cache is left
-untouched and ignored, with a note suggesting `--local-cache`.)
+**The flag just controls whether this run reads/writes the cache.** With it
+**off**, an existing cache is simply **left untouched and ignored** - nothing is
+deleted. Re-tick **Enable local cache** any time and it **self-heals**: it reuses
+what's already cached and fetches only the messages that arrived in the meantime
+(headers never change, so old entries stay valid; entries for deleted messages are
+just never looked up). The CLI behaves the same (an existing cache is left intact
+and ignored, with a note suggesting `--local-cache`).
 
-A **Clear cache** button appears under the checkbox when the connected account has
-cached headers, showing **how many are stored**; click it to wipe them.
+To wipe the cache on purpose, use the **Clear cache** button - it appears under
+the checkbox when the connected account has cached headers and shows **how many
+are stored**.
 
 It stays correct: headers never change, and the volatile `\Seen` flag is always
 re-read fresh (a cheap fetch) so unread counts stay accurate. The cache is pinned
