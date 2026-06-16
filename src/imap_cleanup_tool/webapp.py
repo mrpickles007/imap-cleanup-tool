@@ -1182,7 +1182,8 @@ def create_app():
         installed = scheduler.installed_job_names()
         return {"jobs": [{"name": j.name, "schedule": j.schedule,
                           "args": j.args, "last_run": j.last_run,
-                          "installed": j.name in installed}
+                          "installed": j.name in installed,
+                          "command": scheduler.export_system(j)}
                          for j in scheduler.load_jobs()]}
 
     @app.post("/api/jobs")

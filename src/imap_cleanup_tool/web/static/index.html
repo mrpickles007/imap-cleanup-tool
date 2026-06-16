@@ -1288,7 +1288,9 @@ async function loadJobs(){
         sourceDialog('Source - '+j.name,
           'The scheduler runs this job by name:\n  imap-cleanup-tool --run-job '+j.name+
           '\n\nwhich executes:\n  imap-cleanup-tool '+cmd+
-          '\n\nSchedule: '+describeSchedule(j.schedule)); };
+          '\n\nSchedule: '+describeSchedule(j.schedule)+
+          '\n\n--- Raw system command (what Task Scheduler / cron actually runs, '+
+          'with the full Python interpreter path) ---\n'+(j.command||'(install the job to generate it)')); };
       const logs=document.createElement('button'); logs.className='text-muted text-xs hover:text-cream'; logs.textContent='logs';
       logs.onclick=()=>openJobLog(j.name);
       const del=document.createElement('button'); del.className='text-danger text-xs hover:underline'; del.textContent='delete';
