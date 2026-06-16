@@ -260,6 +260,7 @@ tailwind.config = { theme: { extend: {
         <div class="flex gap-2 mt-2 items-center flex-wrap">
           <label class="px-4 py-2 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm cursor-pointer flex items-center gap-2"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Load from file<input id="targetsFile" type="file" accept=".txt,text/plain" class="hidden"></label>
           <button id="btnSaveTargets" type="button" class="px-4 py-2 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm flex items-center gap-2"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Save to file…</button>
+          <button id="btnClearTargets" type="button" class="px-4 py-2 rounded-lg border border-line text-danger hover:underline text-sm">Clear all</button>
           <span class="text-[11px] text-muted">one entry per line · reuse across runs</span>
         </div>
         <div id="loadSpamRow" class="hidden mt-2 rounded-lg border border-line bg-ink/40 p-2.5">
@@ -1917,6 +1918,12 @@ async function saveTargets(){
   } else { download(fname, text); }   // fallback: browser download dialog
 }
 $('btnSaveTargets').onclick=saveTargets;
+if($('btnClearTargets')) $('btnClearTargets').onclick=()=>{
+  if(!$('targets').value.trim()) return;
+  $('targets').value=''; loadedSpamAddrs=[];
+  try{localStorage.setItem('icw_targets','');}catch(_){}
+  log('Target list cleared.');
+};
 
 /* ---------- Local header cache: count + clear ---------- */
 async function refreshCacheInfo(){
