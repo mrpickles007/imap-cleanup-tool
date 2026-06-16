@@ -295,51 +295,6 @@ Like **Move**, AI Cleanup honors the active **filter** (target list or rule) whe
 one is set, or scans the **whole folder** when none is - so you can point it at a
 single noisy domain or let it sweep everything.
 
-### Local header cache (faster repeat reports)
-
-Fetching message headers is the slow part of building a report - on a slow IMAP
-server it can take **several seconds per 50 messages** (a Gmail-class server does
-the same in 1-2s). Without the cache, every report's speed depends **entirely on
-your IMAP server**, so on a slow provider each report is slow again.
-
-Tick **Enable local cache** in the connection card (it is **saved with the
-connection profile**, or pass `--local-cache` on the CLI) and the tool caches the
-immutable header fields (`From` / `Date` / `Subject`) on your machine, keyed by
-message **UID**. The next time only the **new** messages are fetched; the rest
-come from the cache, so it becomes near-instant. It is **off by default** and
-**per account**. **Enabling it is recommended**, especially on slower servers.
-
-The cache applies to **every operation that downloads headers**: AI reports/runs,
-**List senders**, and matching with **`--scan-mode full`** (interactive *and*
-scheduled jobs - they share the same cache). It does **not** apply to the default
-server-side **`search`** mode (move / delete / count / list-senders in `search`
-mode), because there the **server** does the filtering and no headers are
-downloaded at all - so there is nothing to cache there.
-
-> **First run on a new mailbox is the slow one.** With the cache on, the *first*
-> report on a mailbox still fetches every header (it can take a few minutes on a
-> big, slow mailbox) - that's it filling the cache. Every report after that is
-> fast. The cache pays for itself from the second run on.
-
-**The flag controls both reading and writing the cache.** With it **off**, the
-cache is neither used nor updated. If you run a report with the flag **off** while
-a cache already exists for that account, the web UI **asks first**: choose
-*Proceed* to **delete** the cache and run without it (the next cached run would
-start cold again), or *Skip*, tick **Enable local cache**, and run again to reuse
-it for a fast report. (On the CLI, an existing cache is simply left untouched and
-ignored, with a note suggesting `--local-cache`.)
-
-A **Clear cache** button appears under the checkbox when the connected account has
-cached headers, showing **how many are stored**; click it to wipe them (the next
-report runs cold again).
-
-It stays correct: headers never change, and the volatile `\Seen` flag is always
-re-read fresh (a cheap fetch) so unread counts stay accurate. The cache is pinned
-to each folder's **UIDVALIDITY** (the IMAP value that changes only if the server
-renumbers messages - folder recreated, mailbox migrated, ...); if it changes, the
-stale rows are dropped and headers are re-fetched. Stored locally in a small
-SQLite file (`header_cache.sqlite`) in your config directory.
-
 **Models** are configured in the **LLM** tab (powered by litellm). On first run
 the tool seeds two ready-to-use defaults you can edit or delete: **`gpt-4o-mini`**
 (cloud, no key stored - set `OPENAI_API_KEY` or paste a key) and
@@ -387,6 +342,48 @@ imap-cleanup-tool --host HOST --user USER \
 
 > If you run an `--ai-cleanup` command without the `[ai]` extra installed, the CLI
 > stops with a clear message telling you to `pip install "imap-cleanup-tool[ai]"`.
+
+### Local header cache (faster repeat reports)
+
+Fetching message headers is the slow part of building a report - on a slow IMAP
+server it can take **several seconds per 50 messages** (a Gmail-class server does
+the same in 1-2s). Without a cache, every report's speed depends **entirely on
+your IMAP server**, so on a slow provider each report is slow again.
+
+That is why **Enable local cache** (in the connection card) is **on by default**.
+You can untick it; the setting is **saved with the connection profile**, and on
+the CLI it is opt-in via `--local-cache` (or carried by a saved profile). With it
+on, the tool caches the immutable header fields (`From` / `Date` / `Subject`) on
+your machine, keyed by message **UID**; the next time only the **new** messages
+are fetched, so repeat reports are near-instant. The cache is **per account**.
+
+The cache applies to **every operation that downloads headers**: AI reports/runs,
+**List senders**, and matching with **`--scan-mode full`** (interactive *and*
+scheduled jobs - they share the same cache). It does **not** apply to the default
+server-side **`search`** mode (move / delete / count / list-senders in `search`
+mode), because there the **server** does the filtering and no headers are
+downloaded at all - so there is nothing to cache there.
+
+> **First run on a new mailbox is the slow one.** The *first* report on a mailbox
+> still fetches every header (it can take a few minutes on a big, slow mailbox) -
+> that's it filling the cache. Every report after that is fast.
+
+**The flag controls both reading and writing the cache.** With it **off**, the
+cache is neither used nor updated. If you run a report with the flag **off** while
+a cache already exists for that account, the web UI **asks first**: choose
+*Proceed* to **delete** the cache and run without it, or *Skip*, re-tick **Enable
+local cache**, and run again to reuse it. (On the CLI an existing cache is left
+untouched and ignored, with a note suggesting `--local-cache`.)
+
+A **Clear cache** button appears under the checkbox when the connected account has
+cached headers, showing **how many are stored**; click it to wipe them.
+
+It stays correct: headers never change, and the volatile `\Seen` flag is always
+re-read fresh (a cheap fetch) so unread counts stay accurate. The cache is pinned
+to each folder's **UIDVALIDITY** (the IMAP value that changes only if the server
+renumbers messages - folder recreated, mailbox migrated, ...); if it changes, the
+stale rows are dropped and headers are re-fetched. Stored locally in a small
+SQLite file (`header_cache.sqlite`) in your config directory.
 
 ---
 
