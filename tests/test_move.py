@@ -100,6 +100,69 @@ class FlagSpamTests(unittest.TestCase):
         self.assertIsNone(core.special_folder(conn, "\\Junk"))
 
 
+class StatefulSpamConn:
+    """A stateful fake IMAP: tracks inbox/junk so the move-then-delete sequence
+    can be verified (used to prove 'delete mode' keeps one msg per sender in Spam)."""
+
+    def __init__(self, inbox):
+        # inbox: {uid_bytes: sender_str}
+        self.inbox = dict(inbox)
+        self.junk = {}                 # uid -> sender, after a MOVE
+        self.deleted = set()           # uids flagged \Deleted, removed on expunge
+        self.capabilities = ("IMAP4REV1", "MOVE")
+
+    def select(self, name, readonly=False):
+        return ("OK", [str(len(self.inbox)).encode()])
+
+    def uid(self, cmd, *args):
+        if cmd == "SEARCH":
+            if len(args) >= 3 and args[1] == "FROM":
+                term = args[2].strip('"').lower()
+                hits = [u for u, s in self.inbox.items() if term in s.lower()]
+            else:                      # SEARCH ALL
+                hits = list(self.inbox)
+            return ("OK", [b" ".join(sorted(hits, key=int)) or None])
+        if cmd == "MOVE":              # (ids, dest) -> inbox -> junk
+            for u in args[0].split(b","):
+                if u in self.inbox:
+                    self.junk[u] = self.inbox.pop(u)
+            return ("OK", [b""])
+        if cmd == "STORE":             # flag \Deleted (or Gmail label)
+            for u in args[0].split(b","):
+                if u in self.inbox:
+                    self.deleted.add(u)
+            return ("OK", [b""])
+        return ("OK", [b""])
+
+    def expunge(self):
+        for u in list(self.deleted):
+            self.inbox.pop(u, None)
+        self.deleted.clear()
+        return ("OK", [b""])
+
+
+class SpamFlagDeleteSequenceTests(unittest.TestCase):
+    def test_delete_mode_keeps_one_per_sender_in_spam(self):
+        conn = StatefulSpamConn({
+            b"1": "a@x.com", b"2": "a@x.com", b"3": "a@x.com",  # 3 from a
+            b"4": "b@y.com",                                    # 1 from b
+        })
+        addrs = {"a@x.com", "b@y.com"}
+        # 1) flag-as-spam moves ONE newest message per sender to Junk
+        moved, hit = core.flag_senders_as_spam(
+            conn, "INBOX", addrs, "[Gmail]/Spam", per_sender=1)
+        self.assertEqual((moved, hit), (2, 2))         # one per sender
+        # 2) delete the rest (non-Gmail -> flag + expunge)
+        deleted = core.process_folder(
+            conn, "INBOX", addresses=addrs, dry_run=False, expunge=True,
+            scan_mode="search")
+        # every sender that had mail now has >= 1 message in Spam
+        self.assertEqual(set(conn.junk.values()), {"a@x.com", "b@y.com"})
+        self.assertEqual(len(conn.junk), 2)            # exactly one each
+        self.assertEqual(deleted, 2)                   # the other two a@x msgs
+        self.assertEqual(conn.inbox, {})               # inbox cleared
+
+
 class CreateFolderTests(unittest.TestCase):
     def test_create_ok(self):
         conn = FakeConn()
