@@ -358,6 +358,16 @@ def create_app():
         mode: str = "move"        # spam-flag: "delete" (move 1 + delete rest) | "move"
         folders: list[str] = Field(default_factory=list)   # spam-flag scope
 
+    class SpamAddIn(BaseModel):
+        sid: str
+        address: str
+        score: float | None = None
+
+    class SpamTargetsIn(BaseModel):
+        sid: str
+        op: str = "ge"            # is | le | ge | lt | gt
+        score: float = 6.0
+
     class SendersIn(BaseModel):
         sid: str
         folders: list[str] = Field(default_factory=lambda: ["INBOX"])
@@ -1079,6 +1089,22 @@ def create_app():
         sess = _session(body.sid)
         n = spamstore.delete_addresses(sess.user, body.addresses)
         return {"removed": n}
+
+    @app.post("/api/spam-add")
+    def spam_add(body: SpamAddIn) -> dict[str, Any]:
+        """Manually add an address to this account's spam list."""
+        sess = _session(body.sid)
+        if not spamstore.add_address(sess.user, body.address, body.score):
+            raise HTTPException(400, "Enter a valid email address.")
+        return {"added": body.address.strip().lower(),
+                "total": spamstore.count(sess.user)}
+
+    @app.post("/api/spam-load-targets")
+    def spam_load_targets(body: SpamTargetsIn) -> dict[str, Any]:
+        """Spam addresses whose score matches the filter, to load into targets."""
+        sess = _session(body.sid)
+        return {"addresses": spamstore.addresses_by_score(
+            sess.user, body.op, body.score)}
 
     @app.post("/api/spam-select-all")
     def spam_select_all(body: SpamActionIn) -> dict[str, Any]:

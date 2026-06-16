@@ -821,6 +821,18 @@ reason + confidence) when a model was used.
   with localized names) is the standard "report spam" training signal. It reports
   any addresses that had no mail (e.g. already deleted). You can also flag senders
   **during cleanup** (the *Flag senders as spam* option above).
+- **Add a sender manually** - type an address (with an optional 0-10 score) and
+  **Add** to put it on this account's list yourself, alongside the AI-flagged ones.
+
+### Load saved spam into a Target list
+
+The spam list doubles as a reusable **blocklist**. In the **Cleanup** tab, when
+saved spam addresses exist for the connected account, a **Load saved Spam
+addresses** box appears under the Target list. Pick a **score** condition
+(`is` / `<=` / `>=` / `<` / `>`) and a threshold (default 6, step 0.1) and click
+**Load** - every matching sender is appended to the target list (duplicates
+skipped). From there you delete or move them with the normal tools (dry-run, move,
+expunge...). This closes the loop: **AI finds the junk -> you act on it precisely.**
 
 ---
 

@@ -181,3 +181,65 @@ def all_addresses(account: str) -> list:
     finally:
         conn.close()
     return [r["address"] for r in rows]
+
+
+def count(account: str) -> int:
+    """How many spam addresses are saved for an account."""
+    account = (account or "").strip().lower()
+    conn = _connect()
+    try:
+        return conn.execute("SELECT COUNT(*) FROM spam WHERE account=?",
+                            (account,)).fetchone()[0]
+    finally:
+        conn.close()
+
+
+def add_address(account: str, address: str, score: float | None = None) -> bool:
+    """Manually add (or update the score of) a spam address. Returns True if saved.
+
+    Manual entries carry ``source='manual'``; an existing address keeps its
+    richer report data and only takes the new score (when one is given).
+    """
+    account = (account or "").strip().lower()
+    address = (address or "").strip().lower()
+    if not account or "@" not in address:
+        return False
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    conn = _connect()
+    try:
+        conn.execute(
+            "INSERT INTO spam (account, address, score, source, updated_at)"
+            " VALUES (?,?,?,?,?)"
+            " ON CONFLICT(account, address) DO UPDATE SET"
+            " score=COALESCE(excluded.score, spam.score),"
+            " source=excluded.source, updated_at=excluded.updated_at",
+            (account, address, score, "manual", now))
+        conn.commit()
+    finally:
+        conn.close()
+    return True
+
+
+# Score-filter operators offered to the "Load saved Spam addresses" target box.
+_SCORE_OPS = {"is": "=", "le": "<=", "ge": ">=", "lt": "<", "gt": ">"}
+
+
+def addresses_by_score(account: str, op: str, score: float) -> list:
+    """Addresses whose score satisfies ``score <op> value`` (NULL scores skipped).
+
+    ``op`` is one of is / le / ge / lt / gt. Used to load a filtered subset of
+    the spam list into the Target list.
+    """
+    account = (account or "").strip().lower()
+    sql_op = _SCORE_OPS.get(op)
+    if sql_op is None:
+        return []
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            f"SELECT address FROM spam WHERE account=? AND score IS NOT NULL"
+            f" AND score {sql_op} ? ORDER BY score DESC",
+            (account, float(score))).fetchall()
+    finally:
+        conn.close()
+    return [r["address"] for r in rows]

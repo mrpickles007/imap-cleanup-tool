@@ -125,6 +125,42 @@ class SpamStoreTests(unittest.TestCase):
                 self.assertEqual(ss.delete_addresses("a@x.com", ["x@a.com"]), 1)
                 self.assertEqual(ss.all_addresses("a@x.com"), ["y@a.com"])
 
+    def test_add_address_manual_and_count(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):
+                self.assertEqual(ss.count("a@x.com"), 0)
+                self.assertTrue(ss.add_address("a@x.com", "New@Shop.com", 10))
+                self.assertEqual(ss.count("a@x.com"), 1)
+                item = ss.list_addresses("a@x.com")["items"][0]
+                self.assertEqual(item["address"], "new@shop.com")  # lowercased
+                self.assertEqual(item["score"], 10)
+                # invalid address rejected
+                self.assertFalse(ss.add_address("a@x.com", "not-an-email"))
+                # re-adding updates the score, no duplicate
+                ss.add_address("a@x.com", "new@shop.com", 4)
+                self.assertEqual(ss.count("a@x.com"), 1)
+                self.assertEqual(
+                    ss.list_addresses("a@x.com")["items"][0]["score"], 4)
+
+    def test_addresses_by_score_filter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):
+                ss.record_from_report("a@x.com", _report([
+                    _sender("hi@a.com", 9.0), _sender("mid@a.com", 6.0),
+                    _sender("lo@a.com", 3.0)]), "report")
+                self.assertEqual(
+                    set(ss.addresses_by_score("a@x.com", "ge", 6)),
+                    {"hi@a.com", "mid@a.com"})
+                self.assertEqual(ss.addresses_by_score("a@x.com", "gt", 6),
+                                 ["hi@a.com"])
+                self.assertEqual(ss.addresses_by_score("a@x.com", "is", 6.0),
+                                 ["mid@a.com"])
+                self.assertEqual(set(ss.addresses_by_score("a@x.com", "le", 6)),
+                                 {"mid@a.com", "lo@a.com"})
+                self.assertEqual(ss.addresses_by_score("a@x.com", "lt", 6),
+                                 ["lo@a.com"])
+                self.assertEqual(ss.addresses_by_score("a@x.com", "bogus", 6), [])
+
 
 if __name__ == "__main__":
     unittest.main()

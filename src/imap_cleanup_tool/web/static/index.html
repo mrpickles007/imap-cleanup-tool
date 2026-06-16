@@ -258,6 +258,27 @@ tailwind.config = { theme: { extend: {
           <button id="btnSaveTargets" type="button" class="px-4 py-2 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm flex items-center gap-2"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Save to file…</button>
           <span class="text-[11px] text-muted">one entry per line · reuse across runs</span>
         </div>
+        <div id="loadSpamRow" class="hidden mt-2 rounded-lg border border-line bg-ink/40 p-2.5">
+          <label class="flex items-center gap-2 text-xs text-cream cursor-pointer">
+            <input id="loadSpamChk" type="checkbox">
+            <span class="flex items-center">Load saved Spam addresses
+              <span class="tip"><span class="ic">i</span><span class="bub">Load the senders the AI flagged as spam (saved per account in the <b>Spam addresses</b> tab) into this target list, filtered by their <b>score</b> (0-10). Pick a condition and a threshold, then <b>Load</b> - matching addresses are appended, duplicates skipped.</span></span>
+            </span>
+            <span id="loadSpamCount" class="text-muted"></span>
+          </label>
+          <div id="loadSpamFilter" class="hidden flex items-center gap-2 mt-2 flex-wrap">
+            <span class="text-xs text-muted">score</span>
+            <select id="loadSpamOp" class="field text-sm" style="max-width:5rem">
+              <option value="ge">&gt;=</option>
+              <option value="le">&lt;=</option>
+              <option value="gt">&gt;</option>
+              <option value="lt">&lt;</option>
+              <option value="is">is</option>
+            </select>
+            <input id="loadSpamScore" type="number" min="0" max="10" step="0.1" value="6" class="field text-sm" style="max-width:5rem">
+            <button id="btnLoadSpam" type="button" class="px-3 py-1.5 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm">Load</button>
+          </div>
+        </div>
       </div>
       <div id="paneRule" class="hidden">
         <div id="builder"></div>
@@ -675,7 +696,13 @@ tailwind.config = { theme: { extend: {
       </div>
     </div>
     <div id="spamMsg" class="hidden"></div>
-    <p class="text-xs text-muted mb-3">Senders flagged by <b>AI Cleanup</b> (report or run) for the connected mailbox, with their heuristic <b>spam score</b> and the <b>LLM verdict</b>. Click a column header to <b>sort</b> the whole list. Select rows to <b>remove</b> them from the list, or <b>flag senders as spam</b> - a popup lets you either move one message to the Junk/Spam folder and <b>delete</b> the rest (like Run), or just <b>move</b> all their mail to Spam. It scans the <b>folders selected in the Cleanup tab</b> (just like a run); the popup shows which ones. Moving mail to Spam is the standard "report spam" signal that trains the server to route their <b>future</b> mail to spam. Each connection has its own list.</p>
+    <p class="text-xs text-muted mb-3">Senders flagged by <b>AI Cleanup</b> (report or run) for the connected mailbox, with their heuristic <b>spam score</b> and the <b>LLM verdict</b>. Click a column header to <b>sort</b> the whole list. Select rows to <b>remove</b> them from the list, or <b>flag senders as spam</b> - a popup lets you either move one message to the Junk/Spam folder and <b>delete</b> the rest (like Run), or just <b>move</b> all their mail to Spam. It scans the <b>folders selected in the Cleanup tab</b> (just like a run); the popup shows which ones. Moving mail to Spam is the standard "report spam" signal that trains the server to route their <b>future</b> mail to spam. Each connection has its own list. You can also <b>add a sender manually</b> below, and load matching addresses into a <b>Target list</b> from the Cleanup tab.</p>
+    <div class="flex items-center gap-2 flex-wrap mb-3">
+      <input id="spamAddAddr" class="field text-sm" style="max-width:15rem" placeholder="add a sender manually…">
+      <label class="flex items-center gap-1 text-xs text-muted">score <input id="spamAddScore" type="number" min="0" max="10" step="0.1" value="10" class="field text-sm" style="max-width:4.5rem" title="Heuristic score 0-10 stored with this address (used by the score filter)"></label>
+      <button id="spamAddBtn" type="button" class="px-3 py-1.5 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm">Add</button>
+      <span class="text-[11px] text-muted">manual entries can be loaded into a Target list by score</span>
+    </div>
     <div class="flex items-center gap-2 flex-wrap mb-3">
       <label class="flex items-center gap-1.5 text-xs text-muted"><input id="spamSelectAll" type="checkbox"> Select all (this page)</label>
       <button id="spamSelectAllAcct" type="button" class="text-xs text-brand-light hover:underline">select all <span id="spamTotalCount"></span></button>
@@ -1128,6 +1155,7 @@ async function pollLog(){
     if(d.running){ poll=setTimeout(pollLog, pollDelay()); }
     else { poll=null; if(d.status && d.status!=='running') log('- '+d.status+(d.error?(': '+d.error):'')+' -'); setBusy(false); curRunId=null; persistLog();
       loadAiReports();   // a finished run may have saved a new report
+      refreshLoadSpam(); // a finished AI run may have added spam addresses
       // Deletion changes folder counts - refresh the folder list (unified flow).
       if(pendingRefreshFolders && d.status==='done'){ pendingRefreshFolders=false; refreshFoldersQuiet(); }
       if(gmailTrashSeen && d.status==='done'){ gmailTrashSeen=false; showTrashNotice(); }
@@ -1701,7 +1729,16 @@ if($('spamSearch')) $('spamSearch').oninput=()=>{ clearTimeout(spamSearchT); spa
 if($('spamRemove')) $('spamRemove').onclick=async()=>{
   const addrs=[...spamState.sel]; if(!addrs.length) return;
   if(!(await confirmDialog({title:'Remove from spam list', message:'Remove '+addrs.length+' address(es) from this account\'s spam list? (does not touch the mailbox)', okText:'Remove'}))) return;
-  try{ const r=await api('/api/spam-delete',{sid:SID,addresses:addrs}); spamState.sel.clear(); spamMsg('Removed '+r.removed+' address(es).','text-ok'); spamState.offset=0; loadSpam(); }
+  try{ const r=await api('/api/spam-delete',{sid:SID,addresses:addrs}); spamState.sel.clear(); spamMsg('Removed '+r.removed+' address(es).','text-ok'); spamState.offset=0; loadSpam(); refreshLoadSpam(); }
+  catch(e){ spamMsg('Error: '+e.message,'text-danger'); }
+};
+if($('spamAddBtn')) $('spamAddBtn').onclick=async()=>{
+  if(!SID){ spamMsg('Connect first.','text-warn'); return; }
+  const addr=($('spamAddAddr').value||'').trim();
+  if(addr.indexOf('@')<0){ spamMsg('Enter a valid email address.','text-danger'); return; }
+  const sv=parseFloat($('spamAddScore').value); const score=isNaN(sv)?null:sv;
+  try{ await api('/api/spam-add',{sid:SID,address:addr,score}); $('spamAddAddr').value='';
+    spamMsg('Added '+addr+' to the spam list.','text-ok'); spamState.offset=0; loadSpam(); refreshLoadSpam(); }
   catch(e){ spamMsg('Error: '+e.message,'text-danger'); }
 };
 if($('spamFlag')) $('spamFlag').onclick=async()=>{
@@ -1749,6 +1786,7 @@ $('btnConnect').onclick=async()=>{
     knownFolders=d.folders||[]; renderFolders(); setStatus(true,'connected · '+knownFolders.length+' folders'); setConnectedUI(true);
     prefillSelfExclude();
     loadAiReports();   // show this account's reports right away (no manual reload)
+    refreshLoadSpam(); // show the "Load saved Spam addresses" box if any exist
     log('Connected. Loaded '+knownFolders.length+' folder(s).'); refreshConditional();
   }catch(e){ setStatus(false,'failed'); setConnectedUI(false); log('[ERROR] '+e.message); }
 };
@@ -1781,7 +1819,7 @@ function prefillSelfExclude(){
   if(!lines.some(l=>l.toLowerCase()===addr.toLowerCase())){ lines.unshift(addr); box.value=lines.join('\n'); }
   selfExcludeAddr=addr;
 }
-$('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setStatus(false,'disconnected'); setConnectedUI(false); removeSelfExclude(); loadAiReports(); log('Disconnected.'); };
+$('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setStatus(false,'disconnected'); setConnectedUI(false); removeSelfExclude(); loadAiReports(); refreshLoadSpam(); log('Disconnected.'); };
 $('btnValidate').onclick=async()=>{ try{ const d=await api('/api/validate-rule',{tree:toTree(ROOT)}); $('ruleOut').textContent='OK → SEARCH '+d.search; $('ruleOut').className='text-xs text-ok ml-2'; }catch(e){ $('ruleOut').textContent=e.message; $('ruleOut').className='text-xs text-danger ml-2'; } };
 $('btnStop').onclick=async()=>{ if(SID&&curRunId){ $('btnStop').disabled=true; $('btnStop').textContent='Stopping…'; try{ await api(`/api/stop/${SID}/${curRunId}`); log('Stop requested - finishing the current batch, then stopping…'); }catch(e){} } };
 $('btnSenders').onclick=async()=>{ if(!(await ensureFolderChosen())) return; log('Listing senders in: '+(selectedFolders.join(', ')||'INBOX')+' …'); startJob('/api/senders',{sid:SID,folders:selectedFolders.length?selectedFolders:['INBOX'],batch_size:parseInt($('batch').value)||500}); };
@@ -1863,6 +1901,35 @@ async function saveTargets(){
   } else { download(fname, text); }   // fallback: browser download dialog
 }
 $('btnSaveTargets').onclick=saveTargets;
+
+/* ---------- Load saved Spam addresses into the Target list ---------- */
+async function refreshLoadSpam(){
+  const row=$('loadSpamRow'); if(!row) return;
+  if(!SID){ row.classList.add('hidden'); return; }
+  try{
+    const d=await (await fetch('/api/spam/'+SID+'?limit=1')).json();
+    const n=d.total||0;
+    row.classList.toggle('hidden', n===0);
+    if($('loadSpamCount')) $('loadSpamCount').textContent = n? '('+n+' saved)' : '';
+  }catch(_){ /* leave as-is */ }
+}
+if($('loadSpamChk')) $('loadSpamChk').onchange=()=>{ $('loadSpamFilter').classList.toggle('hidden', !$('loadSpamChk').checked); };
+if($('btnLoadSpam')) $('btnLoadSpam').onclick=async()=>{
+  if(!SID){ log('[ERROR] Not connected.'); return; }
+  const op=$('loadSpamOp').value, score=parseFloat($('loadSpamScore').value);
+  if(isNaN(score)){ log('[ERROR] Enter a score number.'); return; }
+  try{
+    const r=await api('/api/spam-load-targets',{sid:SID,op,score});
+    const addrs=r.addresses||[];
+    if(!addrs.length){ log('No saved spam addresses match score '+op+' '+score+'.'); return; }
+    const have=new Set($('targets').value.split('\n').map(s=>s.trim().toLowerCase()).filter(Boolean));
+    const fresh=addrs.filter(a=>!have.has(a.toLowerCase()));
+    const cur=$('targets').value.replace(/\s*$/,'');
+    $('targets').value=(cur?cur+'\n':'')+fresh.join('\n');
+    try{localStorage.setItem('icw_targets',$('targets').value);}catch(_){}
+    log('Loaded '+fresh.length+' spam address(es) into the target list'+(addrs.length-fresh.length?(' ('+(addrs.length-fresh.length)+' already present)'):'')+'.');
+  }catch(e){ log('[ERROR] '+e.message); }
+};
 $('btnRefreshFolders').onclick=async()=>{
   if(!SID){ log('[ERROR] Not connected.'); return; }
   try{ const d=await api('/api/refresh-folders',{sid:SID}); knownFolders=d.folders||[]; renderFolders();
@@ -2110,7 +2177,7 @@ function maybeAutoTour(){
   if(!done) setTimeout(startTour, 700);   // first access: show it once
 }
 
-loadMeta().then(()=>{ refreshConditional(); restore(); restoreUiState(); loadLLMModels(); loadAiReports(); maybeAutoTour(); });
+loadMeta().then(()=>{ refreshConditional(); restore(); restoreUiState(); loadLLMModels(); loadAiReports(); refreshLoadSpam(); maybeAutoTour(); });
 
 // Blink the provider user/password tooltips at random intervals to draw the
 // eye - only while NOT connected, and only for tips that are actually shown.
