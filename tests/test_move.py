@@ -289,6 +289,13 @@ class BatchExpungeTests(unittest.TestCase):
         self.assertEqual(n, 1200)
         self.assertEqual(conn.mailbox, set())
 
+    def test_empty_folder_honors_batch_size(self):
+        conn = BatchExpungeConn(1200, uidplus=True)
+        removed = core.empty_folder(conn, "[Gmail]/Trash", dry_run=False,
+                                    batch_size=300)
+        self.assertEqual(removed, 1200)
+        self.assertEqual(conn.uid_expunge_batches, [300, 300, 300, 300])
+
 
 class DeleteFolderTests(unittest.TestCase):
     def test_protected_set_detection(self):

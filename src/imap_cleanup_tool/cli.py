@@ -475,7 +475,8 @@ def main(argv: list[str] | None = None) -> int:
                     folders, True, False, False):
                 print("Aborted.")
                 return 0
-            total = sum(core.empty_folder(conn, f, args.dry_run)
+            total = sum(core.empty_folder(conn, f, args.dry_run,
+                                          batch_size=args.batch_size)
                         for f in folders)
             core.logger.info("Done. %d message(s) processed.", total)
             _notify_cli(args, folders, total, gmail=False, kind="Empty folder")

@@ -714,6 +714,7 @@ def create_app():
             if body.empty_folder:
                 for folder in folders:
                     total += core.empty_folder(sess.conn, folder, body.dry_run,
+                                                batch_size=body.batch_size,
                                                 should_stop=rs.stop.is_set)
             else:
                 for folder in folders:

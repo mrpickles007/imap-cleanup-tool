@@ -358,6 +358,7 @@ def flag_and_expunge(conn: imaplib.IMAP4_SSL, uids: list[bytes], *,
 
 
 def empty_folder(conn: imaplib.IMAP4_SSL, folder: str, dry_run: bool,
+                 batch_size: int = UID_CHUNK_SIZE,
                  should_stop: StopCheck | None = None) -> int:
     """Delete ALL messages in a folder (no filtering). Returns count removed."""
     status, _ = conn.select(_quote_mailbox(folder), readonly=dry_run)
@@ -373,7 +374,8 @@ def empty_folder(conn: imaplib.IMAP4_SSL, folder: str, dry_run: bool,
         logger.info("[DRY-RUN] Would empty %r: %d message(s).",
                     folder, len(all_uids))
         return len(all_uids)
-    removed = flag_and_expunge(conn, all_uids, should_stop=should_stop)
+    removed = flag_and_expunge(conn, all_uids, batch_size=batch_size,
+                               should_stop=should_stop)
     logger.info("Expunged %r - folder emptied (%d).", folder, removed)
     return removed
 
