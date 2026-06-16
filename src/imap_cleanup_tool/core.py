@@ -305,6 +305,58 @@ def delete_uids(conn: imaplib.IMAP4_SSL, uids: list[bytes],
     return processed
 
 
+def _supports_uidplus(conn: imaplib.IMAP4_SSL) -> bool:
+    """True if the server advertises UIDPLUS (so ``UID EXPUNGE`` is available)."""
+    try:
+        return "UIDPLUS" in (getattr(conn, "capabilities", ()) or ())
+    except Exception:  # pylint: disable=broad-exception-caught
+        return False
+
+
+def flag_and_expunge(conn: imaplib.IMAP4_SSL, uids: list[bytes], *,
+                     batch_size: int = UID_CHUNK_SIZE,
+                     should_stop: StopCheck | None = None) -> int:
+    """Flag ``\\Deleted`` and EXPUNGE in batches; return the count removed.
+
+    A single ``EXPUNGE`` over tens of thousands of messages can make the server
+    return a "System Error" or drop the connection, leaving messages behind. So
+    we expunge **incrementally**: with UIDPLUS we ``UID EXPUNGE`` each flagged
+    batch; without it we flag one batch then ``EXPUNGE`` (which removes only what
+    has been flagged so far). Either way no single EXPUNGE has to clear the whole
+    folder at once.
+    """
+    total = len(uids)
+    uidplus = _supports_uidplus(conn)
+    removed = 0
+    logger.info("Deleting %d message(s) in batches of %d (expunge per batch%s) ...",
+                total, batch_size, "; UID EXPUNGE" if uidplus else "")
+    for i in range(0, total, batch_size):
+        _check_stop(should_stop)
+        chunk = uids[i:i + batch_size]
+        joined = b",".join(chunk)
+        status, _ = conn.uid("STORE", joined, "+FLAGS", r"(\Deleted)")
+        if status != "OK":
+            logger.warning("Failed to flag a batch of %d message(s); skipping it.",
+                           len(chunk))
+            continue
+        try:
+            if uidplus:
+                estatus, _ = conn.uid("EXPUNGE", joined)
+            else:
+                estatus, _ = conn.expunge()
+            if estatus == "OK":
+                removed += len(chunk)
+            else:
+                logger.warning("EXPUNGE of a batch returned %s; continuing.",
+                               estatus)
+        except imaplib.IMAP4.abort:
+            raise
+        except imaplib.IMAP4.error as exc:
+            logger.warning("EXPUNGE of a batch failed (%s); continuing.", exc)
+        logger.info("  ... removed %d/%d", min(i + batch_size, total), total)
+    return removed
+
+
 def empty_folder(conn: imaplib.IMAP4_SSL, folder: str, dry_run: bool,
                  should_stop: StopCheck | None = None) -> int:
     """Delete ALL messages in a folder (no filtering). Returns count removed."""
@@ -321,10 +373,9 @@ def empty_folder(conn: imaplib.IMAP4_SSL, folder: str, dry_run: bool,
         logger.info("[DRY-RUN] Would empty %r: %d message(s).",
                     folder, len(all_uids))
         return len(all_uids)
-    flagged = delete_uids(conn, all_uids, should_stop=should_stop)
-    conn.expunge()
-    logger.info("Expunged %r - folder emptied (%d).", folder, flagged)
-    return flagged
+    removed = flag_and_expunge(conn, all_uids, should_stop=should_stop)
+    logger.info("Expunged %r - folder emptied (%d).", folder, removed)
+    return removed
 
 
 # --------------------------------------------------------------------------- #
@@ -793,14 +844,19 @@ def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
                     processed, folder, dest_folder)
         return processed
 
-    processed = delete_uids(conn, matched, gmail_trash=gmail_trash,
-                            batch_size=batch_size, should_stop=should_stop)
     if gmail_trash:
+        processed = delete_uids(conn, matched, gmail_trash=True,
+                                batch_size=batch_size, should_stop=should_stop)
         logger.info("Moved %d message(s) to Gmail Trash from %r.",
                     processed, folder)
+    elif expunge:
+        # Flag + expunge in batches so a huge single EXPUNGE can't time out.
+        processed = flag_and_expunge(conn, matched, batch_size=batch_size,
+                                     should_stop=should_stop)
+        logger.info("Flagged + expunged %d message(s) in %r (permanent removal).",
+                    processed, folder)
     else:
+        processed = delete_uids(conn, matched, batch_size=batch_size,
+                                should_stop=should_stop)
         logger.info("Flagged %d message(s) as deleted in %r.", processed, folder)
-        if expunge:
-            conn.expunge()
-            logger.info("Expunged folder %r (permanent removal).", folder)
     return processed

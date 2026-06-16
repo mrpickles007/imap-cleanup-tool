@@ -220,6 +220,76 @@ class MoveAllTests(unittest.TestCase):
         self.assertFalse(core._same_mailbox("Archive", "Other"))
 
 
+class BatchExpungeConn:
+    """Fake IMAP that CHOKES on a single huge EXPUNGE (like the real server did)
+    but succeeds when the work is expunged in small batches."""
+
+    def __init__(self, n, uidplus=True):
+        self.mailbox = {str(i).encode() for i in range(1, n + 1)}
+        self.capabilities = (("IMAP4REV1", "UIDPLUS") if uidplus
+                             else ("IMAP4REV1",))
+        self.flagged = set()
+        self.uid_expunge_batches = []
+        self.plain_expunge_calls = 0
+
+    def select(self, name, readonly=False):
+        return ("OK", [str(len(self.mailbox)).encode()])
+
+    def uid(self, cmd, *args):
+        if cmd == "SEARCH":
+            return ("OK", [b" ".join(sorted(self.mailbox, key=int)) or None])
+        if cmd == "STORE":
+            for u in args[0].split(b","):
+                if u in self.mailbox:
+                    self.flagged.add(u)
+            return ("OK", [b""])
+        if cmd == "EXPUNGE":                       # UIDPLUS: only these UIDs
+            batch = args[0].split(b",")
+            self.uid_expunge_batches.append(len(batch))
+            for u in batch:
+                if u in self.flagged:
+                    self.mailbox.discard(u)
+                    self.flagged.discard(u)
+            return ("OK", [b""])
+        return ("OK", [b""])
+
+    def expunge(self):                             # plain: all flagged at once
+        self.plain_expunge_calls += 1
+        if len(self.flagged) > core.UID_CHUNK_SIZE:
+            raise core.imaplib.IMAP4.error("command: EXPUNGE => System Error")
+        for u in list(self.flagged):
+            self.mailbox.discard(u)
+        self.flagged.clear()
+        return ("OK", [b""])
+
+
+class BatchExpungeTests(unittest.TestCase):
+    """A large empty/expunge must not rely on one giant EXPUNGE."""
+
+    def test_empty_folder_uidplus_uses_uid_expunge_per_batch(self):
+        conn = BatchExpungeConn(1200, uidplus=True)
+        removed = core.empty_folder(conn, "[Gmail]/Trash", dry_run=False)
+        self.assertEqual(removed, 1200)
+        self.assertEqual(conn.mailbox, set())            # nothing left behind
+        self.assertEqual(conn.uid_expunge_batches, [500, 500, 200])
+        self.assertEqual(conn.plain_expunge_calls, 0)    # never the giant one
+
+    def test_empty_folder_non_uidplus_expunges_incrementally(self):
+        conn = BatchExpungeConn(1200, uidplus=False)
+        # The old code flagged all 1200 then EXPUNGEd once -> would raise here.
+        removed = core.empty_folder(conn, "INBOX", dry_run=False)
+        self.assertEqual(removed, 1200)
+        self.assertEqual(conn.mailbox, set())
+        self.assertEqual(conn.plain_expunge_calls, 3)    # one per <=500 batch
+
+    def test_process_folder_expunge_is_batched(self):
+        conn = BatchExpungeConn(1200, uidplus=False)
+        n = core.process_folder(conn, "INBOX", search_argument="ALL",
+                                dry_run=False, expunge=True, scan_mode="search")
+        self.assertEqual(n, 1200)
+        self.assertEqual(conn.mailbox, set())
+
+
 class DeleteFolderTests(unittest.TestCase):
     def test_protected_set_detection(self):
         prot = core.protected_folder_names(FakeConn())
