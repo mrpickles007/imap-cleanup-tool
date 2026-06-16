@@ -195,11 +195,11 @@ tailwind.config = { theme: { extend: {
             <button id="togglePass" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream">show</button>
           </div>
         </label>
-        <label class="col-span-2 flex items-center justify-between text-sm py-1">
+        <label class="col-span-2 flex items-center gap-2 text-sm py-1 cursor-pointer">
+          <input id="localCache" type="checkbox">
           <span class="flex items-center">Enable local cache
             <span class="tip"><span class="ic">i</span><span class="bub">Caches message headers (From / Date / Subject) on this machine so <b>repeat AI reports are much faster</b>, especially on slow servers - only <b>new</b> messages are fetched next time. The cache is <b>per account</b> and is saved with this <b>connection profile</b>. Headers never change, so it's safe; unread counts are always re-read fresh. Stored locally in a small SQLite file.</span></span>
           </span>
-          <input id="localCache" type="checkbox">
         </label>
         <div class="col-span-2 flex gap-2">
           <button id="btnConnect" class="flex-1 bg-brand hover:bg-brand-light text-ink font-semibold rounded-lg px-4 py-2 transition">Connect &amp; load folders</button>
