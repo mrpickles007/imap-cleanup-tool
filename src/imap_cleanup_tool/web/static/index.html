@@ -1219,6 +1219,7 @@ function populateJobProfiles(){
 }
 function updateJobSummary(){
   const el=$('jobSummary'); if(!el) return;
+  const connected=!!SID;
   const folders=(selectedFolders.length?selectedFolders:['INBOX']).join(', ');
   const empty=$('emptyFolder').checked;
   const mode=document.querySelector('input[name=mode]:checked').value;
@@ -1248,10 +1249,16 @@ function updateJobSummary(){
   else action='Flag as deleted';
   const profTxt = prof ? ('<b>'+escapeHtml(prof)+'</b>') : '<span class="text-warn">⚠️ none selected</span>';
   const matchTxt = warn ? ('<span class="text-warn">⚠️ '+escapeHtml(match)+'</span>') : ('<b>'+escapeHtml(match)+'</b>');
+  const foldersTxt = connected ? ('<b>'+escapeHtml(folders)+'</b>')
+                               : '<b>INBOX</b> <span class="text-warn">(default)</span>';
+  const notConnectedNote = connected ? '' :
+    '<br><span class="text-warn">⚠️ IMAP account not connected, so only <b>INBOX</b> will be used. '+
+    'To target other folders, <b>connect from the Cleanup tab</b> and pick them in the folder list first - they\'ll then appear here.</span>';
   el.innerHTML =
     '<b>'+escapeHtml(action)+'</b> · '+matchTxt+
-    '<br>Profile: '+profTxt+' · Folders: <b>'+escapeHtml(folders)+'</b>'+
+    '<br>Profile: '+profTxt+' · Folders: '+foldersTxt+
     (empty?'':' · Scan: <b>'+escapeHtml(mode)+'</b>')+
+    notConnectedNote+
     '<br><span class="text-warn">Runs for real - dry-run does not apply to scheduled jobs.</span> '+
     'Set connection profile here; folders/match/options in the <b>Cleanup</b> tab.';
 }
