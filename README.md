@@ -283,9 +283,16 @@ your IMAP server**, so on a slow provider each report is slow again.
 Tick **Enable local cache** in the connection card (it is **saved with the
 connection profile**, or pass `--local-cache` on the CLI) and the tool caches the
 immutable header fields (`From` / `Date` / `Subject`) on your machine, keyed by
-message **UID**. The next report only fetches the **new** messages; the rest come
-from the cache, so repeat reports become near-instant. It is **off by default**
-and **per account**. **Enabling it is recommended**, especially on slower servers.
+message **UID**. The next time only the **new** messages are fetched; the rest
+come from the cache, so it becomes near-instant. It is **off by default** and
+**per account**. **Enabling it is recommended**, especially on slower servers.
+
+The cache applies to **every operation that downloads headers**: AI reports/runs,
+**List senders**, and matching with **`--scan-mode full`** (interactive *and*
+scheduled jobs - they share the same cache). It does **not** apply to the default
+server-side **`search`** mode (move / delete / count / list-senders in `search`
+mode), because there the **server** does the filtering and no headers are
+downloaded at all - so there is nothing to cache there.
 
 > **First run on a new mailbox is the slow one.** With the cache on, the *first*
 > report on a mailbox still fetches every header (it can take a few minutes on a

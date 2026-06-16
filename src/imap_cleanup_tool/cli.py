@@ -189,6 +189,17 @@ def _notify_cli(args, folders: list[str], total: int, *, gmail: bool,
         core.logger.warning("Notification email not sent: %s", exc)
 
 
+def _cli_cache(args):
+    """A HeaderCache when --local-cache (or a profile) enabled it, else None."""
+    if not getattr(args, "local_cache", False):
+        return None
+    try:
+        from .headercache import HeaderCache
+        return HeaderCache()
+    except Exception:  # pylint: disable=broad-exception-caught
+        return None
+
+
 def _run_operation(conn, args: argparse.Namespace, folders: list[str]) -> None:
     search_argument = None
     addresses: set[str] = set()
@@ -207,6 +218,7 @@ def _run_operation(conn, args: argparse.Namespace, folders: list[str]) -> None:
     else:
         sys.exit("[ERROR] Provide --targets or --rule (or use --empty-folder).")
 
+    cache = _cli_cache(args)              # used by --scan-mode full
     total = 0
     for folder in folders:
         total += core.process_folder(
@@ -216,7 +228,8 @@ def _run_operation(conn, args: argparse.Namespace, folders: list[str]) -> None:
             include_subdomains=args.include_subdomains,
             batch_size=args.batch_size, scan_mode=args.scan_mode,
             gmail_trash=args.gmail_trash, move=args.move,
-            dest_folder=args.dest_folder)
+            dest_folder=args.dest_folder, cache=cache,
+            account=getattr(args, "user", "") or "")
     verb = "would be acted on" if args.dry_run else "acted on"
     core.logger.info("Done. %d message(s) %s in total.", total, verb)
     kind = "Move" if args.move else "Cleanup"
@@ -472,6 +485,7 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s %(levelname)-7s %(message)s", datefmt="%H:%M:%S")
 
     host, user, password = _resolve_credentials(args)
+    args.user = user                 # the resolved account (used for the cache key)
     try:
         conn = core.connect(host, args.port, user, password, args.timeout)
     except (OSError, core.imaplib.IMAP4.error) as exc:
@@ -495,9 +509,11 @@ def main(argv: list[str] | None = None) -> int:
                 print("  ", name)
             return 0
         if args.list_senders:
+            cache = _cli_cache(args)
             for folder in folders:
                 core.list_senders(conn, folder, args.batch_size,
-                                  account=user, save_path=args.save_senders)
+                                  account=user, save_path=args.save_senders,
+                                  cache=cache)
             return 0
         if args.ai_cleanup:
             if (not args.ai_report_only and not args.dry_run and not args.yes

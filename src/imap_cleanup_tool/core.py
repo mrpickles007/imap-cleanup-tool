@@ -150,17 +150,54 @@ def folder_message_counts(conn: imaplib.IMAP4_SSL, names: list[str],
 # --------------------------------------------------------------------------- #
 # Fetching headers
 # --------------------------------------------------------------------------- #
+def _read_uidvalidity(conn: imaplib.IMAP4_SSL) -> str:
+    """Read the current folder's UIDVALIDITY (call right after SELECT)."""
+    try:
+        uv = conn.response("UIDVALIDITY")[1]
+        return uv[0].decode() if uv and uv[0] else ""
+    except Exception:  # pylint: disable=broad-exception-caught
+        return ""
+
+
 def fetch_from_headers(conn: imaplib.IMAP4_SSL, uids: list[bytes],
                        batch_size: int = UID_CHUNK_SIZE,
-                       should_stop: StopCheck | None = None) -> dict[bytes, str]:
-    """Fetch the 'From' header for all UIDs, in batches."""
+                       should_stop: StopCheck | None = None,
+                       *, cache=None, account: str = "", folder: str = "",
+                       uidvalidity: str = "") -> dict[bytes, str]:
+    """Fetch the 'From' header for all UIDs, in batches.
+
+    With a ``cache`` (headercache.HeaderCache) and a known ``uidvalidity``, the
+    raw From header is read from the local cache for UIDs we have already seen;
+    only **new** UIDs are fetched, and the result is written back. The From header
+    never changes, so this is always safe.
+    """
     results: dict[bytes, str] = {}
     total = len(uids)
+
+    use_cache = cache is not None and bool(uidvalidity)
+    cached: dict[str, str] = {}
+    if use_cache:
+        try:
+            cache.purge_other(account, folder, uidvalidity)
+            cached = cache.get_from(account, folder, uidvalidity,
+                                    [u.decode() for u in uids])
+        except Exception:  # pylint: disable=broad-exception-caught
+            cached = {}
+    for u in uids:
+        us = u.decode()
+        if us in cached:
+            results[u] = cached[us]
+    if cached:
+        logger.info("  %d/%d From header(s) from local cache; fetching %d new.",
+                    len(cached), total, total - len(cached))
+
+    missing = [u for u in uids if u.decode() not in cached]
+    new_rows: dict[str, str] = {}
     done = 0
     logger.info("Fetching headers in batches of %d ...", batch_size)
-    for i in range(0, total, batch_size):
+    for i in range(0, len(missing), batch_size):
         _check_stop(should_stop)
-        chunk = uids[i:i + batch_size]
+        chunk = missing[i:i + batch_size]
         status, data = conn.uid("FETCH", b",".join(chunk),
                                 "(UID BODY.PEEK[HEADER.FIELDS (FROM)])")
         if status != "OK" or not data:
@@ -173,9 +210,18 @@ def fetch_from_headers(conn: imaplib.IMAP4_SSL, uids: list[bytes],
             if uid is None:
                 continue
             text = part[1].decode(errors="replace")
-            results[uid] = text.split(":", 1)[1].strip() if ":" in text else ""
+            value = text.split(":", 1)[1].strip() if ":" in text else ""
+            results[uid] = value
+            if use_cache:
+                new_rows[uid.decode()] = value
         done += len(chunk)
-        logger.info("  ... fetched headers %d/%d", done, total)
+        logger.info("  ... fetched headers %d/%d", done, len(missing))
+
+    if use_cache and new_rows:
+        try:
+            cache.put_from(account, folder, uidvalidity, new_rows)
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
     return results
 
 
@@ -199,12 +245,14 @@ def list_senders(conn: imaplib.IMAP4_SSL, folder: str,
                  batch_size: int = UID_CHUNK_SIZE,
                  should_stop: StopCheck | None = None,
                  account: str = "",
-                 save_path: str | None = None) -> dict[str, int]:
+                 save_path: str | None = None,
+                 cache=None) -> dict[str, int]:
     """Log unique senders in a folder with counts; optionally save to CSV."""
     status, _ = conn.select(_quote_mailbox(folder), readonly=True)
     if status != "OK":
         logger.error("Cannot open folder %r.", folder)
         return {}
+    uidvalidity = _read_uidvalidity(conn) if cache is not None else ""
     status, data = conn.uid("SEARCH", None, "ALL")
     if status != "OK" or not data or not data[0]:
         logger.info("Folder %r is empty.", folder)
@@ -212,7 +260,9 @@ def list_senders(conn: imaplib.IMAP4_SSL, folder: str,
 
     all_uids = data[0].split()
     logger.info("Folder %r: inspecting %d message(s).", folder, len(all_uids))
-    headers = fetch_from_headers(conn, all_uids, batch_size, should_stop)
+    headers = fetch_from_headers(conn, all_uids, batch_size, should_stop,
+                                 cache=cache, account=account, folder=folder,
+                                 uidvalidity=uidvalidity)
 
     counts: dict[str, int] = {}
     for value in headers.values():
@@ -654,7 +704,8 @@ def _fetch_sender_meta(conn: imaplib.IMAP4_SSL, uids: list[bytes],
                 continue
             seen = _seen_from_meta(part[0])
             msg = message_from_string(part[1].decode(errors="replace"))
-            sender = extract_sender_email(msg.get("From", "")) or "(no sender)"
+            from_h = msg.get("From", "")
+            sender = extract_sender_email(from_h) or "(no sender)"
             date_h = msg.get("Date", "")
             unsub = bool(msg.get("List-Unsubscribe"))
             bulk = "bulk" in (msg.get("Precedence", "").lower())
@@ -662,7 +713,8 @@ def _fetch_sender_meta(conn: imaplib.IMAP4_SSL, uids: list[bytes],
             uid = _uid_from_meta(part[0])
             if use_cache and uid:
                 new_rows[uid] = {"sender": sender, "date_h": date_h,
-                                 "unsub": unsub, "bulk": bulk, "subject": subject}
+                                 "unsub": unsub, "bulk": bulk, "subject": subject,
+                                 "from_header": from_h}
             yield (sender, date_h, seen, unsub, bulk, subject)
 
     if use_cache and new_rows:
@@ -861,7 +913,8 @@ def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
                    move: bool = False,
                    dest_folder: str | None = None,
                    count_only: bool = False,
-                   should_stop: StopCheck | None = None) -> int:
+                   should_stop: StopCheck | None = None,
+                   cache=None, account: str = "") -> int:
     """Scan one folder and act on matching messages. Returns count acted on.
 
     The action is delete (default), Gmail-trash (``gmail_trash``), or **move**
@@ -881,6 +934,7 @@ def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
     if status != "OK":
         logger.error("Cannot open folder %r - skipping.", folder)
         return 0
+    uidvalidity = _read_uidvalidity(conn) if cache is not None else ""
 
     if search_argument:
         matched = sorted(search_rule(conn, search_argument), key=int)
@@ -896,7 +950,9 @@ def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
             return 0
         all_uids = data[0].split()
         logger.info("Folder %r: scanning %d message(s).", folder, len(all_uids))
-        headers = fetch_from_headers(conn, all_uids, batch_size, should_stop)
+        headers = fetch_from_headers(conn, all_uids, batch_size, should_stop,
+                                     cache=cache, account=account, folder=folder,
+                                     uidvalidity=uidvalidity)
         matched = []
         for uid, value in headers.items():
             sender = extract_sender_email(value)

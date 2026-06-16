@@ -54,7 +54,12 @@ class HeaderCache:
                 " unsub INTEGER NOT NULL DEFAULT 0,"
                 " bulk INTEGER NOT NULL DEFAULT 0,"
                 " subject TEXT,"
+                " from_header TEXT,"        # raw From (for list-senders/full-scan)
                 " PRIMARY KEY (account, folder, uidvalidity, uid))")
+            # Migrate caches created before the from_header column existed.
+            cols = {r["name"] for r in conn.execute("PRAGMA table_info(headers)")}
+            if "from_header" not in cols:
+                conn.execute("ALTER TABLE headers ADD COLUMN from_header TEXT")
             conn.commit()
         finally:
             conn.close()
@@ -85,7 +90,7 @@ class HeaderCache:
                 rows = conn.execute(
                     f"SELECT uid, sender, date_h, unsub, bulk, subject "
                     f"FROM headers WHERE account=? AND folder=? AND uidvalidity=? "
-                    f"AND uid IN ({ph})",
+                    f"AND date_h IS NOT NULL AND uid IN ({ph})",  # AI-complete rows
                     (account, folder, uidvalidity, *chunk)).fetchall()
                 for r in rows:
                     out[r["uid"]] = {
@@ -99,7 +104,11 @@ class HeaderCache:
 
     def put(self, account: str, folder: str, uidvalidity: str,
             rows: dict[str, dict]) -> None:
-        """Insert/replace cached rows; ``rows`` is ``{uid: {fields...}}``."""
+        """Insert/replace full (AI) cached rows; ``rows`` is ``{uid: {fields}}``.
+
+        Also stores the raw ``from_header`` so these rows serve the From-only
+        consumers (list-senders / full-scan) too.
+        """
         if not rows:
             return
         conn = self._connect()
@@ -107,16 +116,63 @@ class HeaderCache:
             conn.executemany(
                 "INSERT INTO headers"
                 " (account, folder, uidvalidity, uid, sender, date_h, unsub,"
-                "  bulk, subject)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                "  bulk, subject, from_header)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT(account, folder, uidvalidity, uid) DO UPDATE SET"
                 " sender=excluded.sender, date_h=excluded.date_h,"
                 " unsub=excluded.unsub, bulk=excluded.bulk,"
-                " subject=excluded.subject",
+                " subject=excluded.subject, from_header=excluded.from_header",
                 [(account, folder, uidvalidity, uid, r.get("sender"),
                   r.get("date_h"), 1 if r.get("unsub") else 0,
-                  1 if r.get("bulk") else 0, r.get("subject"))
+                  1 if r.get("bulk") else 0, r.get("subject"),
+                  r.get("from_header"))
                  for uid, r in rows.items()])
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_from(self, account: str, folder: str, uidvalidity: str,
+                 uids: list[str]) -> dict[str, str]:
+        """Return cached raw ``From`` headers as ``{uid: from_header}``.
+
+        Serves list-senders and ``--scan-mode full``; usable rows are any with a
+        stored ``from_header`` (whether populated here or by a full AI fetch).
+        """
+        if not uids:
+            return {}
+        conn = self._connect()
+        try:
+            out: dict[str, str] = {}
+            for i in range(0, len(uids), 400):
+                chunk = uids[i:i + 400]
+                ph = ",".join("?" * len(chunk))
+                rows = conn.execute(
+                    f"SELECT uid, from_header FROM headers "
+                    f"WHERE account=? AND folder=? AND uidvalidity=? "
+                    f"AND from_header IS NOT NULL AND uid IN ({ph})",
+                    (account, folder, uidvalidity, *chunk)).fetchall()
+                for r in rows:
+                    out[r["uid"]] = r["from_header"]
+            return out
+        finally:
+            conn.close()
+
+    def put_from(self, account: str, folder: str, uidvalidity: str,
+                 rows: dict[str, str]) -> None:
+        """Insert/replace From-only rows; updates only ``from_header`` on conflict
+        (so it never wipes the richer fields of an existing AI row)."""
+        if not rows:
+            return
+        conn = self._connect()
+        try:
+            conn.executemany(
+                "INSERT INTO headers"
+                " (account, folder, uidvalidity, uid, from_header)"
+                " VALUES (?, ?, ?, ?, ?)"
+                " ON CONFLICT(account, folder, uidvalidity, uid) DO UPDATE SET"
+                " from_header=excluded.from_header",
+                [(account, folder, uidvalidity, uid, fh)
+                 for uid, fh in rows.items()])
             conn.commit()
         finally:
             conn.close()

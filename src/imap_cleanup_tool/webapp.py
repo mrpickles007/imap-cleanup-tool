@@ -171,6 +171,21 @@ class Session:
         return self.log[start:], self.log_base + len(self.log)
 
 
+def _session_cache(sess: "Session"):
+    """A HeaderCache when this session's profile enabled local caching, else None.
+
+    Shared by every header-fetching operation (AI report/run, list senders,
+    full-scan match) so the cache applies wherever headers are downloaded.
+    """
+    if not getattr(sess, "local_cache", False):
+        return None
+    try:
+        from .headercache import HeaderCache
+        return HeaderCache()
+    except Exception:  # pylint: disable=broad-exception-caught
+        return None
+
+
 def _install_log_dispatch() -> None:
     """Attach (once) a handler that routes core log records to the running job
     of the current thread, so each background run captures only its own log."""
@@ -676,11 +691,12 @@ def create_app():
             # the run result (server-side only, not sent on every poll) so it can
             # be exported as CSV on demand via /api/senders.csv.
             ranked: list[dict[str, Any]] = []
+            cache = _session_cache(sess)
             for folder in folders:
                 counts = core.list_senders(
                     sess.conn, folder, body.batch_size,
                     should_stop=rs.stop.is_set, account=sess.user,
-                    save_path=save_path)
+                    save_path=save_path, cache=cache)
                 for sender, count in sorted(counts.items(),
                                             key=lambda kv: kv[1], reverse=True):
                     ranked.append({"folder": folder, "sender": sender,
@@ -721,6 +737,7 @@ def create_app():
                                                 batch_size=body.batch_size,
                                                 should_stop=rs.stop.is_set)
             else:
+                cache = _session_cache(sess)   # used by --scan-mode full
                 for folder in folders:
                     total += core.process_folder(
                         sess.conn, folder, addresses=addresses, domains=domains,
@@ -730,7 +747,8 @@ def create_app():
                         include_subdomains=body.include_subdomains,
                         batch_size=body.batch_size, scan_mode=body.scan_mode,
                         gmail_trash=body.gmail_trash, move=body.move,
-                        dest_folder=dest, should_stop=rs.stop.is_set)
+                        dest_folder=dest, should_stop=rs.stop.is_set,
+                        cache=cache, account=sess.user)
             verb = "would be processed" if body.dry_run else "processed"
             core.logger.info("Done. %d message(s) %s.", total, verb)
             rs.result = {"processed": total, "dry_run": body.dry_run}
@@ -803,14 +821,9 @@ def create_app():
                   rs: "RunState", model_cfg, scope):
         """Heuristic report + optional LLM evaluation (attaches verdicts)."""
         addresses, domains, exact_domains, search_argument = scope
-        cache = None
-        if sess.local_cache:
-            try:
-                from .headercache import HeaderCache
-                cache = HeaderCache()
-                core.logger.info("Local header cache is ON for this profile.")
-            except Exception as exc:  # pylint: disable=broad-exception-caught
-                core.logger.warning("Local cache unavailable (%s); continuing.", exc)
+        cache = _session_cache(sess)
+        if cache is not None:
+            core.logger.info("Local header cache is ON for this profile.")
         report = core.build_ai_report(
             sess.conn, folders, threshold=body.threshold,
             sample_size=body.sample_size, exclude=exclude,

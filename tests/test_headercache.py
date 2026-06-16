@@ -16,6 +16,7 @@ class CachingConn:
         self.uidvalidity = uidvalidity
         self.header_fetched = 0           # messages whose FULL headers were fetched
         self.flag_fetched = 0             # messages whose flags-only were fetched
+        self.from_fetched = 0             # messages whose From-only header was fetched
 
     def select(self, name, readonly=False):
         return ("OK", [str(len(self.messages)).encode()])
@@ -31,7 +32,9 @@ class CachingConn:
             return ("OK", [ids.encode() if ids else None])
         if cmd == "FETCH":
             wanted = [int(x) for x in args[0].split(b",") if x]
-            flags_only = "(UID FLAGS)" in args[1]
+            fields = args[1]
+            flags_only = "(UID FLAGS)" in fields
+            from_only = ("(FROM)]" in fields) and ("SUBJECT" not in fields)
             out = []
             for uid in wanted:
                 m = self.messages[uid - 1]
@@ -40,6 +43,10 @@ class CachingConn:
                     self.flag_fetched += 1
                     out.append(("%d (UID %d FLAGS " % (uid, uid)).encode()
                                + flags + b")")
+                elif from_only:
+                    self.from_fetched += 1
+                    meta = ("%d (UID %d BODY[] {1})" % (uid, uid)).encode()
+                    out.append((meta, ("From: %s\r\n" % m.get("from", "")).encode()))
                 else:
                     self.header_fetched += 1
                     meta = (("%d (UID %d FLAGS " % (uid, uid)).encode()
@@ -134,6 +141,51 @@ class ReportCacheTests(unittest.TestCase):
         rep = core.build_ai_report(conn, ["INBOX"], threshold=0)   # cache=None
         self.assertEqual(conn.header_fetched, 3)
         self.assertEqual(rep["total_senders"], 2)
+
+
+class FromCacheTests(unittest.TestCase):
+    """list-senders / full-scan share the same cache for the From header."""
+
+    def test_list_senders_second_run_uses_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = HeaderCache(Path(tmp) / "hc.sqlite")
+            conn = CachingConn(list(MSGS))
+            c1 = core.list_senders(conn, "INBOX", account="me", cache=cache)
+            self.assertEqual(conn.from_fetched, 3)
+            self.assertEqual(c1["a@x.com"], 2)
+            conn.from_fetched = 0
+            c2 = core.list_senders(conn, "INBOX", account="me", cache=cache)
+            self.assertEqual(conn.from_fetched, 0)        # all from cache
+            self.assertEqual(c2, c1)
+
+    def test_ai_report_then_list_senders_shares_from(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = HeaderCache(Path(tmp) / "hc.sqlite")
+            conn = CachingConn(list(MSGS))
+            # An AI report populates full rows (incl. raw From) ...
+            core.build_ai_report(conn, ["INBOX"], threshold=0, cache=cache,
+                                 account="me")
+            self.assertEqual(conn.header_fetched, 3)
+            # ... so list-senders fetches no From headers at all.
+            conn.from_fetched = 0
+            core.list_senders(conn, "INBOX", account="me", cache=cache)
+            self.assertEqual(conn.from_fetched, 0)
+
+    def test_full_scan_match_uses_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = HeaderCache(Path(tmp) / "hc.sqlite")
+            conn = CachingConn(list(MSGS))
+            n1 = core.process_folder(conn, "INBOX", addresses={"a@x.com"},
+                                     scan_mode="full", dry_run=True,
+                                     cache=cache, account="me")
+            self.assertEqual(n1, 2)
+            self.assertEqual(conn.from_fetched, 3)        # scanned all 3
+            conn.from_fetched = 0
+            n2 = core.process_folder(conn, "INBOX", addresses={"a@x.com"},
+                                     scan_mode="full", dry_run=True,
+                                     cache=cache, account="me")
+            self.assertEqual(n2, 2)
+            self.assertEqual(conn.from_fetched, 0)        # all from cache
 
 
 if __name__ == "__main__":
