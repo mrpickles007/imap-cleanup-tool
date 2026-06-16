@@ -51,6 +51,29 @@ class SpamStoreTests(unittest.TestCase):
                 self.assertTrue(item["verdict_delete"])
                 self.assertEqual(item["score"], 8.5)        # score updated
 
+    def test_no_duplicate_by_address_case_insensitive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):
+                # same sender, different letter case + a second run -> still 1 row
+                ss.record_from_report("a@x.com",
+                                      _report([_sender("Spam@Shop.com", 9.0)]),
+                                      "report")
+                ss.record_from_report("a@x.com",
+                                      _report([_sender("spam@shop.com", 8.0)]),
+                                      "run")
+                ss.record_from_report("a@x.com",
+                                      _report([_sender("SPAM@SHOP.COM", 7.0)]),
+                                      "report")
+                lst = ss.list_addresses("a@x.com")
+                self.assertEqual(lst["total"], 1)              # not re-inserted
+                self.assertEqual(lst["items"][0]["address"], "spam@shop.com")
+                self.assertEqual(lst["items"][0]["score"], 7.0)  # updated in place
+                # a different address IS a separate row
+                ss.record_from_report("a@x.com",
+                                      _report([_sender("other@shop.com", 6.0)]),
+                                      "report")
+                self.assertEqual(ss.list_addresses("a@x.com")["total"], 2)
+
     def test_pagination_and_search(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):
