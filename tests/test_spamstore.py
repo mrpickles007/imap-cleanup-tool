@@ -66,6 +66,32 @@ class SpamStoreTests(unittest.TestCase):
                 found = ss.list_addresses("a@x.com", search="s1")
                 self.assertTrue(all("s1" in it["address"] for it in found["items"]))
 
+    def test_sorting_over_whole_list(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):
+                ss.record_from_report("a@x.com", _report([
+                    _sender("low@x.com", 6.0), _sender("mid@x.com", 7.0),
+                    _sender("high@x.com", 9.0)]), "report")
+                # default: score desc
+                top = ss.list_addresses("a@x.com")["items"][0]["address"]
+                self.assertEqual(top, "high@x.com")
+                # score asc
+                asc = ss.list_addresses("a@x.com", sort_by="score",
+                                        sort_dir="asc")
+                self.assertEqual(asc["items"][0]["address"], "low@x.com")
+                self.assertEqual(asc["sort_dir"], "asc")
+                # sort spans the whole list, not just a page
+                p = ss.list_addresses("a@x.com", sort_by="score", sort_dir="asc",
+                                      limit=1, offset=0)
+                self.assertEqual(p["items"][0]["address"], "low@x.com")
+                p2 = ss.list_addresses("a@x.com", sort_by="score", sort_dir="asc",
+                                       limit=1, offset=2)
+                self.assertEqual(p2["items"][0]["address"], "high@x.com")
+                # unknown sort key falls back to score
+                self.assertEqual(
+                    ss.list_addresses("a@x.com", sort_by="bogus")["sort_by"],
+                    "score")
+
     def test_delete_and_select_all(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):

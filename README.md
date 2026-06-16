@@ -717,20 +717,20 @@ score**, message count, unread ratio, weekly frequency, the signals
 (`List-Unsubscribe`, bulk, sender pattern), and the **LLM verdict** (keep/delete +
 reason + confidence) when a model was used.
 
-- **Browse** with search and **pagination** (rows per page configurable).
+- **Browse** with search and **pagination** (rows per page configurable). Click
+  any **column header to sort** the whole list (score, msgs, unread, msgs/week,
+  signals, verdict); pagination is kept.
 - **Select** rows (or *select all* across pages) for **bulk** actions.
 - **Remove from list** - drops them from this list only (does not touch the
   mailbox).
-- **Report sender as spam** - tells the server to treat the **sender** as spam so
-  their **future** mail is auto-routed to spam. IMAP has no per-sender rule API,
-  so this works the standard way: for each selected address it connects, finds
-  the sender's inbox mail and moves it into the **Junk/Spam** folder (found via
-  its special-use flag, so it works with localized names) - the "report spam"
-  signal that **trains the provider's filter** - and **reports** any addresses
-  that had no mail (e.g. already deleted). It marks the *sender*, not individual
-  emails. Tip: to avoid losing the training signal, you can flag senders **during
-  cleanup** (the *Flag senders as spam* option above) so one message is kept in
-  Spam before the rest are deleted.
+- **Flag senders as spam** - for each selected sender it finds all their inbox
+  mail and reports them to the server's spam filter (so **future** mail is
+  auto-routed to spam). A popup lets you choose: **move one message to Junk/Spam
+  and delete the rest** (same as Run), or **move all to Spam** and delete nothing.
+  Moving mail to the Junk/Spam folder (found via its special-use flag, so it works
+  with localized names) is the standard "report spam" training signal. It reports
+  any addresses that had no mail (e.g. already deleted). You can also flag senders
+  **during cleanup** (the *Flag senders as spam* option above).
 
 ---
 

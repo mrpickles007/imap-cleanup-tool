@@ -54,6 +54,11 @@ tailwind.config = { theme: { extend: {
   .navitem:hover{border-color:#27324a;background:rgba(255,255,255,.03)}
   .navitem.active{background:#1890d8;color:#0b1020}
   .navitem svg{width:18px;height:18px;flex:none}
+  /* sortable spam-table headers */
+  .spam-sort{cursor:pointer;user-select:none;white-space:nowrap}
+  .spam-sort:hover{color:#eef1f7}
+  .spam-sort.active{color:#3aa6ec}
+  .sort-caret{display:inline-block;width:9px;margin-left:3px;font-size:9px;opacity:.85}
   .dim{opacity:.45}
   /* Guided tour (driver.js) themed to the web UI */
   .driver-popover.icw-tour{background:#111927;color:#eef1f7;border:1px solid #27324a;border-radius:14px;
@@ -643,25 +648,25 @@ tailwind.config = { theme: { extend: {
         <select id="spamPageSize" class="field text-sm" style="width:auto" title="Rows per page"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
       </div>
     </div>
-    <p class="text-xs text-muted mb-3">Senders flagged by <b>AI Cleanup</b> (report or run) for the connected mailbox, with their heuristic <b>spam score</b> and the <b>LLM verdict</b>. Select rows to <b>remove</b> them from the list, or <b>report the sender as spam</b> so the server learns to send their <b>future</b> mail to spam. (IMAP has no per-sender rule, so this works by moving the sender's mail into the Junk/Spam folder - the standard "report spam" signal that trains the provider's filter. Deleting unwanted mail is a separate action: AI Cleanup.) Each connection has its own list.</p>
+    <p class="text-xs text-muted mb-3">Senders flagged by <b>AI Cleanup</b> (report or run) for the connected mailbox, with their heuristic <b>spam score</b> and the <b>LLM verdict</b>. Click a column header to <b>sort</b> the whole list. Select rows to <b>remove</b> them from the list, or <b>flag senders as spam</b> - a popup lets you either move one message to the Junk/Spam folder and <b>delete</b> the rest (like Run), or just <b>move</b> all their mail to Spam. Moving mail to Spam is the standard "report spam" signal that trains the server to route their <b>future</b> mail to spam. Each connection has its own list.</p>
     <div class="flex items-center gap-2 flex-wrap mb-3">
       <label class="flex items-center gap-1.5 text-xs text-muted"><input id="spamSelectAll" type="checkbox"> Select all (this page)</label>
       <button id="spamSelectAllAcct" type="button" class="text-xs text-brand-light hover:underline">select all <span id="spamTotalCount"></span></button>
       <span class="flex-1"></span>
-      <button id="spamFlag" class="px-3 py-1.5 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm" disabled>Report sender as spam</button>
+      <button id="spamFlag" class="px-3 py-1.5 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm" disabled>Flag senders as spam</button>
       <button id="spamRemove" class="px-3 py-1.5 rounded-lg border border-line text-danger hover:underline text-sm" disabled>Remove from list</button>
     </div>
     <div class="overflow-x-auto">
       <table class="w-full min-w-[680px] text-sm border-collapse">
         <thead><tr class="text-muted text-xs text-left border-b border-line">
           <th class="py-2 pr-2 w-6"></th>
-          <th class="py-2 pr-3">Sender<span class="tip"><span class="ic">i</span><span class="bub">The sender's email address (the local-part + domain extracted from the <code>From</code> header).</span></span></th>
-          <th class="py-2 px-2 text-center">Score<span class="tip"><span class="ic">i</span><span class="bub"><b>Heuristic spam score, 0-10.</b> A weighted blend of the signals below, normalized to 10: <code>List-Unsubscribe</code> present, unread ratio, send frequency, <code>Precedence: bulk</code>, and a bulk-looking sender name (<code>noreply@</code>, <code>newsletter@</code>…). Higher = more spam-like. Senders at/above the threshold are flagged.</span></span></th>
-          <th class="py-2 px-2 text-center">Msgs<span class="tip"><span class="ic">i</span><span class="bub"><b>Total messages</b> seen from this sender in the scanned folder(s).</span></span></th>
-          <th class="py-2 px-2 text-center">Unread<span class="tip"><span class="ic">i</span><span class="bub"><b>Unread ratio</b> = messages without the <code>\Seen</code> flag ÷ total. A high ratio means you rarely open their mail.</span></span></th>
-          <th class="py-2 px-2 text-center">Msgs/week<span class="tip"><span class="ic">i</span><span class="bub"><b>Send frequency</b>: messages per week, estimated from the span between the oldest and newest <code>Date</code> headers. Frequent senders score higher.</span></span></th>
-          <th class="py-2 px-2">Signals<span class="tip"><span class="ic">i</span><span class="bub">Boolean flags that feed the score: <b>unsub</b> = has a <code>List-Unsubscribe</code> header; <b>bulk</b> = <code>Precedence: bulk</code>; <b>pattern</b> = a bulk-looking sender name (<code>noreply@</code>, <code>newsletter@</code>, <code>no-reply@</code>…).</span></span></th>
-          <th class="py-2 px-2">LLM verdict<span class="tip"><span class="ic">i</span><span class="bub">The model's judgement (only if AI Cleanup ran with a model): <b>delete</b> or <b>keep</b>, with its reason and confidence. Empty if the report was heuristic-only.</span></span></th>
+          <th class="py-2 pr-3"><span class="spam-sort" data-sort="address">Sender<span class="sort-caret"></span></span><span class="tip"><span class="ic">i</span><span class="bub">The sender's email address (the local-part + domain extracted from the <code>From</code> header). Click to sort.</span></span></th>
+          <th class="py-2 px-2 text-center"><span class="spam-sort" data-sort="score">Score<span class="sort-caret"></span></span><span class="tip"><span class="ic">i</span><span class="bub"><b>Heuristic spam score, 0-10.</b> A weighted blend of the signals below, normalized to 10: <code>List-Unsubscribe</code> present, unread ratio, send frequency, <code>Precedence: bulk</code>, and a bulk-looking sender name (<code>noreply@</code>, <code>newsletter@</code>…). Higher = more spam-like. Click to sort.</span></span></th>
+          <th class="py-2 px-2 text-center"><span class="spam-sort" data-sort="messages">Msgs<span class="sort-caret"></span></span><span class="tip"><span class="ic">i</span><span class="bub"><b>Total messages</b> seen from this sender in the scanned folder(s). Click to sort.</span></span></th>
+          <th class="py-2 px-2 text-center"><span class="spam-sort" data-sort="unread">Unread<span class="sort-caret"></span></span><span class="tip"><span class="ic">i</span><span class="bub"><b>Unread ratio</b> = messages without the <code>\Seen</code> flag ÷ total. A high ratio means you rarely open their mail. Click to sort.</span></span></th>
+          <th class="py-2 px-2 text-center"><span class="spam-sort" data-sort="per_week">Msgs/week<span class="sort-caret"></span></span><span class="tip"><span class="ic">i</span><span class="bub"><b>Send frequency</b>: messages per week, estimated from the span between the oldest and newest <code>Date</code> headers. Frequent senders score higher. Click to sort.</span></span></th>
+          <th class="py-2 px-2"><span class="spam-sort" data-sort="signals">Signals<span class="sort-caret"></span></span><span class="tip"><span class="ic">i</span><span class="bub">Boolean flags that feed the score: <b>unsub</b> = has a <code>List-Unsubscribe</code> header; <b>bulk</b> = <code>Precedence: bulk</code>; <b>pattern</b> = a bulk-looking sender name (<code>noreply@</code>, <code>newsletter@</code>, <code>no-reply@</code>…). Sorts by how many signals are set.</span></span></th>
+          <th class="py-2 px-2"><span class="spam-sort" data-sort="verdict">LLM verdict<span class="sort-caret"></span></span><span class="tip"><span class="ic">i</span><span class="bub">The model's judgement (only if AI Cleanup ran with a model): <b>delete</b> or <b>keep</b>, with its reason and confidence. Sorts by verdict then confidence. Empty if heuristic-only.</span></span></th>
         </tr></thead>
         <tbody id="spamBody"><tr><td colspan="8" class="py-6 text-center text-muted text-xs">No spam addresses yet - run an AI Cleanup report first.</td></tr></tbody>
       </table>
@@ -843,6 +848,24 @@ function promptDialog(opts){
     ov.querySelector('[data-x=c]').onclick=()=>done(null);
     ov.onclick=(e)=>{ if(e.target===ov) done(null); };
     inp.addEventListener('keydown',e=>{ if(e.key==='Enter') done(inp.value); if(e.key==='Escape') done(null); });
+  });
+}
+/* Multi-choice dialog -> resolves to a choice.key, or null on cancel. */
+function choiceDialog(opts){
+  opts = opts || {};
+  return new Promise(resolve=>{
+    const ov=document.createElement('div');
+    ov.className='fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4';
+    const btns=(opts.choices||[]).map((c,i)=>'<button data-k="'+i+'" class="px-4 py-2 rounded-lg font-semibold '+(c.danger?'bg-danger text-ink hover:brightness-110':'bg-brand text-ink hover:bg-brand-light')+'">'+escapeHtml(c.label)+'</button>').join('');
+    ov.innerHTML='<div class="bg-panel border border-line rounded-xl p-5 w-full max-w-md">'
+      +'<h3 class="font-display font-semibold text-brand-light mb-2">'+escapeHtml(opts.title||'Choose')+'</h3>'
+      +'<p class="text-muted text-sm mb-4 whitespace-pre-line">'+escapeHtml(opts.message||'')+'</p>'
+      +'<div class="flex flex-col gap-2">'+btns
+      +'<button data-k="c" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream mt-1">Cancel</button></div></div>';
+    document.body.appendChild(ov);
+    const done=(v)=>{ ov.remove(); resolve(v); };
+    ov.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{ const k=b.dataset.k; done(k==='c'?null:(opts.choices[parseInt(k)].key)); });
+    ov.onclick=(e)=>{ if(e.target===ov) done(null); };
   });
 }
 
@@ -1473,14 +1496,14 @@ if($('btnSendTest')) $('btnSendTest').onclick=async()=>{
 };
 
 /* ---------- Spam addresses tab ---------- */
-const spamState={offset:0, limit:25, total:0, search:'', sel:new Set()};
+const spamState={offset:0, limit:25, total:0, search:'', sel:new Set(), sortBy:'score', sortDir:'desc'};
 function spamMsg(t,cls){ $('spamMsg').textContent=t||''; $('spamMsg').className='text-[11px] mt-2 '+(cls||'text-muted'); }
 function fmtPct(x){ return x==null?'':Math.round(x*100)+'%'; }
 async function loadSpam(){
   if(!SID){ return; }
   spamState.limit=parseInt($('spamPageSize').value)||25;
   try{
-    const d=await (await fetch(`/api/spam/${SID}?offset=${spamState.offset}&limit=${spamState.limit}&q=${encodeURIComponent(spamState.search)}`)).json();
+    const d=await (await fetch(`/api/spam/${SID}?offset=${spamState.offset}&limit=${spamState.limit}&q=${encodeURIComponent(spamState.search)}&sort=${spamState.sortBy}&dir=${spamState.sortDir}`)).json();
     spamState.total=d.total; renderSpam(d.items||[]);
   }catch(e){ spamMsg('Error: '+e.message,'text-danger'); }
 }
@@ -1517,12 +1540,27 @@ function renderSpam(items){
   $('spamPage').textContent='Page '+cur+' / '+pages;
   $('spamPrev').disabled=spamState.offset<=0; $('spamNext').disabled=end>=spamState.total;
   $('spamSelectAll').checked = items.length>0 && items.every(it=>spamState.sel.has(it.address));
+  updateSpamSortCarets();
   updateSpamSel();
 }
+function updateSpamSortCarets(){
+  document.querySelectorAll('#tab-spam .spam-sort').forEach(s=>{
+    const active=s.dataset.sort===spamState.sortBy;
+    s.classList.toggle('active', active);
+    const c=s.querySelector('.sort-caret'); if(c) c.textContent = active ? (spamState.sortDir==='asc'?'▲':'▼') : '';
+  });
+}
+// header click -> sort the whole list (page resets to 1, pagination kept)
+document.querySelectorAll('#tab-spam .spam-sort').forEach(s=> s.onclick=()=>{
+  const col=s.dataset.sort;
+  if(spamState.sortBy===col){ spamState.sortDir = spamState.sortDir==='asc'?'desc':'asc'; }
+  else { spamState.sortBy=col; spamState.sortDir = (col==='address')?'asc':'desc'; }
+  spamState.offset=0; loadSpam();
+});
 function updateSpamSel(){
   const n=spamState.sel.size; $('spamFlag').disabled=!n; $('spamRemove').disabled=!n;
   $('spamRemove').textContent = n? ('Remove from list ('+n+')') : 'Remove from list';
-  $('spamFlag').textContent = n? ('Report sender as spam ('+n+')') : 'Report sender as spam';
+  $('spamFlag').textContent = n? ('Flag senders as spam ('+n+')') : 'Flag senders as spam';
 }
 if($('spamSelectAll')) $('spamSelectAll').onchange=(e)=>{ document.querySelectorAll('#spamBody input[type=checkbox]').forEach(cb=>{ cb.checked=e.target.checked; const a=cb.dataset.addr; if(e.target.checked) spamState.sel.add(a); else spamState.sel.delete(a); }); updateSpamSel(); };
 if($('spamSelectAllAcct')) $('spamSelectAllAcct').onclick=async()=>{ try{ const r=await api('/api/spam-select-all',{sid:SID,addresses:[]}); (r.addresses||[]).forEach(a=>spamState.sel.add(a)); spamMsg('Selected all '+spamState.sel.size+' address(es) across pages.','text-muted'); loadSpam(); }catch(e){ spamMsg('Error: '+e.message,'text-danger'); } };
@@ -1539,11 +1577,20 @@ if($('spamRemove')) $('spamRemove').onclick=async()=>{
 };
 if($('spamFlag')) $('spamFlag').onclick=async()=>{
   const addrs=[...spamState.sel]; if(!addrs.length) return;
-  if(!(await confirmDialog({title:'Report sender as spam', message:'Report '+addrs.length+' sender(s) to the server\'s spam filter so their FUTURE mail is auto-sent to spam?\n\nIMAP has no per-sender rule, so this moves their current inbox mail into the Junk/Spam folder - the standard "report spam" signal that trains the filter. (To just delete unwanted mail, use AI Cleanup instead.)', okText:'Report as spam', danger:true}))) return;
-  spamMsg('Flagging on the server…','text-muted');
-  try{ const r=await api('/api/spam-flag',{sid:SID,addresses:addrs});
-    let msg='✓ Reported '+r.flagged+' sender(s) as spam: moved '+r.moved+' message(s) to "'+r.folder+'".';
-    if(r.no_mail) msg+=' '+r.no_mail+' had no inbox mail (already deleted) - their future mail still needs at least one message in Spam to train the filter.';
+  const choice=await choiceDialog({
+    title:'Flag senders as spam',
+    message:'For '+addrs.length+' selected sender(s), the tool finds all their inbox mail and reports them as spam (so the server routes their FUTURE mail to spam). Choose what to do with the current mail:',
+    choices:[
+      {key:'delete', label:'Move 1 to Spam, DELETE the rest (like Run)', danger:true},
+      {key:'move',   label:'Move all to Spam (keep, delete nothing)'}
+    ]});
+  if(!choice) return;
+  spamMsg(choice==='delete'?'Flagging + deleting on the server…':'Moving to Spam…','text-muted');
+  try{ const r=await api('/api/spam-flag',{sid:SID,addresses:addrs,mode:choice});
+    let msg='✓ Flagged '+r.flagged+' sender(s): moved '+r.moved+' message(s) to "'+r.folder+'"';
+    if(choice==='delete') msg+=', deleted '+r.deleted+' more';
+    msg+='.';
+    if(r.no_mail) msg+=' '+r.no_mail+' had no inbox mail (nothing to move).';
     spamMsg(msg, r.flagged?'text-ok':'text-warn'); refreshFoldersQuiet(); }
   catch(e){ spamMsg('✗ '+e.message,'text-danger'); }
 };

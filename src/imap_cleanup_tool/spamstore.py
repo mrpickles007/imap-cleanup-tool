@@ -106,26 +106,51 @@ def _row_dict(r: sqlite3.Row) -> dict:
             "source": r["source"], "updated_at": r["updated_at"]}
 
 
+# Whitelisted sort columns/expressions (the request maps a key here; never
+# interpolate user input directly into SQL).
+_SORTS = {
+    "score": "score",
+    "messages": "messages",
+    "unread": "unread_ratio",
+    "per_week": "per_week",
+    "signals": "(list_unsubscribe + bulk + sender_pattern)",
+    "verdict": "verdict_delete",          # keep/delete; then confidence
+    "address": "address COLLATE NOCASE",
+}
+
+
 def list_addresses(account: str, *, offset: int = 0, limit: int = 25,
-                   search: str = "") -> dict:
-    """Return {items, total, offset, limit} for an account (newest score first)."""
+                   search: str = "", sort_by: str = "score",
+                   sort_dir: str = "desc") -> dict:
+    """Return {items, total, offset, limit, sort_by, sort_dir} for an account.
+
+    Sorting is over the **whole** list (then paginated). ``sort_by`` is one of
+    _SORTS; ``sort_dir`` is 'asc' or 'desc'.
+    """
     account = (account or "").strip().lower()
     where, params = "account=?", [account]
     if (search or "").strip():
         where += " AND address LIKE ?"
         params.append(f"%{search.strip().lower()}%")
+    col = _SORTS.get(sort_by, _SORTS["score"])
+    direction = "ASC" if str(sort_dir).lower() == "asc" else "DESC"
+    order = f"{col} {direction}"
+    if sort_by == "verdict":
+        order += f", verdict_confidence {direction}"
+    order += ", address COLLATE NOCASE ASC"     # stable tiebreaker
     conn = _connect()
     try:
         total = conn.execute(f"SELECT COUNT(*) FROM spam WHERE {where}",
                              params).fetchone()[0]
         rows = conn.execute(
-            f"SELECT * FROM spam WHERE {where}"
-            " ORDER BY score DESC, address COLLATE NOCASE"
+            f"SELECT * FROM spam WHERE {where} ORDER BY {order}"
             " LIMIT ? OFFSET ?", params + [int(limit), int(offset)]).fetchall()
     finally:
         conn.close()
     return {"items": [_row_dict(r) for r in rows], "total": total,
-            "offset": int(offset), "limit": int(limit)}
+            "offset": int(offset), "limit": int(limit),
+            "sort_by": sort_by if sort_by in _SORTS else "score",
+            "sort_dir": direction.lower()}
 
 
 def delete_addresses(account: str, addresses: list) -> int:

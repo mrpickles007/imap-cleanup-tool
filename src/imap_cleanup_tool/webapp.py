@@ -332,6 +332,7 @@ def create_app():
     class SpamActionIn(BaseModel):
         sid: str
         addresses: list[str] = Field(default_factory=list)
+        mode: str = "move"        # spam-flag: "delete" (move 1 + delete rest) | "move"
 
     class SendersIn(BaseModel):
         sid: str
@@ -968,11 +969,11 @@ def create_app():
 
     # ----- Spam addresses (per-account list from AI Cleanup) --------------- #
     @app.get("/api/spam/{sid}")
-    def spam_list(sid: str, offset: int = 0, limit: int = 25,
-                  q: str = "") -> dict[str, Any]:
+    def spam_list(sid: str, offset: int = 0, limit: int = 25, q: str = "",
+                  sort: str = "score", dir: str = "desc") -> dict[str, Any]:
         sess = _session(sid)
         return spamstore.list_addresses(sess.user, offset=offset, limit=limit,
-                                        search=q)
+                                        search=q, sort_by=sort, sort_dir=dir)
 
     @app.post("/api/spam-delete")
     def spam_delete(body: SpamActionIn) -> dict[str, Any]:
@@ -988,10 +989,12 @@ def create_app():
 
     @app.post("/api/spam-flag")
     def spam_flag(body: SpamActionIn) -> dict[str, Any]:
-        """Report senders as spam: move their INBOX mail into the Junk/Spam folder.
+        """Flag senders as spam on the server.
 
-        Reports per selection how many senders actually had mail (the rest may
-        already have been deleted by AI Cleanup, so there's nothing to move).
+        ``mode="delete"`` works like Run: move **one** of each sender's messages
+        to Junk/Spam (the training signal), then **delete** the rest. ``mode="move"``
+        moves **all** their inbox mail to Junk/Spam and deletes nothing. Reports
+        how many senders actually had mail.
         """
         sess = _session(body.sid)
         if sess.run and sess.run.status == "running":
@@ -999,6 +1002,8 @@ def create_app():
         addrs = {a.strip().lower() for a in (body.addresses or []) if a.strip()}
         if not addrs:
             raise HTTPException(400, "No addresses selected.")
+        delete = body.mode == "delete"
+        gmail = "gmail" in (sess.host or "").lower()
         with sess.lock:
             junk = core.special_folder(sess.conn, "\\Junk")
             if not junk:
@@ -1006,15 +1011,24 @@ def create_app():
                     400, "No Spam/Junk folder found on this server.")
             try:
                 moved, hit = core.flag_senders_as_spam(
-                    sess.conn, "INBOX", addrs, junk, per_sender=None,
+                    sess.conn, "INBOX", addrs, junk,
+                    per_sender=1 if delete else None,
                     batch_size=core.UID_CHUNK_SIZE)
+                deleted = 0
+                if delete:
+                    deleted = core.process_folder(
+                        sess.conn, "INBOX", addresses=addrs, dry_run=False,
+                        expunge=not gmail, gmail_trash=gmail,
+                        batch_size=core.UID_CHUNK_SIZE, scan_mode="search")
             except (OSError, core.imaplib.IMAP4.error) as exc:
-                raise HTTPException(400, f"Report-as-spam failed: {exc}") from exc
+                raise HTTPException(400, f"Flag-as-spam failed: {exc}") from exc
         no_mail = len(addrs) - hit
-        core.logger.info("Reported %d sender(s) as spam: %d moved to %r; "
-                         "%d had no inbox mail.", len(addrs), moved, junk, no_mail)
-        return {"flagged": hit, "moved": moved, "folder": junk,
-                "no_mail": no_mail, "selected": len(addrs)}
+        core.logger.info("Flagged %d sender(s) as spam (mode=%s): %d moved to "
+                         "%r, %d deleted; %d had no inbox mail.", len(addrs),
+                         body.mode, moved, junk, deleted, no_mail)
+        return {"flagged": hit, "moved": moved, "deleted": deleted,
+                "folder": junk, "no_mail": no_mail, "selected": len(addrs),
+                "mode": body.mode}
 
     @app.get("/api/log/{sid}")
     def get_log(sid: str, cursor: int = 0) -> dict[str, Any]:
