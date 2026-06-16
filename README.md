@@ -389,8 +389,9 @@ downloaded at all - so there is nothing to cache there.
 > that's it filling the cache. Every report after that is fast.
 
 **The flag just controls whether this run reads/writes the cache.** With it
-**off**, an existing cache is simply **left untouched and ignored** - nothing is
-deleted. Re-tick **Enable local cache** any time and it **self-heals**: it reuses
+**off**, headers are **fetched fresh from the server every time and not stored**
+(the slow path), and an existing cache is simply **left untouched and ignored** -
+nothing is deleted. Re-tick **Enable local cache** any time and it **self-heals**: it reuses
 what's already cached and fetches only the messages that arrived in the meantime
 (headers never change, so old entries stay valid; entries for deleted messages are
 just never looked up). The CLI behaves the same (an existing cache is left intact
