@@ -239,6 +239,12 @@ AI Cleanup hands "which of these do I actually want?" to a model, safely:
 > with how many senders cross the threshold (only those go to the LLM, a few
 > subjects each), so your mileage varies - and a **local Ollama model costs
 > nothing at all**.
+>
+> 📉 **The more you run, the less it costs.** Every run saves the flagged senders
+> to your [Spam addresses](#spam-addresses) list, and **Check spam addresses**
+> (on by default) skips those known senders from the LLM on later runs - so each
+> cleanup sends **fewer addresses to the model** than the last. It gets cheaper
+> the more you use it.
 
 ### Generate report vs Run
 
