@@ -233,6 +233,13 @@ AI Cleanup hands "which of these do I actually want?" to a model, safely:
    **retried up to 3 times** before giving up.
 3. **Verdict to action** - see the two buttons below.
 
+> 💸 **Real-world cost & speed.** In our testing, running AI Cleanup with
+> **`gpt-4o-mini`** over a **~40,000-message** Gmail mailbox cost about **€0.03**
+> (a few cents) and cleaned roughly **13,000 emails in ~5 minutes**. Cost scales
+> with how many senders cross the threshold (only those go to the LLM, a few
+> subjects each), so your mileage varies - and a **local Ollama model costs
+> nothing at all**.
+
 ### Generate report vs Run
 
 - **Generate report** - builds the report and **changes nothing**. By default it
