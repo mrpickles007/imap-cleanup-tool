@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import importlib.util
 import logging
 import os
 import sys
@@ -412,6 +413,15 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns a process exit code."""
     # pylint: disable=too-many-return-statements
     args = parse_args(argv)
+
+    # Gate AI Cleanup behind the optional [ai] extra (verify what's installed),
+    # mirroring the web UI which disables the whole AI Cleanup option when the
+    # extra is missing. Checked up front so it fails fast, before connecting.
+    if args.ai_cleanup and importlib.util.find_spec("litellm") is None:
+        print('[ERROR] AI Cleanup needs the optional [ai] extra, which is not '
+              'installed. Install it with:\n'
+              '    pip install "imap-cleanup-tool[ai]"')
+        return 3
 
     if args.run_job:
         from .scheduler import load_jobs

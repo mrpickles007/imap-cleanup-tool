@@ -229,6 +229,16 @@ class RunJobCliTests(unittest.TestCase):
                                    return_value=Path(tmp)):
                 self.assertEqual(cli.main(["--run-job", "no-such-job"]), 4)
 
+    def test_ai_cleanup_requires_ai_extra(self):
+        from imap_cleanup_tool import cli
+        # When litellm (the [ai] extra) is missing, --ai-cleanup is rejected up
+        # front (before connecting) with a clear install message.
+        with mock.patch.object(cli.importlib.util, "find_spec",
+                               return_value=None):
+            code = cli.main(["--host", "h", "--user", "u", "--password", "p",
+                             "--ai-cleanup"])
+        self.assertEqual(code, 3)
+
     def test_version_flag(self):
         import io
         import contextlib

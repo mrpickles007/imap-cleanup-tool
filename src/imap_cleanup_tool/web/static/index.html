@@ -596,11 +596,10 @@ tailwind.config = { theme: { extend: {
         <select id="smSecurity" class="field mt-1"><option value="starttls">STARTTLS (587)</option><option value="ssl">SSL/TLS (465)</option><option value="none">None</option></select>
       </label>
       <label class="text-xs text-muted">From address <input id="smFrom" class="field mt-1" placeholder="alerts@yourdomain.com"></label>
-      <label class="text-xs text-muted col-span-2">Username
-        <span class="tip"><span class="ic">i</span><span class="bub" id="smPassTip">SMTP login. For Amazon SES use the <b>SES SMTP credentials</b>; for Gmail your full address + an App Password.</span></span>
+      <label class="text-xs text-muted col-span-2"><span class="flex items-center">Username<span id="smUserTip" class="tip hidden"><span class="ic">i</span><span class="bub" id="smUserBub"></span></span></span>
         <input id="smUser" class="field mt-1" placeholder="SMTP username">
       </label>
-      <label class="text-xs text-muted col-span-2">Password
+      <label class="text-xs text-muted col-span-2"><span class="flex items-center">Password<span id="smPassTip" class="tip hidden"><span class="ic">i</span><span class="bub" id="smPassBub"></span></span></span>
         <div class="flex gap-2 mt-1"><input id="smKey" type="password" class="field" placeholder="SMTP password / API key"><button id="smKeyToggle" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream">show</button></div>
       </label>
     </div>
@@ -1490,8 +1489,20 @@ function fillSmtpProviders(){
   if(SMTP_PROVIDERS_DONE) return; const sel=$('smProvider'); if(!sel) return;
   (META.smtp_providers||[]).forEach((p,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=p.name; sel.appendChild(o); });
   SMTP_PROVIDERS_DONE=true;
+  applySmtpProviderTips();   // set the initial provider's tips
 }
-if($('smProvider')) $('smProvider').onchange=()=>{ const p=(META.smtp_providers||[])[parseInt($('smProvider').value)||0]; if(!p) return; if(p.host!==undefined)$('smHost').value=p.host; if(p.port)$('smPort').value=p.port; if(p.security)$('smSecurity').value=p.security; if($('smPassTip')) $('smPassTip').innerHTML=p.pass_tip||'SMTP login credentials for your provider.'; };
+// Per-provider SMTP tooltips, mirroring applyProviderTips for the IMAP form:
+// the .bub starts empty so each tip is dynamic - shown (with the provider's
+// user_tip/pass_tip from smtp_providers.json) only when that provider defines it.
+function applySmtpProviderTips(){
+  const p=(META.smtp_providers||[])[parseInt(($('smProvider')||{}).value)||0]||{};
+  const set=(tipId,text)=>{ const tip=$(tipId); if(!tip)return; const ic=tip.querySelector('.ic');
+    if(text){ tip.classList.remove('hidden'); if(ic&&ic._tippy){ic._tippy.setContent(text);ic._tippy.enable();} }
+    else { tip.classList.add('hidden'); if(ic&&ic._tippy) ic._tippy.disable(); } };
+  set('smUserTip', p.user_tip);
+  set('smPassTip', p.pass_tip);
+}
+if($('smProvider')) $('smProvider').onchange=()=>{ const p=(META.smtp_providers||[])[parseInt($('smProvider').value)||0]; if(!p) return; if(p.host!==undefined)$('smHost').value=p.host; if(p.port)$('smPort').value=p.port; if(p.security)$('smSecurity').value=p.security; applySmtpProviderTips(); };
 if($('smKeyToggle')) $('smKeyToggle').onclick=()=>{ const k=$('smKey'); k.type=k.type==='password'?'text':'password'; $('smKeyToggle').textContent=k.type==='password'?'show':'hide'; };
 if($('smEncrypt')) $('smEncrypt').onchange=()=>{ $('smSecretRow').classList.toggle('hidden', !$('smEncrypt').checked); if($('smEncrypt').checked) evalSmtpPw(); updateSmtpSaveBtn(); };
 if($('smSecretEye')) $('smSecretEye').onclick=()=>{ const t=$('smSecret').type==='password'?'text':'password'; $('smSecret').type=t; $('smSecret2').type=t; $('smSecretEye').textContent=t==='password'?'show':'hide'; };
