@@ -578,9 +578,45 @@ def _seen_from_meta(meta: bytes) -> bool:
     return bool(match and b"\\Seen" in match.group(1))
 
 
+def _uid_from_meta(meta: bytes) -> str:
+    """Extract the numeric UID from a FETCH metadata line (\"... UID 42 ...\")."""
+    match = re.search(rb"\bUID\s+(\d+)", meta)
+    return match.group(1).decode() if match else ""
+
+
+def _fetch_flags(conn: imaplib.IMAP4_SSL, uids: list[bytes],
+                 should_stop: StopCheck | None) -> dict[str, bool]:
+    """Fetch just the \\Seen flag per UID (cheap - no header download)."""
+    seen: dict[str, bool] = {}
+    step = max(1, AI_FETCH_CHUNK * 4)        # flags-only -> larger batches are fine
+    for i in range(0, len(uids), step):
+        _check_stop(should_stop)
+        chunk = uids[i:i + step]
+        status, data = conn.uid("FETCH", b",".join(chunk), "(UID FLAGS)")
+        if status != "OK" or not data:
+            continue
+        for part in data:
+            meta = part[0] if isinstance(part, tuple) else part
+            if not meta:
+                continue
+            uid = _uid_from_meta(meta)
+            if uid:
+                seen[uid] = _seen_from_meta(meta)
+    return seen
+
+
 def _fetch_sender_meta(conn: imaplib.IMAP4_SSL, uids: list[bytes],
-                       batch_size: int, should_stop: StopCheck | None):
-    """Yield (sender, date_header, seen, has_unsub, is_bulk, subject) per message."""
+                       batch_size: int, should_stop: StopCheck | None,
+                       *, cache=None, account: str = "", folder: str = "",
+                       uidvalidity: str = ""):
+    """Yield (sender, date_header, seen, has_unsub, is_bulk, subject) per message.
+
+    When ``cache`` is given (a headercache.HeaderCache) and ``uidvalidity`` is
+    known, the immutable header fields are read from the local cache for UIDs we
+    have already seen; only **new** UIDs are fetched in full. The volatile
+    ``\\Seen`` flag is always re-read (a cheap FLAGS fetch) so the unread count
+    stays accurate. Newly fetched headers are written back to the cache.
+    """
     from email import message_from_string
     fields = "(UID FLAGS BODY.PEEK[HEADER.FIELDS " \
              "(FROM DATE SUBJECT LIST-UNSUBSCRIBE PRECEDENCE)])"
@@ -589,13 +625,28 @@ def _fetch_sender_meta(conn: imaplib.IMAP4_SSL, uids: list[bytes],
     # us log progress and stay cancellable.
     batch_size = max(1, min(batch_size, AI_FETCH_CHUNK))
     total = len(uids)
+
+    use_cache = cache is not None and bool(uidvalidity)
+    cached: dict[str, dict] = {}
+    if use_cache:
+        try:
+            cached = cache.get(account, folder, uidvalidity,
+                               [u.decode() for u in uids])
+        except Exception:  # pylint: disable=broad-exception-caught
+            cached = {}
+    if cached:
+        logger.info("  %d/%d header(s) from local cache; fetching %d new.",
+                    len(cached), total, total - len(cached))
+
+    missing = [u for u in uids if u.decode() not in cached]
+    new_rows: dict[str, dict] = {}
     done = 0
-    for i in range(0, total, batch_size):
+    for i in range(0, len(missing), batch_size):
         _check_stop(should_stop)
-        chunk = uids[i:i + batch_size]
+        chunk = missing[i:i + batch_size]
         status, data = conn.uid("FETCH", b",".join(chunk), fields)
         done += len(chunk)
-        logger.info("  fetched headers %d/%d ...", done, total)
+        logger.info("  fetched headers %d/%d ...", done, len(missing))
         if status != "OK" or not data:
             continue
         for part in data:
@@ -603,11 +654,31 @@ def _fetch_sender_meta(conn: imaplib.IMAP4_SSL, uids: list[bytes],
                 continue
             seen = _seen_from_meta(part[0])
             msg = message_from_string(part[1].decode(errors="replace"))
-            sender = extract_sender_email(msg.get("From", ""))
-            yield (sender or "(no sender)", msg.get("Date", ""), seen,
-                   bool(msg.get("List-Unsubscribe")),
-                   "bulk" in (msg.get("Precedence", "").lower()),
-                   decode_mime_header(msg.get("Subject", "")))
+            sender = extract_sender_email(msg.get("From", "")) or "(no sender)"
+            date_h = msg.get("Date", "")
+            unsub = bool(msg.get("List-Unsubscribe"))
+            bulk = "bulk" in (msg.get("Precedence", "").lower())
+            subject = decode_mime_header(msg.get("Subject", ""))
+            uid = _uid_from_meta(part[0])
+            if use_cache and uid:
+                new_rows[uid] = {"sender": sender, "date_h": date_h,
+                                 "unsub": unsub, "bulk": bulk, "subject": subject}
+            yield (sender, date_h, seen, unsub, bulk, subject)
+
+    if use_cache and new_rows:
+        try:
+            cache.put(account, folder, uidvalidity, new_rows)
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
+
+    if cached:
+        cached_uids = [u for u in uids if u.decode() in cached]
+        seen_map = _fetch_flags(conn, cached_uids, should_stop)
+        for u in cached_uids:
+            uid = u.decode()
+            c = cached[uid]
+            yield (c["sender"], c["date_h"], seen_map.get(uid, False),
+                   c["unsub"], c["bulk"], c["subject"])
 
 
 def build_ai_report(conn: imaplib.IMAP4_SSL, folders: list[str], *,
@@ -619,7 +690,8 @@ def build_ai_report(conn: imaplib.IMAP4_SSL, folders: list[str], *,
                     exact_domains: set[str] | None = None,
                     search_argument: str | None = None,
                     batch_size: int = UID_CHUNK_SIZE,
-                    should_stop: StopCheck | None = None) -> dict:
+                    should_stop: StopCheck | None = None,
+                    cache=None, account: str = "") -> dict:
     """Aggregate messages by sender and compute a 0-10 heuristic spam score.
 
     Scope: if a ``search_argument`` (rule) or ``addresses``/``domains`` (target
@@ -637,6 +709,17 @@ def build_ai_report(conn: imaplib.IMAP4_SSL, folders: list[str], *,
         if status != "OK":
             logger.warning("Cannot open %r - skipping.", folder)
             continue
+        # UIDVALIDITY pins the cache to this exact UID numbering; if the server
+        # ever renumbers, the old cached rows for this folder are stale -> purge.
+        uidvalidity = ""
+        if cache is not None:
+            try:
+                uv = conn.response("UIDVALIDITY")[1]
+                uidvalidity = (uv[0].decode() if uv and uv[0] else "")
+                if uidvalidity:
+                    cache.purge_other(account, folder, uidvalidity)
+            except Exception:  # pylint: disable=broad-exception-caught
+                uidvalidity = ""
         if search_argument:
             uids = sorted(search_rule(conn, search_argument), key=int)
         elif addresses or domains or exact_domains:
@@ -649,7 +732,8 @@ def build_ai_report(conn: imaplib.IMAP4_SSL, folders: list[str], *,
         logger.info("AI report: scanning %d message(s) in %r (%s) ...",
                     len(uids), folder, "filtered" if has_filter else "whole folder")
         for sender, date_h, seen, unsub, bulk, subject in _fetch_sender_meta(
-                conn, uids, batch_size, should_stop):
+                conn, uids, batch_size, should_stop, cache=cache,
+                account=account, folder=folder, uidvalidity=uidvalidity):
             if sender.lower() in exclude:
                 continue
             s = agg.setdefault(sender, {"count": 0, "unread": 0, "unsub": False,

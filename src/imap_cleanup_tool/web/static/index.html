@@ -195,6 +195,12 @@ tailwind.config = { theme: { extend: {
             <button id="togglePass" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream">show</button>
           </div>
         </label>
+        <label class="col-span-2 flex items-center justify-between text-sm py-1">
+          <span class="flex items-center">Enable local cache
+            <span class="tip"><span class="ic">i</span><span class="bub">Caches message headers (From / Date / Subject) on this machine so <b>repeat AI reports are much faster</b>, especially on slow servers - only <b>new</b> messages are fetched next time. The cache is <b>per account</b> and is saved with this <b>connection profile</b>. Headers never change, so it's safe; unread counts are always re-read fresh. Stored locally in a small SQLite file.</span></span>
+          </span>
+          <input id="localCache" type="checkbox">
+        </label>
         <div class="col-span-2 flex gap-2">
           <button id="btnConnect" class="flex-1 bg-brand hover:bg-brand-light text-ink font-semibold rounded-lg px-4 py-2 transition">Connect &amp; load folders</button>
           <button id="btnDisconnect" class="px-4 py-2 rounded-lg bg-danger text-ink font-semibold hover:brightness-110">Disconnect</button>
@@ -815,7 +821,7 @@ function setStatus(ok, text){
   ['dot','dot2','dotMini'].forEach(id=>{ const e=$(id); if(e) e.className=dotCls; });
   ['status','status2'].forEach(id=>{ const e=$(id); if(e){ e.textContent=text; e.className=ok?'text-ok':'text-muted'; } });
 }
-function connParams(){ return {host:$('host').value.trim(),port:parseInt($('port').value)||993,user:$('user').value.trim(),password:$('password').value,timeout:parseInt($('timeout').value)||120}; }
+function connParams(){ return {host:$('host').value.trim(),port:parseInt($('port').value)||993,user:$('user').value.trim(),password:$('password').value,timeout:parseInt($('timeout').value)||120,local_cache:$('localCache')?$('localCache').checked:false}; }
 
 function errText(data, status){
   const d = data && data.detail;
@@ -1930,6 +1936,7 @@ async function loadProfiles(selectName){
 function fillConnection(p){
   $('host').value=p.host||''; $('port').value=p.port||993; $('user').value=p.user||'';
   $('timeout').value=p.timeout||120; $('password').value=p.password||'';
+  if($('localCache')) $('localCache').checked=!!p.local_cache;
   const idx=(META.providers||[]).findIndex(pr=>pr.host && pr.host===p.host); if(idx>=0) $('provider').value=String(idx);
   applyProviderTips(); refreshConditional();
 }
@@ -2022,7 +2029,7 @@ $('saveConfirm').onclick=async ()=>{
     if(!(await confirmDialog({title:'Overwrite profile', message:'A profile named "'+name+'" already exists. Overwrite it?', okText:'Overwrite', danger:true}))) return;
   }
   try{
-    await api('/api/profiles', {name, host:$('host').value.trim(), port:parseInt($('port').value)||993, user:$('user').value.trim(), password:$('password').value, timeout:parseInt($('timeout').value)||120, encrypt, secret});
+    await api('/api/profiles', {name, host:$('host').value.trim(), port:parseInt($('port').value)||993, user:$('user').value.trim(), password:$('password').value, timeout:parseInt($('timeout').value)||120, encrypt, secret, local_cache:$('localCache')?$('localCache').checked:false});
     $('saveModal').classList.add('hidden'); await loadProfiles(name);
     log('Profile "'+name+'" saved'+(encrypt?' (encrypted).':'.'));
   }catch(e){ log('[ERROR] '+e.message); }

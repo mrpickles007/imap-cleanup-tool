@@ -36,6 +36,14 @@ class ProfilesTests(unittest.TestCase):
         self.assertEqual(loaded["host"], "imap.example.com")
         self.assertEqual(loaded["port"], 993)
 
+    def test_local_cache_persisted(self):
+        profiles.save_profile("c", "h", 993, "u", "p", local_cache=True)
+        self.assertTrue(profiles.load_profile("c")["local_cache"])
+        self.assertTrue(profiles.list_profiles()[0]["local_cache"])
+        # default is off
+        profiles.save_profile("d", "h", 993, "u", "p")
+        self.assertFalse(profiles.load_profile("d")["local_cache"])
+
     def test_upsert_replaces(self):
         profiles.save_profile("p", "h1", 993, "u", "a")
         profiles.save_profile("p", "h2", 143, "u2", "b")

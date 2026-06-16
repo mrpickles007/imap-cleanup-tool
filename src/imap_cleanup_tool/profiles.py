@@ -47,7 +47,13 @@ def _connect() -> sqlite3.Connection:
         " encrypted INTEGER NOT NULL DEFAULT 0,"
         " salt BLOB,"
         " secret BLOB,"               # Fernet token, or UTF-8 password bytes
+        " local_cache INTEGER NOT NULL DEFAULT 0,"
         " created_at TEXT)")
+    # Migrate older DBs that predate the local_cache column.
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(profiles)")}
+    if "local_cache" not in cols:
+        conn.execute("ALTER TABLE profiles ADD COLUMN "
+                     "local_cache INTEGER NOT NULL DEFAULT 0")
     return conn
 
 
@@ -68,18 +74,19 @@ def list_profiles() -> list[dict]:
     conn = _connect()
     try:
         rows = conn.execute(
-            "SELECT name, host, user, port, encrypted FROM profiles "
+            "SELECT name, host, user, port, encrypted, local_cache FROM profiles "
             "ORDER BY name COLLATE NOCASE").fetchall()
     finally:
         conn.close()
     return [{"name": r["name"], "host": r["host"], "user": r["user"],
-             "port": r["port"], "encrypted": bool(r["encrypted"])}
+             "port": r["port"], "encrypted": bool(r["encrypted"]),
+             "local_cache": bool(r["local_cache"])}
             for r in rows]
 
 
 def save_profile(name: str, host: str, port: int, user: str, password: str,
                  timeout: int = 120, encrypt: bool = False,
-                 secret: str = "") -> str:
+                 secret: str = "", local_cache: bool = False) -> str:
     """Create or replace a profile. Returns the (trimmed) profile name."""
     name = (name or "").strip()
     if not name:
@@ -103,14 +110,14 @@ def save_profile(name: str, host: str, port: int, user: str, password: str,
         conn.execute(
             "INSERT INTO profiles"
             " (name, host, port, user, timeout, encrypted, salt, secret,"
-            "  created_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "  local_cache, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             " ON CONFLICT(name) DO UPDATE SET host=excluded.host,"
             " port=excluded.port, user=excluded.user, timeout=excluded.timeout,"
             " encrypted=excluded.encrypted, salt=excluded.salt,"
-            " secret=excluded.secret",
+            " secret=excluded.secret, local_cache=excluded.local_cache",
             (name, host.strip(), int(port), user.strip(), int(timeout), enc,
-             salt_b, secret_b,
+             salt_b, secret_b, 1 if local_cache else 0,
              datetime.now().astimezone().isoformat(timespec="seconds")))
         conn.commit()
     finally:
@@ -142,7 +149,8 @@ def load_profile(name: str, secret: str = "") -> dict:
         password = bytes(row["secret"] or b"").decode("utf-8")
 
     return {"name": row["name"], "host": row["host"], "port": row["port"],
-            "user": row["user"], "timeout": row["timeout"], "password": password}
+            "user": row["user"], "timeout": row["timeout"], "password": password,
+            "local_cache": bool(row["local_cache"])}
 
 
 def delete_profile(name: str) -> None:

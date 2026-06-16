@@ -273,6 +273,23 @@ Like **Move**, AI Cleanup honors the active **filter** (target list or rule) whe
 one is set, or scans the **whole folder** when none is - so you can point it at a
 single noisy domain or let it sweep everything.
 
+### Local header cache (faster repeat reports)
+
+Fetching message headers is the slow part of building a report - on a slow IMAP
+server it can take seconds per 50 messages. Tick **Enable local cache** in the
+connection card (it is **saved with the connection profile**, or pass
+`--local-cache` on the CLI) and the tool caches the immutable header fields
+(`From` / `Date` / `Subject`) on your machine, keyed by message **UID**. The next
+report only fetches the **new** messages; the rest come from the cache, so repeat
+reports become near-instant. It is **off by default** and **per account**.
+
+It stays correct: headers never change, and the volatile `\Seen` flag is always
+re-read fresh (a cheap fetch) so unread counts stay accurate. The cache is pinned
+to each folder's **UIDVALIDITY** (the IMAP value that changes only if the server
+renumbers messages - folder recreated, mailbox migrated, ...); if it changes, the
+stale rows are dropped and headers are re-fetched. Stored locally in a small
+SQLite file (`header_cache.sqlite`) in your config directory.
+
 **Models** are configured in the **LLM** tab (powered by litellm). On first run
 the tool seeds two ready-to-use defaults you can edit or delete: **`gpt-4o-mini`**
 (cloud, no key stored - set `OPENAI_API_KEY` or paste a key) and
@@ -390,6 +407,7 @@ python -m unittest discover -s tests -v
 | `--scan-mode search\|full` | Server-side search (fast) or local match (strict). |
 | `--include-subdomains` | In `full` mode, also match subdomains. |
 | `--batch-size N` | Messages per IMAP request (default 500). |
+| `--local-cache` | Cache message headers locally so repeat AI reports are faster (also enabled by a profile's setting). |
 | `--list-folders` | Print folders and exit. |
 | `--list-senders` | Print unique senders with counts and exit. |
 | `--save-senders CSV` | With `--list-senders`, append to a CSV. |
@@ -520,7 +538,8 @@ Highlights:
 - Many provider presets, connect-and-load-folders (with per-folder message
   counts), multi-folder selection, Select all / Deselect all.
 - **Connection profiles**: save host / user / password to a local SQLite DB -
-  optionally **encrypted** with a password - and pick one from a dropdown.
+  optionally **encrypted** with a password, with a per-profile **Enable local
+  cache** toggle (see [AI Cleanup](#ai-cleanup)) - and pick one from a dropdown.
 - Match by a **target list** (paste or load from a file, with inline format
   help) or a **visual nested query builder** (field ▸ operator ▸ value, AND/OR
   groups).

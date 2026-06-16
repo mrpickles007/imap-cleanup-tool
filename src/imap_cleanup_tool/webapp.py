@@ -148,6 +148,7 @@ class Session:
         self.host = host
         self.port = port
         self.user = user
+        self.local_cache = False         # opt-in header cache (per profile)
         self.folders: list[dict] = []    # [{name, count}]
         self.lock = threading.Lock()     # serialises IMAP use
         self.run: RunState | None = None
@@ -262,6 +263,7 @@ def create_app():
         user: str = Field(..., min_length=1)
         password: str = ""
         timeout: int = 120
+        local_cache: bool = False
 
     class Match(BaseModel):
         match_mode: str = "targets"          # "targets" | "rule"
@@ -365,6 +367,7 @@ def create_app():
         timeout: int = 120
         encrypt: bool = False
         secret: str = ""
+        local_cache: bool = False
 
     class ProfileLoadIn(BaseModel):
         name: str
@@ -436,6 +439,7 @@ def create_app():
             raise HTTPException(502, f"Connection/login failed: {exc}") from exc
         sid = uuid.uuid4().hex
         sess = Session(sid, conn, body.host, body.port, body.user)
+        sess.local_cache = bool(body.local_cache)
         try:
             sess.folders = _folder_dicts(conn)
         except (OSError, core.imaplib.IMAP4.error):
@@ -531,7 +535,7 @@ def create_app():
         try:
             name = profiles.save_profile(
                 body.name, body.host, body.port, body.user, body.password,
-                body.timeout, body.encrypt, body.secret)
+                body.timeout, body.encrypt, body.secret, body.local_cache)
         except profiles.ProfileError as exc:
             raise HTTPException(400, str(exc)) from exc
         return {"saved": name}
@@ -799,12 +803,21 @@ def create_app():
                   rs: "RunState", model_cfg, scope):
         """Heuristic report + optional LLM evaluation (attaches verdicts)."""
         addresses, domains, exact_domains, search_argument = scope
+        cache = None
+        if sess.local_cache:
+            try:
+                from .headercache import HeaderCache
+                cache = HeaderCache()
+                core.logger.info("Local header cache is ON for this profile.")
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                core.logger.warning("Local cache unavailable (%s); continuing.", exc)
         report = core.build_ai_report(
             sess.conn, folders, threshold=body.threshold,
             sample_size=body.sample_size, exclude=exclude,
             weights=body.weights, addresses=addresses, domains=domains,
             exact_domains=exact_domains, search_argument=search_argument,
-            batch_size=body.batch_size, should_stop=rs.stop.is_set)
+            batch_size=body.batch_size, should_stop=rs.stop.is_set,
+            cache=cache, account=sess.user)
         if model_cfg:
             core.logger.info("Asking %s to evaluate %d flagged sender(s) ...",
                              model_cfg["model"], report["flagged_count"])

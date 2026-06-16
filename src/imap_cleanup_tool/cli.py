@@ -59,6 +59,9 @@ def _add_arguments(parser: argparse.ArgumentParser) -> None:
                         default="search")
     parser.add_argument("--include-subdomains", action="store_true")
     parser.add_argument("--batch-size", type=int, default=core.UID_CHUNK_SIZE)
+    parser.add_argument("--local-cache", action="store_true",
+                        help="Cache message headers locally so repeat AI reports "
+                             "are faster (also enabled by a profile's setting).")
     parser.add_argument("--list-folders", action="store_true")
     parser.add_argument("--list-senders", action="store_true")
     parser.add_argument("--save-senders", metavar="CSV")
@@ -280,13 +283,22 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
         search_argument = compile_search(parse_rule_expression(args.rule))
     elif args.targets:
         addresses, domains, exact_domains = load_targets(args.targets)
+    cache = None
+    if getattr(args, "local_cache", False):
+        try:
+            from .headercache import HeaderCache
+            cache = HeaderCache()
+            core.logger.info("Local header cache is ON.")
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            core.logger.warning("Local cache unavailable (%s); continuing.", exc)
     report = core.build_ai_report(conn, folders, threshold=args.ai_threshold,
                                   sample_size=args.ai_sample, exclude=exclude,
                                   weights=weights,
                                   addresses=addresses, domains=domains,
                                   exact_domains=exact_domains,
                                   search_argument=search_argument,
-                                  batch_size=args.batch_size)
+                                  batch_size=args.batch_size,
+                                  cache=cache, account=user)
 
     ev = None
     if cfg is not None:
@@ -441,6 +453,9 @@ def main(argv: list[str] | None = None) -> int:
         args.host, args.port = prof["host"], prof["port"]
         args.user, args.password = prof["user"], prof["password"]
         args.timeout = prof["timeout"]
+        # A profile can carry the "enable local cache" setting; the flag can also
+        # force it on for an ad-hoc connection.
+        args.local_cache = args.local_cache or prof.get("local_cache", False)
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
