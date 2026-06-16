@@ -1345,7 +1345,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         import uvicorn
     except ModuleNotFoundError:
-        print('The web UI needs extra packages. Install them with:\n'
+        print('[ERROR] The web UI needs the optional [web] extra, which is not '
+              'installed. Install it with:\n'
               '    pip install "imap-cleanup-tool[web]"')
         return 2
 
