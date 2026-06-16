@@ -124,9 +124,13 @@ def ai_reports_dir() -> Path:
 
 
 def account_slug(account: str) -> str:
-    """Filesystem-safe slug for a mailbox address (used in report filenames)."""
-    return re.sub(r"[^A-Za-z0-9._-]+", "_",
-                  (account or "").strip().lower()) or "unknown"
+    """Filesystem-safe slug for a mailbox address (used in report filenames).
+
+    The ``@`` is rendered as ``at`` (filesystems can't keep ``@`` reliably and
+    it reads clearly), e.g. ``Giulio@Gmail.com`` -> ``giulio_at_gmail.com``.
+    """
+    slug = (account or "").strip().lower().replace("@", "_at_")
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", slug) or "unknown"
 
 
 def save_ai_report(csv_text: str, account: str = "",

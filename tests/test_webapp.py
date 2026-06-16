@@ -230,7 +230,7 @@ class WebApiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(scheduler, "config_dir",
                                    return_value=Path(tmp)):
-                name = "ai_report_me_gmail.com_2026-06-15_10-00-00.csv"
+                name = "ai_report_me_at_gmail.com_2026-06-15_10-00-00.csv"
                 d = Path(tmp) / "ai_reports"
                 d.mkdir()
                 (d / name).write_text("sender,score\nx@y.com,9\n",
@@ -253,7 +253,7 @@ class WebApiTests(unittest.TestCase):
 
     def test_account_slug(self):
         self.assertEqual(scheduler.account_slug("Giulio@Gmail.com"),
-                         "giulio_gmail.com")
+                         "giulio_at_gmail.com")
         self.assertEqual(scheduler.account_slug(""), "unknown")
 
     def test_ai_job_builds_args(self):

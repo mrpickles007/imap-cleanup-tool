@@ -613,8 +613,12 @@ def create_app():
         except notifications.NotifyError as exc:
             core.logger.warning("Notification email not sent: %s", exc)
 
-    def _notify_report(account, report) -> None:
-        """Email the AI report as a CSV attachment if 'notify on runs' is on."""
+    def _notify_report(account, report, filename: str = "ai_report.csv") -> None:
+        """Email the AI report as a CSV attachment if 'notify on runs' is on.
+
+        ``filename`` should match the report's saved-on-disk name so the emailed
+        attachment and the downloadable file line up.
+        """
         try:
             flagged = report.get("flagged_count", 0)
             deletable = report.get("flagged_messages", 0)
@@ -627,7 +631,7 @@ def create_app():
             csv_text = core.ai_report_csv(report)
             if notifications.send_notification(
                     subject, body, when="run",
-                    attachments=[("ai_report.csv", csv_text)]):
+                    attachments=[(filename, csv_text)]):
                 core.logger.info("Report emailed to the configured recipient.")
         except notifications.NotifyError as exc:
             core.logger.warning("Report email not sent: %s", exc)
@@ -837,14 +841,16 @@ def create_app():
     def _ai_reports_dir():
         return scheduler.ai_reports_dir()
 
-    def _save_ai_report(report, account: str) -> None:
-        """Persist the report as a per-account, timestamped CSV."""
+    def _save_ai_report(report, account: str):
+        """Persist the report as a per-account, timestamped CSV; return its Path."""
         try:
             path = scheduler.save_ai_report(core.ai_report_csv(report), account)
             core.logger.info("Report saved to disk as %s (pick it from the "
                              "download list).", path.name)
+            return path
         except OSError as exc:
             core.logger.warning("Could not save the report to disk: %s", exc)
+            return None
 
     def _record_spam(sess: "Session", report, source: str) -> None:
         """Save the flagged senders to this account's Spam addresses list."""
@@ -879,9 +885,10 @@ def create_app():
                              report["flagged_count"], report["total_senders"],
                              body.threshold, report.get("flagged_messages", 0))
             _log_llm_total(report)
-            _save_ai_report(report, sess.user)
+            saved = _save_ai_report(report, sess.user)
             _record_spam(sess, report, "report")
-            _notify_report(sess.user, report)
+            _notify_report(sess.user, report,
+                           saved.name if saved else "ai_report.csv")
 
         run_state = _start_run(sess, "ai-report", work)
         return {"run_id": run_state.run_id}
