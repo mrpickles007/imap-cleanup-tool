@@ -1924,6 +1924,9 @@ async function refreshLoadSpam(){
   }catch(_){ /* leave as-is */ }
 }
 if($('loadSpamChk')) $('loadSpamChk').onchange=()=>{ $('loadSpamFilter').classList.toggle('hidden', !$('loadSpamChk').checked); };
+// Addresses the last Load added, so a new Load REPLACES its own block (each press
+// overwrites the previously-loaded spam set) while keeping manual lines intact.
+let loadedSpamAddrs=[];
 if($('btnLoadSpam')) $('btnLoadSpam').onclick=async()=>{
   if(!SID){ log('[ERROR] Not connected.'); return; }
   const op=$('loadSpamOp').value, score=parseFloat($('loadSpamScore').value);
@@ -1931,13 +1934,19 @@ if($('btnLoadSpam')) $('btnLoadSpam').onclick=async()=>{
   try{
     const r=await api('/api/spam-load-targets',{sid:SID,op,score});
     const addrs=r.addresses||[];
-    if(!addrs.length){ log('No saved spam addresses match score '+op+' '+score+'.'); return; }
-    const have=new Set($('targets').value.split('\n').map(s=>s.trim().toLowerCase()).filter(Boolean));
+    // 1) strip what a previous Load added (so it doesn't pile up / block re-load)
+    const prev=new Set(loadedSpamAddrs.map(a=>a.toLowerCase()));
+    let kept=$('targets').value.split('\n')
+      .filter(l=>{ const t=l.trim().toLowerCase(); return !t || !prev.has(t); })
+      .join('\n').replace(/^\s+|\s+$/g,'');
+    // 2) append the freshly-matched set (skip ones already present manually)
+    const have=new Set(kept.split('\n').map(s=>s.trim().toLowerCase()).filter(Boolean));
     const fresh=addrs.filter(a=>!have.has(a.toLowerCase()));
-    const cur=$('targets').value.replace(/\s*$/,'');
-    $('targets').value=(cur?cur+'\n':'')+fresh.join('\n');
+    $('targets').value=fresh.length ? (kept?kept+'\n':'')+fresh.join('\n') : kept;
+    loadedSpamAddrs=fresh.slice();   // track only what we added
     try{localStorage.setItem('icw_targets',$('targets').value);}catch(_){}
-    log('Loaded '+fresh.length+' spam address(es) into the target list'+(addrs.length-fresh.length?(' ('+(addrs.length-fresh.length)+' already present)'):'')+'.');
+    if(!addrs.length) log('No saved spam addresses match score '+op+' '+score+' (cleared the previous load).');
+    else log('Loaded '+addrs.length+' spam address(es) into the target list (score '+op+' '+score+').');
   }catch(e){ log('[ERROR] '+e.message); }
 };
 $('btnRefreshFolders').onclick=async()=>{
