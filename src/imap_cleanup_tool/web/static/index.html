@@ -321,8 +321,8 @@ tailwind.config = { theme: { extend: {
         </label>
         <div class="flex gap-2 pt-1 flex-wrap items-center">
           <button id="btnAiReport" type="button" class="px-4 py-2 rounded-lg bg-brand hover:bg-brand-light text-ink font-semibold text-sm">Generate report</button>
-          <div class="flex gap-2 items-center flex-nowrap min-w-0">
-            <select id="aiReportList" class="field text-sm min-w-0" style="max-width:11rem" title="Saved reports for this account (newest first)"></select>
+          <div class="flex gap-2 items-center flex-nowrap min-w-0 basis-full grow">
+            <select id="aiReportList" class="field text-sm min-w-0 flex-1" title="Saved reports for this account (newest first)"></select>
             <button id="btnAiDownload" type="button" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream text-sm whitespace-nowrap">Download CSV</button>
             <button id="btnAiDeleteReport" type="button" class="px-3 py-2 rounded-lg border border-line text-danger hover:underline text-sm whitespace-nowrap" title="Delete the selected saved report">Delete</button>
             <span class="tip"><span class="ic">i</span><span class="bub">Each report is auto-saved with a timestamp, <b>per account</b> (the file name includes the account; the list shows only this mailbox's reports). Pick one to download or delete.</span></span>
