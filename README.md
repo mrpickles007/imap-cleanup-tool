@@ -20,27 +20,34 @@ Bulk-delete or move IMAP emails from the **command line** and a local **web
 interface**. The CLI uses only the Python standard library; the web UI and the AI
 features are optional extras (see [Install](#install)).
 
-- Match by a target file (one sender/domain per line) **or** by a rule
-  expression like `sender contains amazon.com OR (subject is Invoice AND date starts 2025-01-01)`.
+- 🤖 **AI Cleanup (the headline):** a **local** heuristic scores every sender,
+  then an **LLM** decides what is junk and deletes it - with a configurable
+  threshold, a report-only mode, and per-model cost tracking. It is
+  **local-first** (run a free local model via Ollama, nothing leaves your machine)
+  and **BYOA - Bring Your Own API key** (or plug in any cloud model, OpenAI /
+  OpenRouter / ..., with your own key). Only sender **subjects + stats** are ever
+  sent to a model, never message bodies. Works on a filter or a whole folder -
+  just like Move. See [AI Cleanup](#ai-cleanup).
+- Prefer manual control? Match by a target file (one sender/domain per line)
+  **or** by a rule expression like `sender contains amazon.com OR (subject is
+  Invoice AND date starts 2025-01-01)`.
 - Fast **server-side search** for huge folders, or strict **local matching**.
 - **Count** how many emails a filter matches before deleting anything.
 - **Move** matched emails to another folder instead of deleting them, and
   **create** new folders (or **labels** on Gmail) right from the app.
-- 🤖 **AI Cleanup** (optional, and a bit magic): a **local** heuristic scores
-  every sender, then an **LLM** decides what is junk and deletes it - with a
-  configurable threshold, a report-only mode, and per-model cost tracking. It is
-  **local-first** (run a free local model via Ollama, nothing leaves your
-  machine) and **BYOA - Bring Your Own API key** (or plug in any cloud model,
-  OpenAI / OpenRouter / ..., with your own key). Only sender **subjects + stats**
-  are ever sent to a model, never message bodies. Works on a filter or a whole
-  folder - just like Move. See [AI Cleanup](#ai-cleanup).
+- **Spam addresses**: the senders AI flags are saved per account, and you can
+  **report them as spam** to the server (train it so their *future* mail
+  auto-routes to spam).
+- **Email notifications**: get a mail when a cleanup/AI run finishes, with the AI
+  report attached as CSV.
 - **Gmail mode**: moves matches to Trash (the only way to truly delete on Gmail).
 - **Empty a whole folder** (e.g. Trash) without scanning.
 - **List senders** with counts and export them to CSV (with timestamp).
 - **Stop** button / cooperative cancellation for long runs.
-- **Scheduler**: save jobs and **install** them into the system scheduler
-  (Windows Task Scheduler / cron) - once, hourly, daily, weekly, monthly, or
-  every N minutes - so they run even when the app is closed, with per-job logs.
+- **Scheduler**: save jobs (including AI jobs) and **install** them into the
+  system scheduler (Windows Task Scheduler / cron) - once, hourly, daily, weekly,
+  monthly, or every N minutes - so they run even when the app is closed, with
+  per-job logs.
 
 > ⚠️ Deleting email is destructive. Always do a `--dry-run` first. Without
 > `--expunge`, messages are only flagged deleted (often hidden by the client
@@ -50,15 +57,15 @@ features are optional extras (see [Install](#install)).
 
 ## Table of contents
 
-- [Quick start - web interface](#quick-start---web-interface)
-- [Install](#install)
+- [Quick start - web interface (with AI)](#quick-start---web-interface-with-ai)
 - [Quick start - command line](#quick-start---command-line)
+- [AI Cleanup](#ai-cleanup)
+- [Install](#install)
 - [Command-line usage](#command-line-usage)
 - [Rule expressions](#rule-expressions)
 - [Target file format](#target-file-format)
 - [Web interface](#web-interface)
 - [Folders vs labels, and moving](#folders-vs-labels-and-moving)
-- [AI Cleanup](#ai-cleanup)
 - [Remote / headless server (SSH port forwarding)](#remote--headless-server-ssh-port-forwarding)
 - [Scheduling](#scheduling)
 - [Email notifications](#email-notifications)
@@ -67,10 +74,10 @@ features are optional extras (see [Install](#install)).
 
 ---
 
-## Quick start - web interface
+## Quick start - web interface (with AI)
 
-The web interface is the easiest way to use the tool and the recommended path for
-most users.
+The web interface is the easiest way to use the tool - including the AI cleanup -
+and the recommended path for most users.
 
 **Prerequisite:** Python **3.10 or newer**. Check with `python --version` (or
 `python3 --version`). If it is missing, download it from
@@ -86,9 +93,9 @@ install it with the system package manager (`sudo apt install python3 python3-pi
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 
-# 2. Install. The [web] extra installs BOTH the core CLI and the web UI
+# 2. Install. [web,ai] installs the core CLI, the web UI, AND AI Cleanup
 #    (it pulls in the base package automatically - no separate step needed).
-pip install "imap-cleanup-tool[web]"
+pip install "imap-cleanup-tool[web,ai]"
 
 # 3. Launch. Serves http://127.0.0.1:8765 and opens the default browser.
 imap-cleanup-tool-web
@@ -101,17 +108,18 @@ imap-cleanup-tool-web
 python3 -m venv .venv
 source .venv/bin/activate
 
-# 2. Install (core CLI + web UI in one go)
-pip install "imap-cleanup-tool[web]"
+# 2. Install (core CLI + web UI + AI Cleanup in one go)
+pip install "imap-cleanup-tool[web,ai]"
 
 # 3. Launch. Serves http://127.0.0.1:8765 and opens the default browser.
 imap-cleanup-tool-web
 ```
 
-> The virtual environment is recommended but optional - you can skip steps 1 and
-> just `pip install "imap-cleanup-tool[web]"` globally. Either way, activate the
+> The virtual environment is recommended but optional - you can skip step 1 and
+> just `pip install "imap-cleanup-tool[web,ai]"` globally. Either way, activate the
 > same environment (`.venv\Scripts\Activate.ps1` / `source .venv/bin/activate`)
-> in every new terminal before running `imap-cleanup-tool-web`.
+> in every new terminal before running `imap-cleanup-tool-web`. Don't want the AI
+> features? Use `[web]` instead of `[web,ai]`.
 >
 > If `pip` is not found, use `python -m pip ...` (Windows) or `python3 -m pip ...`
 > (macOS/Linux); on some systems the command is `pip3`. On Windows, if
@@ -127,15 +135,20 @@ Then, in the browser:
    not retype it next time.
 2. **Pick folders** - select one or more folders to scan (each shows its message
    count); use *Select all* / *Deselect all* as needed.
-3. **Choose what to match** - either paste a **target list** (one sender or
-   domain per line) or build a **rule** visually (field ▸ operator ▸ value, with
-   AND/OR groups). Click **Count matching emails** to see how many would be hit.
-4. **Review, then run** - *dry-run is on by default*, so the first run only
+3. 🤖 **Let AI clean it (the easy path)** - tick **AI Cleanup**, pick a model: a
+   free local **Ollama** model keeps everything on your machine, or paste your own
+   cloud API key in the **LLM** tab. Click **Generate report** to see exactly what
+   it *would* delete, then **Run**. Only subjects + stats are ever sent to the
+   model, never message bodies. See [AI Cleanup](#ai-cleanup).
+4. **Or match it yourself** - either paste a **target list** (one sender or domain
+   per line) or build a **rule** visually (field ▸ operator ▸ value, with AND/OR
+   groups). Click **Count matching emails** to see how many would be hit.
+5. **Review, then run** - *dry-run is on by default*, so the first run only
    reports. Watch the live log; use **Stop** to cancel. When the preview looks
    right, turn off dry-run (or pick an action - *Move to another folder*,
    *Gmail: move to Trash*, *Expunge*) and run for real.
-5. *(Optional)* **Schedule it** - in the *Scheduling* tab, turn the same settings
-   into a job and install it into the system scheduler. See
+6. *(Optional)* **Schedule it** - in the *Scheduling* tab, turn the same settings
+   (manual or AI) into a job and install it into the system scheduler. See
    [Scheduling](#scheduling).
 
 > On a server with no desktop, the GUI is still usable from a local browser via
@@ -145,6 +158,168 @@ Then, in the browser:
 > ⚠️ Deleting email is destructive. Keep dry-run on until the count and log look
 > right. Without *Expunge*, messages are only flagged deleted (often hidden by
 > the client but recoverable until expunged).
+
+---
+
+## Quick start - command line
+
+```bash
+# 0. Check the installed version (update with: pip install -U imap-cleanup-tool)
+imap-cleanup-tool --version
+
+# 1. Let AI build a report of what's junk (nothing is deleted), saved to CSV.
+#    Heuristic-only here (no model) - works offline; needs the [ai] extra.
+imap-cleanup-tool --host imap.gmail.com --user you@gmail.com \
+    --ai-cleanup --ai-report-only --ai-report-csv report.csv
+
+# 2. Run AI Cleanup for real with a configured model (omit --dry-run to delete).
+#    Use a local Ollama model to keep everything on your machine.
+imap-cleanup-tool --host imap.gmail.com --user you@gmail.com \
+    --ai-cleanup --ai-model my-model --dry-run
+
+# 3. Or do it by hand: see folders, preview a target/rule cleanup, then run.
+imap-cleanup-tool --host imap.gmail.com --user you@gmail.com --list-folders
+imap-cleanup-tool --host imap.gmail.com --user you@gmail.com \
+    --targets targets.txt --dry-run
+imap-cleanup-tool --host imap.gmail.com --user you@gmail.com \
+    --targets targets.txt --gmail-trash
+```
+
+> AI Cleanup needs the **`[ai]`** extra: `pip install "imap-cleanup-tool[ai]"`.
+> Configure a model in the web **LLM** tab (or point at a local Ollama model).
+> See [AI Cleanup](#ai-cleanup) for the full set of `--ai-*` flags.
+
+Credentials are read from flags, then environment variables
+(`IMAP_HOST`, `IMAP_USER`, `IMAP_PASSWORD`, `IMAP_PORT`), then an interactive
+prompt. Prefer the prompt or env vars over `--password` so the secret does not
+land in your shell history.
+
+---
+
+## AI Cleanup
+
+*Optional - install the AI extra:* `pip install "imap-cleanup-tool[ai]"`.
+
+> **Local-first, and BYOA (Bring Your Own API key).** AI Cleanup runs great on a
+> **free local model** (Ollama) so nothing ever leaves your machine - or you can
+> **bring your own API key** for any cloud model (OpenAI, OpenRouter, ...). Your
+> key, your model, your choice. Either way, only sender **subjects + stats** are
+> sent to the model - **never the message body**.
+
+AI Cleanup hands "which of these do I actually want?" to a model, safely:
+
+1. **Heuristic pre-filter (local).** Every sender gets a 0-10 **spam score** from
+   signals read on your machine: `List-Unsubscribe`, the share of **unread**
+   messages, send **frequency**, `Precedence: bulk`, and sender patterns
+   (`noreply@`, `newsletter@`...). Weights are calibrated and **tunable**.
+2. **LLM verdict.** Only senders at or above your **threshold** (default 6) are
+   sent to the model, with a few sample **subjects** each (never the body); it
+   replies in strict JSON which to delete. The prompt has an explicit
+   **safeguard**: it must KEEP anything that looks like online orders/receipts,
+   appointments/bookings, medical/health, travel, banking/tax, security/2FA, or
+   personal mail - only obvious bulk (newsletters, promotions, notifications) is
+   marked deletable. The reply is **validated with pydantic**, and the model is
+   **retried up to 3 times** before giving up.
+3. **Verdict to action** - see the two buttons below.
+
+### Generate report vs Run
+
+- **Generate report** - builds the report and **changes nothing**. By default it
+  also asks the LLM for a verdict on each flagged sender (so the report shows what
+  *would* be deleted); download it as **CSV** (Excel-friendly), and the log shows
+  how many emails are potentially deletable. CLI: `--ai-cleanup --ai-report-only`.
+- **Skip LLM (heuristic only)** - a small checkbox next to the buttons. When
+  ticked, **Generate report uses only the local heuristic score** - **no LLM call**,
+  so it is free, much faster, and nothing leaves your machine; the report simply
+  has no per-sender AI verdicts. CLI: `--ai-report-only` *without* `--ai-model`.
+- **Run** - builds the report **and deletes** the senders the LLM confirms
+  (dry-run simulates). **Run always calls the chosen LLM model, even if "Skip LLM"
+  is ticked** - deleting is driven by the LLM verdict, so a model is required for
+  Run. "Skip LLM" only affects *Generate report*, never *Run*. CLI: `--ai-cleanup
+  --ai-model NAME` (omit `--dry-run` to actually delete).
+
+Every report (from Generate report or Run) is **auto-saved to disk as a
+timestamped CSV** in your config directory (`ai_reports/`), so reports stay
+available after other runs or a restart. Reports are saved **per account** (the
+account is in the file name), and the **dropdown** next to the buttons lists only
+the **connected mailbox's** reports, newest-first - it refreshes automatically
+when you connect or switch account. Pick one and click **Download CSV**, or
+**Delete** to remove that saved report (the CSV file only - it does not touch any
+email). If **email notifications for interactive runs** are enabled
+(see [Email notifications](#email-notifications)), *Generate report* also **emails
+you the CSV** as an attachment (named like the saved file).
+
+**Flag senders as spam (on Run).** Optionally, when **Run** deletes a confirmed
+sender, first move **one** of their messages to the **Junk/Spam** folder - the
+standard "report spam" signal that trains the server to route that sender's
+**future** mail to spam - then delete the rest. This also works in scheduled AI
+jobs (a checkbox) and on the CLI (`--ai-flag-spam`). It needs a Junk/Spam folder
+on the server.
+
+AI Cleanup deletes the **same way as a normal run**: on a regular server the
+messages are flagged `\Deleted` and, if you tick **Expunge**, immediately removed
+for good (otherwise they linger until an expunge). On **Gmail** they are moved to
+the **Trash** and are not permanently gone until the Trash is emptied (the UI
+reminds you and offers to set that up - see [Gmail notes](#gmail-notes)). On the
+CLI add `--expunge` for permanent removal.
+
+Your own mailbox address is **pre-filled in the Exclude box when you connect**, so
+self-sent mail is skipped by default. **Remove that line** if you want your own
+address included too, and add any other senders to skip (one per line). On the CLI
+the same default applies - pass `--ai-include-self` to include your own address,
+or `--ai-exclude ADDR` to skip more.
+
+Like **Move**, AI Cleanup honors the active **filter** (target list or rule) when
+one is set, or scans the **whole folder** when none is - so you can point it at a
+single noisy domain or let it sweep everything.
+
+**Models** are configured in the **LLM** tab (powered by litellm). On first run
+the tool seeds two ready-to-use defaults you can edit or delete: **`gpt-4o-mini`**
+(cloud, no key stored - set `OPENAI_API_KEY` or paste a key) and
+**`ollama-llama3`** (free, local via Ollama). More options:
+
+- **Local & private (recommended):** an Ollama model (e.g. `ollama/llama3`) keeps
+  everything on your machine. ⚠️ A **remote** model (OpenAI, OpenRouter, ...)
+  sends the sample subjects to that provider - the app warns you, and only ever
+  sends subjects + stats, never message bodies.
+- **Edit** a saved model from the list (the **edit** button loads it into the
+  form). The key is never shown - leave the key field blank to keep the current
+  one, or type a new one to replace it.
+- API keys live in a local SQLite DB, optionally **encrypted** (encrypted = not
+  usable in scheduling, like connection profiles). Keys are never committed.
+- **Prefer an environment variable?** Leave the model's API-key field **blank**
+  and export the provider's standard variable instead - e.g.
+  `OPENAI_API_KEY` (OpenAI), `OPENROUTER_API_KEY` (OpenRouter). litellm picks it
+  up automatically, so the key never touches disk. (PowerShell:
+  `$env:OPENAI_API_KEY = "sk-..."`; bash: `export OPENAI_API_KEY=sk-...`.)
+- Optional **cost tracking**: set the price per million tokens and get a
+  per-model cost log.
+
+AI Cleanup can also be **scheduled** (Scheduling tab -> "AI Cleanup job") with a
+non-encrypted model; the scheduled CLI runs `--ai-cleanup --ai-model NAME`.
+
+Everything the web panel offers is available on the CLI too - threshold, sample
+size, exclusions, heuristic weights, report-only, and CSV export:
+
+```bash
+pip install "imap-cleanup-tool[ai]"
+# Configure a model + API key in the LLM tab (or a local Ollama model), then:
+imap-cleanup-tool --host HOST --user USER \
+    --ai-cleanup --ai-model my-model --dry-run
+
+# Heuristic report only (no LLM, nothing deleted), saved to CSV:
+imap-cleanup-tool --host HOST --user USER \
+    --ai-cleanup --ai-report-only --ai-report-csv report.csv
+
+# Tune threshold/weights and add exclusions, with an LLM, report only:
+imap-cleanup-tool --host HOST --user USER \
+    --ai-cleanup --ai-model my-model --ai-report-only \
+    --ai-threshold 7 --ai-weight unread_ratio=4 --ai-weight bulk=2 \
+    --ai-exclude boss@work.com --ai-report-csv report.csv
+```
+
+> If you run an `--ai-cleanup` command without the `[ai]` extra installed, the CLI
+> stops with a clear message telling you to `pip install "imap-cleanup-tool[ai]"`.
 
 ---
 
@@ -163,13 +338,14 @@ python -m venv .venv
 # macOS/Linux:  source .venv/bin/activate
 ```
 
-Then install. The base package is the CLI only; the `[web]` extra installs the
-**same base package plus the web UI** in one go:
+Then install. The base package is the CLI only; the `[web]` extra adds the web UI
+and `[ai]` adds AI Cleanup (each pulls in the base package automatically):
 
 ```bash
-pip install imap-cleanup-tool             # core CLI only
+pip install imap-cleanup-tool             # core CLI only (no AI, no web UI)
 pip install "imap-cleanup-tool[web]"      # core CLI + web UI (imap-cleanup-tool-web)
-pip install "imap-cleanup-tool[web,ai]"   # everything, incl. AI Cleanup (recommended)
+pip install "imap-cleanup-tool[ai]"       # core CLI + AI Cleanup (litellm)
+pip install "imap-cleanup-tool[web,ai]"   # everything (recommended)
 ```
 
 You do not need to install the base separately before an extra - it is included.
@@ -187,7 +363,7 @@ cd imap-cleanup-tool
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 
-pip install -e ".[dev,web]"      # editable install + dev tools + web UI
+pip install -e ".[dev,web,ai]"   # editable install + dev tools + web UI + AI
 ```
 
 ### Running the tests
@@ -198,31 +374,6 @@ install:
 ```bash
 python -m unittest discover -s tests -v
 ```
-
----
-
-## Quick start - command line
-
-```bash
-# 0. Check the installed version (update with: pip install -U imap-cleanup-tool)
-imap-cleanup-tool --version
-
-# 1. See your folders (find the real Trash/Sent names)
-imap-cleanup-tool --host imap.gmail.com --user you@gmail.com --list-folders
-
-# 2. Preview what would be deleted (changes nothing)
-imap-cleanup-tool --host imap.gmail.com --user you@gmail.com \
-    --targets targets.txt --dry-run
-
-# 3. Do it for real (Gmail: move to Trash)
-imap-cleanup-tool --host imap.gmail.com --user you@gmail.com \
-    --targets targets.txt --gmail-trash
-```
-
-Credentials are read from flags, then environment variables
-(`IMAP_HOST`, `IMAP_USER`, `IMAP_PASSWORD`, `IMAP_PORT`), then an interactive
-prompt. Prefer the prompt or env vars over `--password` so the secret does not
-land in your shell history.
 
 ---
 
@@ -351,7 +502,7 @@ A local web UI (FastAPI) is the tool's graphical interface. Install the extra
 and run:
 
 ```bash
-pip install "imap-cleanup-tool[web]"
+pip install "imap-cleanup-tool[web,ai]"
 imap-cleanup-tool-web        # serves http://127.0.0.1:8765 and opens your browser
 ```
 
@@ -362,6 +513,10 @@ after a period of inactivity. Your password is never stored.
 
 Highlights:
 
+- 🤖 **AI Cleanup** with a model dropdown (local Ollama or your own cloud key),
+  a threshold slider, Generate report / Run, and per-model cost tracking - see
+  [AI Cleanup](#ai-cleanup). When the `[ai]` extra is missing, the AI option is
+  disabled with a banner explaining how to install it.
 - Many provider presets, connect-and-load-folders (with per-folder message
   counts), multi-folder selection, Select all / Deselect all.
 - **Connection profiles**: save host / user / password to a local SQLite DB -
@@ -380,8 +535,9 @@ Highlights:
 - Context-aware options with tooltips (e.g. *Include subdomains* only in
   `"full"` scan mode; *Gmail: move to Trash* only for Gmail).
 - Background runs with a **Stop** button and a persistent, live log panel.
-- **List senders** with counts (export to CSV), and a **Scheduling** tab to
-  create jobs and install them into the OS scheduler.
+- **List senders** with counts (export to CSV), a **Spam addresses** tab, an
+  **Email notifications** tab, and a **Scheduling** tab to create jobs and install
+  them into the OS scheduler.
 
 ---
 
@@ -448,130 +604,6 @@ imap-cleanup-tool --host HOST --user USER --folder INBOX \
 
 Move jobs can be **scheduled** like any other job (the Scheduling tab carries the
 same Move setting and destination into the saved job).
-
----
-
-## AI Cleanup
-
-*Optional - install the AI extra:* `pip install "imap-cleanup-tool[ai]"`.
-
-> **Local-first, and BYOA (Bring Your Own API key).** AI Cleanup runs great on a
-> **free local model** (Ollama) so nothing ever leaves your machine - or you can
-> **bring your own API key** for any cloud model (OpenAI, OpenRouter, ...). Your
-> key, your model, your choice. Either way, only sender **subjects + stats** are
-> sent to the model - **never the message body**.
-
-AI Cleanup hands "which of these do I actually want?" to a model, safely:
-
-1. **Heuristic pre-filter (local).** Every sender gets a 0-10 **spam score** from
-   signals read on your machine: `List-Unsubscribe`, the share of **unread**
-   messages, send **frequency**, `Precedence: bulk`, and sender patterns
-   (`noreply@`, `newsletter@`...). Weights are calibrated and **tunable**.
-2. **LLM verdict.** Only senders at or above your **threshold** (default 6) are
-   sent to the model, with a few sample **subjects** each (never the body); it
-   replies in strict JSON which to delete. The prompt has an explicit
-   **safeguard**: it must KEEP anything that looks like online orders/receipts,
-   appointments/bookings, medical/health, travel, banking/tax, security/2FA, or
-   personal mail - only obvious bulk (newsletters, promotions, notifications) is
-   marked deletable. The reply is **validated with pydantic**, and the model is
-   **retried up to 3 times** before giving up.
-3. **Verdict to action** - see the two buttons below.
-
-### Generate report vs Run
-
-- **Generate report** - builds the report and **changes nothing**. By default it
-  also asks the LLM for a verdict on each flagged sender (so the report shows what
-  *would* be deleted); download it as **CSV** (Excel-friendly), and the log shows
-  how many emails are potentially deletable. CLI: `--ai-cleanup --ai-report-only`.
-- **Skip LLM (heuristic only)** - a small checkbox next to the buttons. When
-  ticked, **Generate report uses only the local heuristic score** - **no LLM call**,
-  so it is free, much faster, and nothing leaves your machine; the report simply
-  has no per-sender AI verdicts. CLI: `--ai-report-only` *without* `--ai-model`.
-- **Run** - builds the report **and deletes** the senders the LLM confirms
-  (dry-run simulates). **Run always calls the chosen LLM model, even if "Skip LLM"
-  is ticked** - deleting is driven by the LLM verdict, so a model is required for
-  Run. "Skip LLM" only affects *Generate report*, never *Run*. CLI: `--ai-cleanup
-  --ai-model NAME` (omit `--dry-run` to actually delete).
-
-Every report (from Generate report or Run) is **auto-saved to disk as a
-timestamped CSV** in your config directory (`ai_reports/`), so reports stay
-available after other runs or a restart. Reports are saved **per account** (the
-account is in the file name), and the **dropdown** next to the buttons lists only
-the **connected mailbox's** reports, newest-first - it refreshes automatically
-when you connect or switch account. Pick one and click **Download CSV**, or
-**Delete** to remove that saved report (the CSV file only - it does not touch any
-email). If **email notifications for interactive runs** are enabled
-(see [Email notifications](#email-notifications)), *Generate report* also **emails
-you the CSV** as an attachment (named like the saved file).
-
-**Flag senders as spam (on Run).** Optionally, when **Run** deletes a confirmed
-sender, first move **one** of their messages to the **Junk/Spam** folder - the
-standard "report spam" signal that trains the server to route that sender's
-**future** mail to spam - then delete the rest. This also works in scheduled AI
-jobs (a checkbox) and on the CLI (`--ai-flag-spam`). It needs a Junk/Spam folder
-on the server.
-
-AI Cleanup deletes the **same way as a normal run**: on a regular server the
-messages are flagged `\Deleted` and, if you tick **Expunge**, immediately removed
-for good (otherwise they linger until an expunge). On **Gmail** they are moved to
-the **Trash** and are not permanently gone until the Trash is emptied (the UI
-reminds you and offers to set that up - see [Gmail notes](#gmail-notes)). On the
-CLI add `--expunge` for permanent removal.
-
-Your own mailbox address is **pre-filled in the Exclude box when you connect**, so
-self-sent mail is skipped by default. **Remove that line** if you want your own
-address included too, and add any other senders to skip (one per line). On the CLI
-the same default applies - pass `--ai-include-self` to include your own address,
-or `--ai-exclude ADDR` to skip more.
-
-Like **Move**, AI Cleanup honors the active **filter** (target list or rule) when
-one is set, or scans the **whole folder** when none is - so you can point it at a
-single noisy domain or let it sweep everything.
-
-**Models** are configured in the **LLM** tab (powered by litellm). On first run
-the tool seeds two ready-to-use defaults you can edit or delete: **`gpt-4o-mini`**
-(cloud, no key stored - set `OPENAI_API_KEY` or paste a key) and
-**`ollama-llama3`** (free, local via Ollama). More options:
-
-- **Local & private (recommended):** an Ollama model (e.g. `ollama/llama3`) keeps
-  everything on your machine. ⚠️ A **remote** model (OpenAI, OpenRouter, ...)
-  sends the sample subjects to that provider - the app warns you, and only ever
-  sends subjects + stats, never message bodies.
-- **Edit** a saved model from the list (the **edit** button loads it into the
-  form). The key is never shown - leave the key field blank to keep the current
-  one, or type a new one to replace it.
-- API keys live in a local SQLite DB, optionally **encrypted** (encrypted = not
-  usable in scheduling, like connection profiles). Keys are never committed.
-- **Prefer an environment variable?** Leave the model's API-key field **blank**
-  and export the provider's standard variable instead - e.g.
-  `OPENAI_API_KEY` (OpenAI), `OPENROUTER_API_KEY` (OpenRouter). litellm picks it
-  up automatically, so the key never touches disk. (PowerShell:
-  `$env:OPENAI_API_KEY = "sk-..."`; bash: `export OPENAI_API_KEY=sk-...`.)
-- Optional **cost tracking**: set the price per million tokens and get a
-  per-model cost log.
-
-AI Cleanup can also be **scheduled** (Scheduling tab -> "AI Cleanup job") with a
-non-encrypted model; the scheduled CLI runs `--ai-cleanup --ai-model NAME`.
-
-Everything the web panel offers is available on the CLI too - threshold, sample
-size, exclusions, heuristic weights, report-only, and CSV export:
-
-```bash
-pip install "imap-cleanup-tool[ai]"
-# Configure a model + API key in the LLM tab (or a local Ollama model), then:
-imap-cleanup-tool --host HOST --user USER \
-    --ai-cleanup --ai-model my-model --dry-run
-
-# Heuristic report only (no LLM, nothing deleted), saved to CSV:
-imap-cleanup-tool --host HOST --user USER \
-    --ai-cleanup --ai-report-only --ai-report-csv report.csv
-
-# Tune threshold/weights and add exclusions, with an LLM, report only:
-imap-cleanup-tool --host HOST --user USER \
-    --ai-cleanup --ai-model my-model --ai-report-only \
-    --ai-threshold 7 --ai-weight unread_ratio=4 --ai-weight bulk=2 \
-    --ai-exclude boss@work.com --ai-report-csv report.csv
-```
 
 ---
 
@@ -699,11 +731,12 @@ Get an email when a cleanup finishes. Configure it in the **Notifications** tab:
 - **SMTP profiles** - save one or more outgoing-mail servers (host, port,
   security, username, password, From address). Works with any provider - Gmail,
   **Amazon SES**, Outlook/Microsoft 365, SendGrid, Mailgun, Postmark, Brevo, etc.
-  The password is stored locally (SQLite) and can be **encrypted** with a
-  passphrase, exactly like connection profiles - the passphrase needs a
-  **confirmation**, a show/hide toggle, and meets **strength criteria** before you
-  can save (an encrypted profile can't run in scheduled jobs). Each profile has a
-  **test connection** button.
+  - the provider dropdown prefills host/port/security and shows **per-provider
+  tooltips** on the username/password fields. The password is stored locally
+  (SQLite) and can be **encrypted** with a passphrase, exactly like connection
+  profiles - the passphrase needs a **confirmation**, a show/hide toggle, and
+  meets **strength criteria** before you can save (an encrypted profile can't run
+  in scheduled jobs). Each profile has a **test connection** button.
 - **One active profile** + a recipient address. Toggle notifications for
   **scheduled jobs** (default) and/or **interactive runs**. A **Send test email**
   button confirms it all works. With **interactive runs** on, you get an email
