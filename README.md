@@ -257,6 +257,7 @@ land in your shell history.
 | `--ai-weight KEY=VALUE` | Override a heuristic weight (repeatable): `list_unsubscribe`, `unread_ratio`, `bulk`, `sender_pattern`, `frequency`. |
 | `--ai-report-only` | Build the report (and LLM verdicts if `--ai-model` is given) but delete nothing; a model is optional. |
 | `--ai-report-csv PATH` | Write the report as CSV (Excel-friendly) to `PATH`. |
+| `--ai-flag-spam` | On delete, first move one message per confirmed sender to Junk/Spam (trains the server), then delete the rest. Needs a Junk/Spam folder. |
 | `--dry-run` | Report only; make no changes. |
 | `--expunge` | Permanently remove after flagging. |
 | `--yes` | Skip the confirmation prompt (for scripts/cron). |
@@ -494,8 +495,14 @@ AI Cleanup hands "which of these do I actually want?" to a model, safely:
 
 Every report (from Generate report or Run) is **auto-saved to disk as a
 timestamped CSV** in your config directory (`ai_reports/`), so reports stay
-available after other runs or a restart. The **download dropdown** next to the
-buttons lists them newest-first - pick one and click **Download CSV**.
+available after other runs or a restart. Reports are saved **per account** (the
+account is in the file name), and the **dropdown** next to the buttons lists only
+the **connected mailbox's** reports, newest-first - it refreshes automatically
+when you connect or switch account. Pick one and click **Download CSV**, or
+**Delete** to remove that saved report (the CSV file only - it does not touch any
+email). If **email notifications for interactive runs** are enabled
+(see [Email notifications](#email-notifications)), *Generate report* also **emails
+you the CSV** as an attachment (named like the saved file).
 
 **Flag senders as spam (on Run).** Optionally, when **Run** deletes a confirmed
 sender, first move **one** of their messages to the **Junk/Spam** folder - the
@@ -699,7 +706,9 @@ Get an email when a cleanup finishes. Configure it in the **Notifications** tab:
   **test connection** button.
 - **One active profile** + a recipient address. Toggle notifications for
   **scheduled jobs** (default) and/or **interactive runs**. A **Send test email**
-  button confirms it all works.
+  button confirms it all works. With **interactive runs** on, you get an email
+  when a cleanup or AI run finishes - and *Generate report* emails you the **AI
+  report CSV** as an attachment.
 - For a **Gmail** account, the email reminds you that the messages were moved to
   the Trash and must be emptied to delete them for good (e.g. schedule an
   *Empty folder* job on `[Gmail]/Trash`).
