@@ -465,27 +465,29 @@ def flag_senders_as_spam(conn: imaplib.IMAP4_SSL, folder: str,
                          per_sender: int | None = 1, *,
                          dry_run: bool = False,
                          batch_size: int = UID_CHUNK_SIZE,
-                         should_stop: StopCheck | None = None) -> tuple[int, int]:
+                         should_stop: StopCheck | None = None) -> tuple[int, set]:
     """Move message(s) from each sender into ``junk`` (the "report spam" signal).
 
     ``per_sender`` caps how many of each sender's (newest) messages to move;
     ``None`` moves them all. A message in the Junk/Spam folder teaches the
     provider to route that sender's future mail to spam. Returns
-    ``(messages_moved, senders_with_mail)`` - senders with no mail in this folder
-    are skipped (the caller can report them).
+    ``(messages_moved, addresses_with_mail)`` - senders with no mail in this
+    folder are skipped (the caller can report them; over several folders the
+    address sets can be unioned).
     """
     status, _ = conn.select(_quote_mailbox(folder), readonly=dry_run)
     if status != "OK":
         logger.warning("Cannot open %r - skipping spam-flagging.", folder)
-        return 0, 0
-    moved = hit = 0
+        return 0, set()
+    moved = 0
+    hit: set[str] = set()
     for addr in sorted(a for a in addresses if a):
         _check_stop(should_stop)
         status, data = conn.uid("SEARCH", None, "FROM", f'"{addr}"')
         uids = data[0].split() if status == "OK" and data and data[0] else []
         if not uids:
             continue
-        hit += 1
+        hit.add(addr)
         chosen = sorted(uids, key=int)
         if per_sender and per_sender > 0:
             chosen = chosen[-per_sender:]                       # newest first

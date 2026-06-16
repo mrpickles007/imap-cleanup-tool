@@ -333,6 +333,7 @@ def create_app():
         sid: str
         addresses: list[str] = Field(default_factory=list)
         mode: str = "move"        # spam-flag: "delete" (move 1 + delete rest) | "move"
+        folders: list[str] = Field(default_factory=list)   # spam-flag scope
 
     class SendersIn(BaseModel):
         sid: str
@@ -1004,31 +1005,42 @@ def create_app():
             raise HTTPException(400, "No addresses selected.")
         delete = body.mode == "delete"
         gmail = "gmail" in (sess.host or "").lower()
+        # Scope = the folders selected in the Cleanup tab (same as a run).
+        folders = body.folders or ["INBOX"]
+        moved = deleted = 0
+        hit: set[str] = set()
         with sess.lock:
             junk = core.special_folder(sess.conn, "\\Junk")
             if not junk:
                 raise HTTPException(
                     400, "No Spam/Junk folder found on this server.")
+            if junk in folders:
+                raise HTTPException(
+                    400, "The Junk/Spam folder is in the selected folders - "
+                         "deselect it in the Cleanup tab first.")
             try:
-                moved, hit = core.flag_senders_as_spam(
-                    sess.conn, "INBOX", addrs, junk,
-                    per_sender=1 if delete else None,
-                    batch_size=core.UID_CHUNK_SIZE)
-                deleted = 0
-                if delete:
-                    deleted = core.process_folder(
-                        sess.conn, "INBOX", addresses=addrs, dry_run=False,
-                        expunge=not gmail, gmail_trash=gmail,
-                        batch_size=core.UID_CHUNK_SIZE, scan_mode="search")
+                for folder in folders:
+                    m, h = core.flag_senders_as_spam(
+                        sess.conn, folder, addrs, junk,
+                        per_sender=1 if delete else None,
+                        batch_size=core.UID_CHUNK_SIZE)
+                    moved += m
+                    hit |= h
+                    if delete:
+                        deleted += core.process_folder(
+                            sess.conn, folder, addresses=addrs, dry_run=False,
+                            expunge=not gmail, gmail_trash=gmail,
+                            batch_size=core.UID_CHUNK_SIZE, scan_mode="search")
             except (OSError, core.imaplib.IMAP4.error) as exc:
                 raise HTTPException(400, f"Flag-as-spam failed: {exc}") from exc
-        no_mail = len(addrs) - hit
-        core.logger.info("Flagged %d sender(s) as spam (mode=%s): %d moved to "
-                         "%r, %d deleted; %d had no inbox mail.", len(addrs),
-                         body.mode, moved, junk, deleted, no_mail)
-        return {"flagged": hit, "moved": moved, "deleted": deleted,
+        no_mail = len(addrs) - len(hit)
+        core.logger.info("Flagged %d sender(s) as spam (mode=%s) in %s: %d moved "
+                         "to %r, %d deleted; %d had no mail.", len(addrs),
+                         body.mode, ", ".join(folders), moved, junk, deleted,
+                         no_mail)
+        return {"flagged": len(hit), "moved": moved, "deleted": deleted,
                 "folder": junk, "no_mail": no_mail, "selected": len(addrs),
-                "mode": body.mode}
+                "mode": body.mode, "folders": folders}
 
     @app.get("/api/log/{sid}")
     def get_log(sid: str, cursor: int = 0) -> dict[str, Any]:

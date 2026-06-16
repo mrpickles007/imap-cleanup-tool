@@ -77,21 +77,21 @@ class FlagSpamTests(unittest.TestCase):
         conn = FakeConn(capabilities=("IMAP4REV1", "MOVE"))
         moved, hit = core.flag_senders_as_spam(
             conn, "INBOX", {"a@x.com", "b@y.com"}, "[Gmail]/Spam", per_sender=1)
-        self.assertEqual(hit, 2)        # both senders had mail
+        self.assertEqual(hit, {"a@x.com", "b@y.com"})   # both senders had mail
         self.assertEqual(moved, 2)      # one message each
 
     def test_per_sender_none_moves_all(self):
         conn = FakeConn(capabilities=("IMAP4REV1", "MOVE"))
         moved, hit = core.flag_senders_as_spam(
             conn, "INBOX", {"a@x.com"}, "Spam", per_sender=None)
-        self.assertEqual(hit, 1)
+        self.assertEqual(hit, {"a@x.com"})
         self.assertEqual(moved, 3)      # all three messages (SEARCH -> 1 2 3)
 
     def test_dry_run_moves_nothing(self):
         conn = FakeConn(capabilities=("IMAP4REV1", "MOVE"))
         moved, hit = core.flag_senders_as_spam(
             conn, "INBOX", {"a@x.com"}, "Spam", per_sender=1, dry_run=True)
-        self.assertEqual((moved, hit), (1, 1))
+        self.assertEqual((moved, hit), (1, {"a@x.com"}))
         self.assertNotIn("MOVE", [c[0] for c in conn.calls])
 
     def test_special_folder_by_flag(self):
@@ -151,7 +151,7 @@ class SpamFlagDeleteSequenceTests(unittest.TestCase):
         # 1) flag-as-spam moves ONE newest message per sender to Junk
         moved, hit = core.flag_senders_as_spam(
             conn, "INBOX", addrs, "[Gmail]/Spam", per_sender=1)
-        self.assertEqual((moved, hit), (2, 2))         # one per sender
+        self.assertEqual((moved, hit), (2, {"a@x.com", "b@y.com"}))  # one per sender
         # 2) delete the rest (non-Gmail -> flag + expunge)
         deleted = core.process_folder(
             conn, "INBOX", addresses=addrs, dry_run=False, expunge=True,

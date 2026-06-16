@@ -649,7 +649,7 @@ tailwind.config = { theme: { extend: {
       </div>
     </div>
     <div id="spamMsg" class="hidden"></div>
-    <p class="text-xs text-muted mb-3">Senders flagged by <b>AI Cleanup</b> (report or run) for the connected mailbox, with their heuristic <b>spam score</b> and the <b>LLM verdict</b>. Click a column header to <b>sort</b> the whole list. Select rows to <b>remove</b> them from the list, or <b>flag senders as spam</b> - a popup lets you either move one message to the Junk/Spam folder and <b>delete</b> the rest (like Run), or just <b>move</b> all their mail to Spam. Moving mail to Spam is the standard "report spam" signal that trains the server to route their <b>future</b> mail to spam. Each connection has its own list.</p>
+    <p class="text-xs text-muted mb-3">Senders flagged by <b>AI Cleanup</b> (report or run) for the connected mailbox, with their heuristic <b>spam score</b> and the <b>LLM verdict</b>. Click a column header to <b>sort</b> the whole list. Select rows to <b>remove</b> them from the list, or <b>flag senders as spam</b> - a popup lets you either move one message to the Junk/Spam folder and <b>delete</b> the rest (like Run), or just <b>move</b> all their mail to Spam. It scans the <b>folders selected in the Cleanup tab</b> (just like a run); the popup shows which ones. Moving mail to Spam is the standard "report spam" signal that trains the server to route their <b>future</b> mail to spam. Each connection has its own list.</p>
     <div class="flex items-center gap-2 flex-wrap mb-3">
       <label class="flex items-center gap-1.5 text-xs text-muted"><input id="spamSelectAll" type="checkbox"> Select all (this page)</label>
       <button id="spamSelectAllAcct" type="button" class="text-xs text-brand-light hover:underline">select all <span id="spamTotalCount"></span></button>
@@ -1501,12 +1501,13 @@ let spamMsgTimer=null;
 function spamMsg(t,cls){
   const el=$('spamMsg'); if(!el) return;
   if(spamMsgTimer){ clearTimeout(spamMsgTimer); spamMsgTimer=null; }
-  if(!t){ el.classList.add('hidden'); el.textContent=''; return; }
+  if(!t){ el.classList.add('hidden'); el.innerHTML=''; return; }
   const map={'text-ok':'border-ok/40 text-ok bg-ok/10','text-danger':'border-danger/40 text-danger bg-danger/10','text-warn':'border-warn/40 text-warn bg-warn/10'};
   el.className='rounded-lg border px-3 py-2 text-xs mb-3 '+(map[cls]||'border-line text-muted bg-panel2');
-  el.textContent=t;
-  // auto-dismiss success messages after a while (errors/warnings stay)
-  if(cls==='text-ok') spamMsgTimer=setTimeout(()=>spamMsg(''), 6000);
+  el.innerHTML='<div class="flex items-start gap-2"><span class="flex-1">'+escapeHtml(t)+'</span><button type="button" class="flex-none opacity-70 hover:opacity-100 leading-none" aria-label="Dismiss">✕</button></div>';
+  el.querySelector('button').onclick=()=>spamMsg('');
+  // auto-dismiss success messages after a while (errors/warnings stay until dismissed)
+  if(cls==='text-ok') spamMsgTimer=setTimeout(()=>spamMsg(''), 8000);
 }
 function fmtPct(x){ return x==null?'':Math.round(x*100)+'%'; }
 async function loadSpam(){
@@ -1587,20 +1588,21 @@ if($('spamRemove')) $('spamRemove').onclick=async()=>{
 };
 if($('spamFlag')) $('spamFlag').onclick=async()=>{
   const addrs=[...spamState.sel]; if(!addrs.length) return;
+  const folders = selectedFolders.length?selectedFolders:['INBOX'];
   const choice=await choiceDialog({
     title:'Flag senders as spam',
-    message:'For '+addrs.length+' selected sender(s), the tool finds all their inbox mail and reports them as spam (so the server routes their FUTURE mail to spam). Choose what to do with the current mail:',
+    message:'For '+addrs.length+' selected sender(s), the tool scans the folders selected in the Cleanup tab ('+folders.join(', ')+'), finds their mail there, and reports them as spam (so the server routes their FUTURE mail to spam). Choose what to do with the current mail:',
     choices:[
       {key:'delete', label:'Move 1 to Spam, DELETE the rest (like Run)', danger:true},
       {key:'move',   label:'Move all to Spam (keep, delete nothing)'}
     ]});
   if(!choice) return;
-  spamMsg(choice==='delete'?'Flagging + deleting on the server…':'Moving to Spam…','text-muted');
-  try{ const r=await api('/api/spam-flag',{sid:SID,addresses:addrs,mode:choice});
-    let msg='✓ Flagged '+r.flagged+' sender(s): moved '+r.moved+' message(s) to "'+r.folder+'"';
+  spamMsg(choice==='delete'?'Flagging + deleting in '+folders.join(', ')+'…':'Moving to Spam from '+folders.join(', ')+'…','text-muted');
+  try{ const r=await api('/api/spam-flag',{sid:SID,addresses:addrs,mode:choice,folders});
+    let msg='✓ Flagged '+r.flagged+' sender(s) across '+(r.folders||folders).length+' folder(s): moved '+r.moved+' message(s) to "'+r.folder+'"';
     if(choice==='delete') msg+=', deleted '+r.deleted+' more';
     msg+='.';
-    if(r.no_mail) msg+=' '+r.no_mail+' had no inbox mail (nothing to move).';
+    if(r.no_mail) msg+=' '+r.no_mail+' had no mail in those folders (nothing to move).';
     spamMsg(msg, r.flagged?'text-ok':'text-warn'); refreshFoldersQuiet(); }
   catch(e){ spamMsg('✗ '+e.message,'text-danger'); }
 };

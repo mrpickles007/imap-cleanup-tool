@@ -723,8 +723,9 @@ reason + confidence) when a model was used.
 - **Select** rows (or *select all* across pages) for **bulk** actions.
 - **Remove from list** - drops them from this list only (does not touch the
   mailbox).
-- **Flag senders as spam** - for each selected sender it finds all their inbox
-  mail and reports them to the server's spam filter (so **future** mail is
+- **Flag senders as spam** - for each selected sender it scans the **folders
+  selected in the Cleanup tab** (just like a run; the popup shows which), finds
+  their mail and reports them to the server's spam filter (so **future** mail is
   auto-routed to spam). A popup lets you choose: **move one message to Junk/Spam
   and delete the rest** (same as Run), or **move all to Spam** and delete nothing.
   Moving mail to the Junk/Spam folder (found via its special-use flag, so it works
