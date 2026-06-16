@@ -217,12 +217,19 @@ land in your shell history.
 > key, your model, your choice. Either way, only sender **subjects + stats** are
 > sent to the model - **never the message body**.
 
-AI Cleanup hands "which of these do I actually want?" to a model, safely:
+AI Cleanup hands "which of these do I actually want?" to a model, safely - and
+**efficiently**. The key design choice: it works on **aggregated per-sender
+statistics**, never on your individual emails. It never feeds a whole mailbox to
+an LLM (that would be slow and make the token count explode); a **local heuristic
+does the bulk of the work**, and only a small shortlist of borderline **senders**
+(with a few sample subjects each) ever reaches the model.
 
-1. **Heuristic pre-filter (local).** Every sender gets a 0-10 **spam score** from
+1. **Heuristic pre-filter (local), per sender.** It groups your mail **by sender**
+   (not per individual email) and gives each sender a 0-10 **spam score** from
    signals read on your machine: `List-Unsubscribe`, the share of **unread**
    messages, send **frequency**, `Precedence: bulk`, and sender patterns
-   (`noreply@`, `newsletter@`...). Weights are calibrated and **tunable**.
+   (`noreply@`, `newsletter@`...). Weights are calibrated and **tunable**. This
+   local engine does most of the filtering, fast and for free.
 2. **LLM verdict.** Only senders at or above your **threshold** (default 6) are
    sent to the model, with a few sample **subjects** each (never the body); it
    replies in strict JSON which to delete. The prompt has an explicit
