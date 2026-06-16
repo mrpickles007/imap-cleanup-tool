@@ -75,6 +75,17 @@ class HeaderCacheStoreTests(unittest.TestCase):
             c.purge_other("me", "INBOX", "200")
             self.assertEqual(c.get("me", "INBOX", "100", ["1"]), {})
 
+    def test_has_account_and_clear(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            c = HeaderCache(Path(tmp) / "hc.sqlite")
+            self.assertFalse(c.has_account("me"))
+            c.put("me", "INBOX", "100",
+                  {"1": {"sender": "a", "date_h": "d", "subject": "s"}})
+            self.assertTrue(c.has_account("me"))
+            self.assertFalse(c.has_account("other"))
+            c.clear("me")
+            self.assertFalse(c.has_account("me"))
+
 
 class ReportCacheTests(unittest.TestCase):
     def test_second_report_uses_cache_only_new_uids_fetched(self):

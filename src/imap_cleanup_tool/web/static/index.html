@@ -850,6 +850,7 @@ function confirmDialog(opts){
     const ok=$('confirmOk'); ok.textContent = opts.okText || 'OK';
     ok.className = 'px-4 py-2 rounded-lg font-semibold ' + (opts.danger
       ? 'bg-danger text-ink hover:brightness-110' : 'bg-brand text-ink hover:bg-brand-light');
+    $('confirmCancel').textContent = opts.cancelText || 'Cancel';
     $('confirmModal').classList.remove('hidden');
     const done=(v)=>{ $('confirmModal').classList.add('hidden'); ok.onclick=null; $('confirmCancel').onclick=null; resolve(v); };
     ok.onclick=()=>done(true); $('confirmCancel').onclick=()=>done(false);
@@ -1382,7 +1383,26 @@ function updateAiSecret(){
   const sel=$('aiModel'); const m=LLM_MODELS.find(x=>x.name===(sel?sel.value:''));
   if($('aiSecret')) $('aiSecret').classList.toggle('hidden', !(m && m.encrypted));
 }
+// The "Enable local cache" flag controls BOTH reading and writing the cache. If
+// it's OFF but a cache already exists for this account, warn before running:
+// proceeding deletes the cache; skipping lets the user re-enable it to reuse it.
+async function localCacheGate(){
+  if($('localCache') && $('localCache').checked) return true;   // cache on -> use it
+  if(!SID) return true;
+  let exists=false;
+  try{ const d=await (await fetch('/api/header-cache/'+SID)).json(); exists=!!d.exists; }
+  catch(_){ return true; }
+  if(!exists) return true;                                      // nothing cached -> just run
+  const ok=await confirmDialog({title:'Local cache is OFF',
+    message:'A local header cache already exists for this account, but "Enable local cache" is unchecked.\n\nProceed will DELETE the cache and run without it - the next cached run would start cold (it can take a few minutes on a slow server).\n\nTip: choose Skip, tick "Enable local cache" in the Connection card, and run again to reuse the cache for a fast report.',
+    okText:'Proceed (delete cache)', cancelText:'Skip', danger:true});
+  if(!ok) return false;                                         // skip -> abort
+  try{ await api('/api/header-cache/'+SID, null, 'DELETE'); log('Local cache cleared (caching is disabled).'); }
+  catch(e){ log('[ERROR] '+e.message); }
+  return true;
+}
 $('btnAiReport').onclick=async()=>{ if(!SID){ log('[ERROR] Not connected.'); return; } if(!(await ensureFolderChosen())) return;
+  if(!(await localCacheGate())) return;
   const p=aiPayload();
   if($('aiSkipLlm') && $('aiSkipLlm').checked){ p.model=''; log('Generating heuristic-only report (LLM skipped) on: '+p.folders.join(', ')+' …'); }
   else log('Generating AI report on: '+p.folders.join(', ')+' …');
@@ -1791,6 +1811,7 @@ $('btnRun').onclick=async ()=>{
     if(!SID){ log('[ERROR] Not connected.'); return; }
     if(!(await ensureFolderChosen())) return;
     if(!$('aiModel').value){ log('[ERROR] Choose a model in the AI panel (configure one in the LLM tab).'); return; }
+    if(!(await localCacheGate())) return;
     const ap=aiPayload();
     if(!ap.dry_run && !(await confirmDialog({title:'AI Cleanup - not a dry-run', message:'The AI will judge the flagged senders and DELETE the confirmed ones in:\n'+ap.folders.join(', ')+'\n\nContinue?', okText:'Run AI cleanup', danger:true}))) return;
     log((ap.dry_run?'[DRY-RUN] ':'')+'AI Cleanup on: '+ap.folders.join(', ')+' …'); startJob('/api/ai-run', ap, !ap.dry_run); return;

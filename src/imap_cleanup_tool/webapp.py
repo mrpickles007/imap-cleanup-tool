@@ -883,6 +883,27 @@ def create_app():
         except Exception as exc:  # pylint: disable=broad-exception-caught
             core.logger.warning("Could not save spam addresses: %s", exc)
 
+    @app.get("/api/header-cache/{sid}")
+    def header_cache_status(sid: str) -> dict[str, Any]:
+        """Whether a local header cache exists for the connected account."""
+        sess = _session(sid)
+        try:
+            from .headercache import HeaderCache
+            return {"exists": HeaderCache().has_account(sess.user)}
+        except Exception:  # pylint: disable=broad-exception-caught
+            return {"exists": False}
+
+    @app.delete("/api/header-cache/{sid}")
+    def header_cache_clear(sid: str) -> dict[str, Any]:
+        """Wipe this account's cached headers (used when caching is disabled)."""
+        sess = _session(sid)
+        try:
+            from .headercache import HeaderCache
+            HeaderCache().clear(sess.user)
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            raise HTTPException(500, f"Could not clear cache: {exc}") from exc
+        return {"cleared": True}
+
     @app.post("/api/ai-report")
     def ai_report(body: AIReportIn) -> dict[str, Any]:
         """Heuristic per-sender report; if a model is chosen, also LLM verdicts.

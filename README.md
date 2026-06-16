@@ -276,12 +276,29 @@ single noisy domain or let it sweep everything.
 ### Local header cache (faster repeat reports)
 
 Fetching message headers is the slow part of building a report - on a slow IMAP
-server it can take seconds per 50 messages. Tick **Enable local cache** in the
-connection card (it is **saved with the connection profile**, or pass
-`--local-cache` on the CLI) and the tool caches the immutable header fields
-(`From` / `Date` / `Subject`) on your machine, keyed by message **UID**. The next
-report only fetches the **new** messages; the rest come from the cache, so repeat
-reports become near-instant. It is **off by default** and **per account**.
+server it can take **several seconds per 50 messages** (a Gmail-class server does
+the same in 1-2s). Without the cache, every report's speed depends **entirely on
+your IMAP server**, so on a slow provider each report is slow again.
+
+Tick **Enable local cache** in the connection card (it is **saved with the
+connection profile**, or pass `--local-cache` on the CLI) and the tool caches the
+immutable header fields (`From` / `Date` / `Subject`) on your machine, keyed by
+message **UID**. The next report only fetches the **new** messages; the rest come
+from the cache, so repeat reports become near-instant. It is **off by default**
+and **per account**. **Enabling it is recommended**, especially on slower servers.
+
+> **First run on a new mailbox is the slow one.** With the cache on, the *first*
+> report on a mailbox still fetches every header (it can take a few minutes on a
+> big, slow mailbox) - that's it filling the cache. Every report after that is
+> fast. The cache pays for itself from the second run on.
+
+**The flag controls both reading and writing the cache.** With it **off**, the
+cache is neither used nor updated. If you run a report with the flag **off** while
+a cache already exists for that account, the web UI **asks first**: choose
+*Proceed* to **delete** the cache and run without it (the next cached run would
+start cold again), or *Skip*, tick **Enable local cache**, and run again to reuse
+it for a fast report. (On the CLI, an existing cache is simply left untouched and
+ignored, with a note suggesting `--local-cache`.)
 
 It stays correct: headers never change, and the volatile `\Seen` flag is always
 re-read fresh (a cheap fetch) so unread counts stay accurate. The cache is pinned

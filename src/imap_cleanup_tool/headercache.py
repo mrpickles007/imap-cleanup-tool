@@ -121,6 +121,17 @@ class HeaderCache:
         finally:
             conn.close()
 
+    def has_account(self, account: str) -> bool:
+        """True if any cached rows exist for this account."""
+        conn = self._connect()
+        try:
+            row = conn.execute(
+                "SELECT 1 FROM headers WHERE account=? LIMIT 1",
+                (account,)).fetchone()
+            return row is not None
+        finally:
+            conn.close()
+
     def clear(self, account: str | None = None) -> None:
         """Wipe the whole cache, or just one account's rows."""
         conn = self._connect()

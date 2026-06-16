@@ -291,6 +291,16 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
             core.logger.info("Local header cache is ON.")
         except Exception as exc:  # pylint: disable=broad-exception-caught
             core.logger.warning("Local cache unavailable (%s); continuing.", exc)
+    else:
+        try:
+            from .headercache import HeaderCache
+            if HeaderCache().has_account(user):
+                core.logger.warning(
+                    "A local header cache exists for this account but "
+                    "--local-cache is off: it is ignored (and left untouched). "
+                    "Re-run with --local-cache to reuse it for a fast report.")
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
     report = core.build_ai_report(conn, folders, threshold=args.ai_threshold,
                                   sample_size=args.ai_sample, exclude=exclude,
                                   weights=weights,
