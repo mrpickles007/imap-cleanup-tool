@@ -92,6 +92,11 @@ and the recommended path for most users.
 install it with the system package manager (`sudo apt install python3 python3-pip`,
 `brew install python`, etc.).
 
+> **Where do I type these?** In a **terminal**: **Command Prompt** or
+> **PowerShell** on Windows (press <kbd>Win</kbd>, type *cmd* or *PowerShell*),
+> **Terminal** on macOS (Spotlight ▸ *Terminal*) or Linux. Run the commands below
+> one line at a time; lines starting with `#` are comments, don't type them.
+
 **Windows** (PowerShell):
 
 ```powershell
