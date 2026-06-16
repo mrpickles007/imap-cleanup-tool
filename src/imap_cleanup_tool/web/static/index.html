@@ -648,6 +648,7 @@ tailwind.config = { theme: { extend: {
         <select id="spamPageSize" class="field text-sm" style="width:auto" title="Rows per page"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
       </div>
     </div>
+    <div id="spamMsg" class="hidden"></div>
     <p class="text-xs text-muted mb-3">Senders flagged by <b>AI Cleanup</b> (report or run) for the connected mailbox, with their heuristic <b>spam score</b> and the <b>LLM verdict</b>. Click a column header to <b>sort</b> the whole list. Select rows to <b>remove</b> them from the list, or <b>flag senders as spam</b> - a popup lets you either move one message to the Junk/Spam folder and <b>delete</b> the rest (like Run), or just <b>move</b> all their mail to Spam. Moving mail to Spam is the standard "report spam" signal that trains the server to route their <b>future</b> mail to spam. Each connection has its own list.</p>
     <div class="flex items-center gap-2 flex-wrap mb-3">
       <label class="flex items-center gap-1.5 text-xs text-muted"><input id="spamSelectAll" type="checkbox"> Select all (this page)</label>
@@ -679,7 +680,6 @@ tailwind.config = { theme: { extend: {
         <button id="spamNext" class="px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream disabled:opacity-40" disabled>Next ›</button>
       </div>
     </div>
-    <p id="spamMsg" class="text-[11px] mt-2 text-muted"></p>
   </section>
 </div>
 
@@ -1497,7 +1497,17 @@ if($('btnSendTest')) $('btnSendTest').onclick=async()=>{
 
 /* ---------- Spam addresses tab ---------- */
 const spamState={offset:0, limit:25, total:0, search:'', sel:new Set(), sortBy:'score', sortDir:'desc'};
-function spamMsg(t,cls){ $('spamMsg').textContent=t||''; $('spamMsg').className='text-[11px] mt-2 '+(cls||'text-muted'); }
+let spamMsgTimer=null;
+function spamMsg(t,cls){
+  const el=$('spamMsg'); if(!el) return;
+  if(spamMsgTimer){ clearTimeout(spamMsgTimer); spamMsgTimer=null; }
+  if(!t){ el.classList.add('hidden'); el.textContent=''; return; }
+  const map={'text-ok':'border-ok/40 text-ok bg-ok/10','text-danger':'border-danger/40 text-danger bg-danger/10','text-warn':'border-warn/40 text-warn bg-warn/10'};
+  el.className='rounded-lg border px-3 py-2 text-xs mb-3 '+(map[cls]||'border-line text-muted bg-panel2');
+  el.textContent=t;
+  // auto-dismiss success messages after a while (errors/warnings stay)
+  if(cls==='text-ok') spamMsgTimer=setTimeout(()=>spamMsg(''), 6000);
+}
 function fmtPct(x){ return x==null?'':Math.round(x*100)+'%'; }
 async function loadSpam(){
   if(!SID){ return; }
