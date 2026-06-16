@@ -807,6 +807,7 @@ tailwind.config = { theme: { extend: {
       <p class="text-[11px] text-muted">This password is never stored - you'll need it to load the profile.</p>
     </div>
     <p id="savePlainWarn" class="text-[11px] text-warn mt-2">⚠️ Without encryption the IMAP password is stored in plain text in a local database file on this machine.</p>
+    <p id="saveErr" class="hidden text-xs text-danger mt-2"></p>
     <div class="flex gap-2 justify-end mt-4">
       <button id="saveCancel" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Cancel</button>
       <button id="saveConfirm" class="px-4 py-2 rounded-lg bg-brand text-ink font-semibold hover:bg-brand-light">Save</button>
@@ -2164,6 +2165,7 @@ function openSaveModal(prefill){
   saveReuseSecret = saveWasEncrypted ? (unlockedSecrets[name]||'') : '';
   $('saveEncrypt').checked=saveWasEncrypted; $('saveSecret').value=''; $('saveSecret2').value='';
   $('saveSecret').type='password'; $('saveSecret2').type='password'; $('saveSecretEye').textContent='show';
+  if($('saveErr')) $('saveErr').classList.add('hidden');
   applySaveEncMode();
   $('saveModal').classList.remove('hidden'); setTimeout(()=>$('saveName').focus(),50);
 }
@@ -2201,7 +2203,10 @@ $('saveName').addEventListener('change', ()=>{
   applySaveEncMode();
 });
 $('saveCancel').onclick=()=>$('saveModal').classList.add('hidden');
+function saveErr(m){ const e=$('saveErr'); if(!e) return; if(m){ e.textContent=m; e.classList.remove('hidden'); } else e.classList.add('hidden'); }
+if($('saveSecret')) $('saveSecret').addEventListener('input', ()=>saveErr(''));
 $('saveConfirm').onclick=async ()=>{
+  saveErr('');
   const name=$('saveName').value.trim(); if(!name){ $('saveName').focus(); return; }
   const existing=PROFILES.find(p=>p.name===name);
   const wasEnc=!!(existing&&existing.encrypted), reuse=unlockedSecrets[name]||'';
@@ -2214,7 +2219,7 @@ $('saveConfirm').onclick=async ()=>{
     else if(wasEnc){                                     // ask for the existing one, once
       secret=$('saveSecret').value; if(!secret){ $('saveSecret').focus(); return; }
       try{ await api('/api/profiles/load',{name, secret}); }   // verify it actually decrypts
-      catch(_){ log('[ERROR] Wrong passphrase for "'+name+'" - it was not changed.'); return; }
+      catch(_){ saveErr('Wrong passphrase for "'+name+'". The profile was not changed.'); $('saveSecret').focus(); return; }
     } else {                                             // brand-new encryption
       if(!evalPw()){ return; } secret=$('saveSecret').value;
     }
@@ -2231,7 +2236,7 @@ $('saveConfirm').onclick=async ()=>{
     else delete unlockedSecrets[name];
     $('saveModal').classList.add('hidden'); await loadProfiles(name);
     log('Profile "'+name+'" saved'+(encrypt?' (encrypted).':'.'));
-  }catch(e){ log('[ERROR] '+e.message); }
+  }catch(e){ saveErr(e.message); }
 };
 $('btnDeleteProfile').onclick=async ()=>{
   const name=selectedProfile; if(!name){ log('Select a saved profile to delete.'); return; }
