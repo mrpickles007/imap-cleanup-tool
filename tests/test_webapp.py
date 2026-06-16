@@ -226,25 +226,35 @@ class WebApiTests(unittest.TestCase):
                     "name": "x", "host": ""})
                 self.assertEqual(bad.status_code, 400)
 
-    def test_saved_reports_list_and_download(self):
+    def test_saved_reports_download_and_delete(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(scheduler, "config_dir",
                                    return_value=Path(tmp)):
+                name = "ai_report_me_gmail.com_2026-06-15_10-00-00.csv"
                 d = Path(tmp) / "ai_reports"
                 d.mkdir()
-                (d / "ai_report_2026-06-15_10-00-00.csv").write_text(
-                    "sender,score\nx@y.com,9\n", encoding="utf-8")
-                lst = self.client.get("/api/ai-reports").json()["reports"]
-                self.assertIn("ai_report_2026-06-15_10-00-00.csv", lst)
-                got = self.client.get(
-                    "/api/ai-reports/ai_report_2026-06-15_10-00-00.csv")
+                (d / name).write_text("sender,score\nx@y.com,9\n",
+                                      encoding="utf-8")
+                got = self.client.get("/api/ai-reports/" + name)
                 self.assertEqual(got.status_code, 200)
                 self.assertIn("x@y.com", got.text)
+                # delete it
+                self.assertEqual(self.client.delete(
+                    "/api/ai-reports/" + name).status_code, 200)
+                self.assertFalse((d / name).exists())
+                # the per-account list needs a session -> 440 without one
+                self.assertEqual(self.client.get(
+                    "/api/ai-reports/list/nope").status_code, 440)
                 # path traversal / bad names rejected
                 self.assertEqual(self.client.get(
                     "/api/ai-reports/passwd.txt").status_code, 400)
                 self.assertEqual(self.client.get(
                     "/api/ai-reports/ai_report_missing.csv").status_code, 404)
+
+    def test_account_slug(self):
+        self.assertEqual(scheduler.account_slug("Giulio@Gmail.com"),
+                         "giulio_gmail.com")
+        self.assertEqual(scheduler.account_slug(""), "unknown")
 
     def test_ai_job_builds_args(self):
         with tempfile.TemporaryDirectory() as tmp:

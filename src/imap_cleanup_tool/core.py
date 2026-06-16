@@ -656,7 +656,7 @@ def ai_report_csv(report: dict) -> str:
     import csv
     import io
     buf = io.StringIO()
-    cols = ["sender", "score", "flagged", "messages", "unread", "unread_ratio",
+    cols = ["sender", "score", "flagged", "messages", "unread", "unread_pct",
             "per_week", "list_unsubscribe", "bulk", "sender_pattern",
             "verdict_delete", "verdict_reason", "verdict_confidence",
             "sample_subjects"]
@@ -664,10 +664,14 @@ def ai_report_csv(report: dict) -> str:
     writer.writerow(cols)
     for s in report.get("senders", []):
         v = s.get("verdict") or {}
+        # unread as an integer percentage: avoids a 3-decimal value like "0.667"
+        # being misread as 667 by Excel in locales where "." groups thousands.
+        ur = s.get("unread_ratio")
+        unread_pct = "" if ur is None else f"{round(ur * 100)}%"
         writer.writerow([
             s.get("sender", ""), s.get("score", ""),
             "yes" if s.get("flagged") else "no",
-            s.get("count", ""), s.get("unread", ""), s.get("unread_ratio", ""),
+            s.get("count", ""), s.get("unread", ""), unread_pct,
             s.get("per_week", ""),
             "yes" if s.get("list_unsubscribe") else "no",
             "yes" if s.get("bulk") else "no",

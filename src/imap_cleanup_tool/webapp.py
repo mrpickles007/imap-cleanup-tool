@@ -65,6 +65,12 @@ def _load_providers() -> list:
     return PROVIDER_PRESETS
 
 
+def _ai_extra_available() -> bool:
+    """True if the optional ``[ai]`` extra (litellm) is importable."""
+    import importlib.util
+    return importlib.util.find_spec("litellm") is not None
+
+
 def _load_smtp_providers() -> list:
     """Load the SMTP provider presets from the (extensible) JSON config file."""
     try:
@@ -418,6 +424,7 @@ def create_app():
             "operators": FIELD_OPERATORS,
             "gmail_store_cap": core.GMAIL_STORE_CAP,
             "default_batch": core.UID_CHUNK_SIZE,
+            "ai_available": _ai_extra_available(),
         }
 
     @app.post("/api/connect")
@@ -605,6 +612,25 @@ def create_app():
                                  "recipient.")
         except notifications.NotifyError as exc:
             core.logger.warning("Notification email not sent: %s", exc)
+
+    def _notify_report(account, report) -> None:
+        """Email the AI report as a CSV attachment if 'notify on runs' is on."""
+        try:
+            flagged = report.get("flagged_count", 0)
+            deletable = report.get("flagged_messages", 0)
+            subject = (f"[imap-cleanup-tool] AI report on {account}: "
+                       f"{flagged} sender(s) flagged")
+            body = (f"AI Cleanup report (report only - nothing deleted) for "
+                    f"account: {account}\nFlagged senders: {flagged}\n"
+                    f"Emails potentially deletable: {deletable}\n\n"
+                    f"The full report is attached as CSV.\n\n- imap-cleanup-tool")
+            csv_text = core.ai_report_csv(report)
+            if notifications.send_notification(
+                    subject, body, when="run",
+                    attachments=[("ai_report.csv", csv_text)]):
+                core.logger.info("Report emailed to the configured recipient.")
+        except notifications.NotifyError as exc:
+            core.logger.warning("Report email not sent: %s", exc)
 
     # ----- LLM model configs (for AI Cleanup) ------------------------------ #
     @app.get("/api/llm-models")
@@ -809,24 +835,12 @@ def create_app():
                          info.get("completion_tokens", 0), info.get("model", "?"))
 
     def _ai_reports_dir():
-        d = scheduler.config_dir() / "ai_reports"
-        d.mkdir(parents=True, exist_ok=True)
-        return d
+        return scheduler.ai_reports_dir()
 
-    def _save_ai_report(report) -> None:
-        """Persist the report as a timestamped CSV so it survives later runs."""
-        from datetime import datetime
-        stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        base, n = f"ai_report_{stamp}", 1
-        path = _ai_reports_dir() / f"{base}.csv"
-        while path.exists():                      # avoid same-second collisions
-            n += 1
-            path = _ai_reports_dir() / f"{base}_{n}.csv"
+    def _save_ai_report(report, account: str) -> None:
+        """Persist the report as a per-account, timestamped CSV."""
         try:
-            # newline="" so the csv's own \r\n is not re-translated to \r\r\n
-            # on Windows (which shows a blank row between every record).
-            path.write_text(core.ai_report_csv(report), encoding="utf-8",
-                            newline="")
+            path = scheduler.save_ai_report(core.ai_report_csv(report), account)
             core.logger.info("Report saved to disk as %s (pick it from the "
                              "download list).", path.name)
         except OSError as exc:
@@ -865,8 +879,9 @@ def create_app():
                              report["flagged_count"], report["total_senders"],
                              body.threshold, report.get("flagged_messages", 0))
             _log_llm_total(report)
-            _save_ai_report(report)
+            _save_ai_report(report, sess.user)
             _record_spam(sess, report, "report")
+            _notify_report(sess.user, report)
 
         run_state = _start_run(sess, "ai-report", work)
         return {"run_id": run_state.run_id}
@@ -891,7 +906,7 @@ def create_app():
                          if s.get("flagged") and (s.get("verdict") or {}).get("delete")}
             rs.result = {"report": report, "to_delete": sorted(confirmed)}
             _log_llm_total(report)
-            _save_ai_report(report)
+            _save_ai_report(report, sess.user)
             _record_spam(sess, report, "run")
             if not confirmed:
                 core.logger.info("=> AI confirmed nothing to delete.")
@@ -948,18 +963,29 @@ def create_app():
             headers={"Content-Disposition":
                      "attachment; filename=ai-report.csv"})
 
-    @app.get("/api/ai-reports")
-    def ai_reports_list() -> dict[str, Any]:
-        """List the timestamped report CSVs saved on disk (newest first)."""
-        files = sorted((p.name for p in _ai_reports_dir().glob("ai_report_*.csv")),
-                       reverse=True)
-        return {"reports": files}
+    def _valid_report_name(name: str) -> bool:
+        return not ("/" in name or "\\" in name) and \
+            name.startswith("ai_report_") and name.endswith(".csv")
+
+    @app.get("/api/ai-reports/list/{sid}")
+    def ai_reports_list(sid: str) -> dict[str, Any]:
+        """List this account's saved report CSVs (newest first).
+
+        Returns {name, label} where label is the timestamp (the account prefix is
+        stripped for display; the dropdown shows the timestamp)."""
+        sess = _session(sid)
+        prefix = f"ai_report_{scheduler.account_slug(sess.user)}_"
+        items = []
+        for p in _ai_reports_dir().glob(prefix + "*.csv"):
+            items.append({"name": p.name,
+                          "label": p.name[len(prefix):-len(".csv")]})
+        items.sort(key=lambda x: x["label"], reverse=True)
+        return {"reports": items}
 
     @app.get("/api/ai-reports/{name}")
     def ai_reports_get(name: str) -> Response:
         """Download a previously saved report CSV by file name."""
-        if ("/" in name or "\\" in name or not name.startswith("ai_report_")
-                or not name.endswith(".csv")):
+        if not _valid_report_name(name):
             raise HTTPException(400, "Invalid report name.")
         path = _ai_reports_dir() / name
         if not path.is_file():
@@ -967,6 +993,16 @@ def create_app():
         return Response(
             content=path.read_text(encoding="utf-8"), media_type="text/csv",
             headers={"Content-Disposition": f"attachment; filename={name}"})
+
+    @app.delete("/api/ai-reports/{name}")
+    def ai_reports_delete(name: str) -> dict[str, Any]:
+        """Delete a saved report CSV."""
+        if not _valid_report_name(name):
+            raise HTTPException(400, "Invalid report name.")
+        path = _ai_reports_dir() / name
+        if path.is_file():
+            path.unlink()
+        return {"deleted": name}
 
     # ----- Spam addresses (per-account list from AI Cleanup) --------------- #
     @app.get("/api/spam/{sid}")

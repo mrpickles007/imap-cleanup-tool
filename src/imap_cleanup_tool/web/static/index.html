@@ -276,6 +276,11 @@ tailwind.config = { theme: { extend: {
         </span>
         <input id="aiCleanup" type="checkbox">
       </label>
+      <div id="aiExtraBanner" class="hidden rounded-lg border border-warn/40 bg-warn/10 text-warn text-xs px-3 py-2 mb-3">
+        ⚠️ AI features are disabled: the optional <b>[ai]</b> extra isn't installed. Install it where the app runs:
+        <code class="block mt-1 text-cream">pip install "imap-cleanup-tool[ai]"</code>
+        then restart the web UI.
+      </div>
       <div id="aiPanel" class="hidden mb-3 rounded-lg border border-line bg-ink/40 p-3 space-y-2">
         <label class="text-xs text-muted block">Model
           <span class="tip"><span class="ic">i</span><span class="bub">The LLM that judges the flagged senders. Configure models in the <b>LLM</b> tab. The local heuristic report works even without a model.</span></span>
@@ -317,9 +322,10 @@ tailwind.config = { theme: { extend: {
         <div class="flex gap-2 pt-1 flex-wrap items-center">
           <button id="btnAiReport" type="button" class="px-4 py-2 rounded-lg bg-brand hover:bg-brand-light text-ink font-semibold text-sm">Generate report</button>
           <div class="flex gap-2 items-center flex-nowrap min-w-0">
-            <select id="aiReportList" class="field text-sm min-w-0" style="max-width:13rem" title="Saved reports (newest first)"></select>
+            <select id="aiReportList" class="field text-sm min-w-0" style="max-width:11rem" title="Saved reports for this account (newest first)"></select>
             <button id="btnAiDownload" type="button" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream text-sm whitespace-nowrap">Download CSV</button>
-            <span class="tip"><span class="ic">i</span><span class="bub">Every report is auto-saved to disk with a timestamp. Pick one here and download it as CSV - older reports stay available even after new runs or a restart.</span></span>
+            <button id="btnAiDeleteReport" type="button" class="px-3 py-2 rounded-lg border border-line text-danger hover:underline text-sm whitespace-nowrap" title="Delete the selected saved report">Delete</button>
+            <span class="tip"><span class="ic">i</span><span class="bub">Each report is auto-saved with a timestamp, <b>per account</b> (the file name includes the account; the list shows only this mailbox's reports). Pick one to download or delete.</span></span>
           </div>
         </div>
       </div>
@@ -514,6 +520,10 @@ tailwind.config = { theme: { extend: {
 
 <!-- ============================ LLM TAB ============================ -->
 <div id="tab-llm" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-5">
+  <div id="llmExtraBanner" class="hidden lg:col-span-2 rounded-lg border border-warn/40 bg-warn/10 text-warn text-xs px-3 py-2">
+    ⚠️ The optional <b>[ai]</b> extra isn't installed, so AI Cleanup can't run. You can still save models here, but install the extra where the app runs to use them:
+    <code class="block mt-1 text-cream">pip install "imap-cleanup-tool[ai]"</code> then restart the web UI.
+  </div>
   <section class="bg-panel border border-line rounded-xl p-5">
     <h2 class="font-display font-semibold text-brand-light mb-3">Add / edit a model</h2>
     <p class="text-xs text-muted mb-3">The model used by <b>AI Cleanup</b>. <b>Local-first &amp; BYOA</b> (Bring Your Own API key): run a free <b>local</b> model (Ollama) so nothing leaves your machine, or <b>bring your own key</b> for any cloud model (OpenAI, OpenRouter, ...). Powered by <b>litellm</b>, so both use the same form. The key is stored in a local SQLite DB and can be <b>encrypted</b>, and is <b>never committed</b>. ⚠️ Remote models send only sender <b>subjects + stats</b> (never the message body) to that provider - for full privacy prefer a <b>local</b> model.</p>
@@ -900,7 +910,17 @@ async function loadMeta(){
   const sel=$('provider'); sel.innerHTML='';
   (META.providers||[]).forEach((p,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=p.name;sel.appendChild(o);});
   applyProviderTips();
+  applyAiAvailability();
   buildRoot();
+}
+function applyAiAvailability(){
+  const ok = META.ai_available !== false;   // default true if unknown
+  // Cleanup tab: disable AI Cleanup + show banner
+  if($('aiExtraBanner')) $('aiExtraBanner').classList.toggle('hidden', ok);
+  if($('aiCleanup')){ $('aiCleanup').disabled=!ok; if(!ok) $('aiCleanup').checked=false; }
+  if(!ok && typeof refreshConditional==='function') refreshConditional();
+  // LLM tab banner
+  if($('llmExtraBanner')) $('llmExtraBanner').classList.toggle('hidden', ok);
 }
 async function restore(){
   if(!SID) return;
@@ -930,12 +950,14 @@ function applyProviderTips(){
 function gmailHost(){ return $('host').value.trim()==='imap.gmail.com'; }
 function refreshConditional(){
   const rule=document.querySelector('input[name=mode]:checked').value==='rule';
+  const aiOk = !(typeof META==='object' && META && META.ai_available===false);
+  if(!aiOk) $('aiCleanup').checked=false;   // [ai] extra missing -> can't use AI
   const ai=$('aiCleanup').checked;
   $('aiPanel').classList.toggle('hidden', !ai);
   if(ai)$('emptyFolder').checked=false;
   $('emptyFolder').disabled = ai;
   const empty=$('emptyFolder').checked;
-  $('aiCleanup').disabled = empty;          // empty folder overrides everything
+  $('aiCleanup').disabled = empty || !aiOk;   // empty folder, or no [ai] extra
   // AI Cleanup uses the match (filter, or whole folder when empty) exactly like
   // Move, so it does NOT dim the match - only Empty folder does.
   const matchOff = empty;
@@ -1259,8 +1281,8 @@ function updateJobSummary(){
     '<br>Profile: '+profTxt+' · Folders: '+foldersTxt+
     (empty?'':' · Scan: <b>'+escapeHtml(mode)+'</b>')+
     notConnectedNote+
-    '<br><span class="text-warn">Runs for real - dry-run does not apply to scheduled jobs.</span> '+
-    'Set connection profile here; folders/match/options in the <b>Cleanup</b> tab.';
+    '<br><span class="text-warn">Runs for real - dry-run does not apply to scheduled jobs.</span>'+
+    (aiJob ? '' : ' Set connection profile here; folders/match/options in the <b>Cleanup</b> tab.');
 }
 let JOBS = [];
 async function loadJobs(){
@@ -1353,12 +1375,13 @@ $('btnAiReport').onclick=async()=>{ if(!SID){ log('[ERROR] Not connected.'); ret
 async function loadAiReports(){
   const sel=$('aiReportList'); if(!sel) return;
   const cur=sel.value;
-  try{ const d=await (await fetch('/api/ai-reports')).json(); const files=d.reports||[];
+  if(!SID){ sel.innerHTML='<option value="">— connect to see saved reports —</option>'; $('btnAiDownload').disabled=true; $('btnAiDeleteReport').disabled=true; return; }
+  try{ const d=await (await fetch('/api/ai-reports/list/'+SID)).json(); const files=d.reports||[];
     sel.innerHTML='';
-    if(!files.length){ const o=document.createElement('option'); o.value=''; o.textContent='— no saved reports yet —'; sel.appendChild(o); }
-    files.forEach(f=>{ const o=document.createElement('option'); o.value=f; o.textContent=f.replace(/^ai_report_/,'').replace(/\.csv$/,''); sel.appendChild(o); });
-    if(cur && files.includes(cur)) sel.value=cur;          // keep selection
-    $('btnAiDownload').disabled = !files.length;
+    if(!files.length){ const o=document.createElement('option'); o.value=''; o.textContent='— no saved reports for this account —'; sel.appendChild(o); }
+    files.forEach(f=>{ const o=document.createElement('option'); o.value=f.name; o.textContent=f.label; sel.appendChild(o); });
+    if(cur && files.some(f=>f.name===cur)) sel.value=cur;   // keep selection
+    $('btnAiDownload').disabled = !files.length; $('btnAiDeleteReport').disabled = !files.length;
   }catch(e){ /* leave as-is */ }
 }
 $('btnAiDownload').onclick=async()=>{
@@ -1366,6 +1389,12 @@ $('btnAiDownload').onclick=async()=>{
   if(!name){ log('[ERROR] No saved report to download yet - generate one first.'); return; }
   try{ const r=await fetch('/api/ai-reports/'+encodeURIComponent(name)); if(!r.ok){ const d=await r.json().catch(()=>({})); throw new Error(errText(d,r.status)); }
     download(name, await r.text()); log('Report downloaded: '+name); }
+  catch(e){ log('[ERROR] '+e.message); } };
+if($('btnAiDeleteReport')) $('btnAiDeleteReport').onclick=async()=>{
+  const sel=$('aiReportList'); const name=sel?sel.value:''; if(!name){ return; }
+  const label=sel.options[sel.selectedIndex]?sel.options[sel.selectedIndex].textContent:name;
+  if(!(await confirmDialog({title:'Delete report', message:'Delete the saved report "'+label+'"? This only removes the CSV file, not any email.', okText:'Delete', danger:true}))) return;
+  try{ await api('/api/ai-reports/'+encodeURIComponent(name),null,'DELETE'); log('Report deleted: '+name); loadAiReports(); }
   catch(e){ log('[ERROR] '+e.message); } };
 
 /* ---------- LLM model configs (LLM tab) ---------- */
@@ -1990,13 +2019,15 @@ function startTour(){
       { element:'#secFolders', popover:{ title:'2 · Folders', description:'Choose which folders to scan. <b>Add to scan</b> only lists a folder; <b>Create on server</b> actually makes a new folder/label; the 🗑 deletes one you created (system folders are protected).' } },
       { element:'#secMatch', popover:{ title:'3 · What to match', description:'Match by a <b>target list</b> (senders/domains) or build a <b>rule</b> visually with AND/OR groups - no syntax to learn.' } },
       { element:'#secOptions', popover:{ title:'4 · Options', description:'Choose the action: delete, <b>Move</b> to another folder, Gmail-trash, Expunge, or Empty folder. <b>Dry-run</b> (on by default) only reports - turn it off to act for real.' } },
-      { element:'#rowAI', popover:{ title:'4b · AI Cleanup', description:'Let an LLM decide what is junk: it scores every sender heuristically, asks the model to judge those above your threshold, then deletes the confirmed ones. <b>Generate report</b> only analyzes; <b>Run</b> also deletes (dry-run simulates). Configure a model in the LLM tab.' } },
+      { element:'#rowAI', popover:{ title:'4b · AI Cleanup', description:'Let an LLM decide what is junk: it scores every sender heuristically, asks the model to judge those above your threshold (slider, 0.1 steps), then deletes the confirmed ones. <b>Generate report</b> only analyzes (download it as CSV, kept per account); <b>Run</b> also deletes (dry-run simulates). Options: <b>Skip LLM</b> (heuristic-only report), and <b>Flag senders as spam</b> (move one to Junk to train the filter, delete the rest). Honors your filter or the whole folder.' } },
       { element:'#btnCount', popover:{ title:'5 · Count first', description:'See exactly how many emails match before touching anything.' } },
       { element:'#btnSenders', popover:{ title:'6 · List senders', description:'See who is filling your mailbox - unique senders with message counts - and export the list to CSV to decide what to clean.' } },
       { element:'#btnRun', popover:{ title:'7 · Run', description:'Run the action. With dry-run on it just previews; without it you get a clear confirmation first. Use Stop to cancel a long run.' } },
       { element:'#log', popover:{ title:'8 · Live log', description:'Everything the tool does shows here in real time - what it searches, matches and acts on. Watch it during a run; the log survives a page refresh.' } },
       { element:'.tab[data-tab="scheduling"]', popover:{ title:'9 · Schedule it', description:'In the <b>Scheduling</b> tab you can turn these settings into a job (incl. AI Cleanup) and install it into your system scheduler (Task Scheduler / cron) to run automatically.' } },
-      { element:'.tab[data-tab="llm"]', popover:{ title:'10 · LLM models', description:'Configure the model(s) for AI Cleanup here - cloud or <b>local</b> (Ollama). API keys stay on your machine and can be encrypted; optional per-model cost tracking.' } },
+      { element:'.tab[data-tab="llm"]', popover:{ title:'10 · LLM models', description:'Configure the model(s) for AI Cleanup here - cloud or <b>local</b> (Ollama). <b>BYOA</b>: your API key stays on your machine and can be encrypted; optional per-model cost tracking. Needs the <code>[ai]</code> extra installed.' } },
+      { element:'.tab[data-tab="notifications"]', popover:{ title:'11 · Email notifications', description:'Add an <b>SMTP</b> profile (Gmail, Amazon SES, …), pick a recipient, and get an email when a cleanup finishes - for scheduled jobs and, if enabled, interactive runs (the report can be emailed as a CSV). Test connection + send-test included.' } },
+      { element:'.tab[data-tab="spam"]', popover:{ title:'12 · Spam addresses', description:'Every AI run records the flagged senders here (per account), with scores and verdicts. Sort any column, bulk-remove, or <b>flag senders as spam</b> on the server so future mail is auto-filtered.' } },
       { popover:{ title:'That is it! 🎉', description:'Tip: hover the little <b>i</b> icons anywhere for detailed help. Happy cleaning!' } },
     ],
   });

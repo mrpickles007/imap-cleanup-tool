@@ -123,15 +123,23 @@ def ai_reports_dir() -> Path:
     return path
 
 
-def save_ai_report(csv_text: str, stamp: str | None = None) -> Path:
-    """Write an AI report CSV to a timestamped file; returns the path.
+def account_slug(account: str) -> str:
+    """Filesystem-safe slug for a mailbox address (used in report filenames)."""
+    return re.sub(r"[^A-Za-z0-9._-]+", "_",
+                  (account or "").strip().lower()) or "unknown"
 
-    ``newline=""`` avoids the CSV's \\r\\n being re-translated to \\r\\r\\n on
-    Windows (which shows a blank row between records).
+
+def save_ai_report(csv_text: str, account: str = "",
+                   stamp: str | None = None) -> Path:
+    """Write an AI report CSV to a per-account, timestamped file; returns the path.
+
+    Filename: ``ai_report_<account-slug>_<timestamp>.csv`` so reports can be
+    filtered by account. ``newline=""`` avoids the CSV's \\r\\n being
+    re-translated to \\r\\r\\n on Windows (a blank row between records).
     """
     from datetime import datetime
     stamp = stamp or datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    base, n = f"ai_report_{stamp}", 1
+    base, n = f"ai_report_{account_slug(account)}_{stamp}", 1
     path = ai_reports_dir() / f"{base}.csv"
     while path.exists():
         n += 1
