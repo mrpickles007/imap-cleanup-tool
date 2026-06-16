@@ -55,11 +55,14 @@ class HeaderCache:
                 " bulk INTEGER NOT NULL DEFAULT 0,"
                 " subject TEXT,"
                 " from_header TEXT,"        # raw From (for list-senders/full-scan)
+                " unsub_value TEXT,"        # raw List-Unsubscribe header
+                " unsub_post TEXT,"         # raw List-Unsubscribe-Post header
                 " PRIMARY KEY (account, folder, uidvalidity, uid))")
-            # Migrate caches created before the from_header column existed.
+            # Migrate caches created before later columns existed.
             cols = {r["name"] for r in conn.execute("PRAGMA table_info(headers)")}
-            if "from_header" not in cols:
-                conn.execute("ALTER TABLE headers ADD COLUMN from_header TEXT")
+            for col in ("from_header", "unsub_value", "unsub_post"):
+                if col not in cols:
+                    conn.execute(f"ALTER TABLE headers ADD COLUMN {col} TEXT")
             conn.commit()
         finally:
             conn.close()
@@ -88,7 +91,8 @@ class HeaderCache:
                 chunk = uids[i:i + 400]
                 ph = ",".join("?" * len(chunk))
                 rows = conn.execute(
-                    f"SELECT uid, sender, date_h, unsub, bulk, subject "
+                    f"SELECT uid, sender, date_h, unsub, bulk, subject, "
+                    f"unsub_value, unsub_post "
                     f"FROM headers WHERE account=? AND folder=? AND uidvalidity=? "
                     f"AND date_h IS NOT NULL AND uid IN ({ph})",  # AI-complete rows
                     (account, folder, uidvalidity, *chunk)).fetchall()
@@ -97,7 +101,9 @@ class HeaderCache:
                         "sender": r["sender"] or "(no sender)",
                         "date_h": r["date_h"] or "",
                         "unsub": bool(r["unsub"]), "bulk": bool(r["bulk"]),
-                        "subject": r["subject"] or ""}
+                        "subject": r["subject"] or "",
+                        "unsub_value": r["unsub_value"] or "",
+                        "unsub_post": r["unsub_post"] or ""}
             return out
         finally:
             conn.close()
@@ -116,16 +122,17 @@ class HeaderCache:
             conn.executemany(
                 "INSERT INTO headers"
                 " (account, folder, uidvalidity, uid, sender, date_h, unsub,"
-                "  bulk, subject, from_header)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                "  bulk, subject, from_header, unsub_value, unsub_post)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT(account, folder, uidvalidity, uid) DO UPDATE SET"
                 " sender=excluded.sender, date_h=excluded.date_h,"
                 " unsub=excluded.unsub, bulk=excluded.bulk,"
-                " subject=excluded.subject, from_header=excluded.from_header",
+                " subject=excluded.subject, from_header=excluded.from_header,"
+                " unsub_value=excluded.unsub_value, unsub_post=excluded.unsub_post",
                 [(account, folder, uidvalidity, uid, r.get("sender"),
                   r.get("date_h"), 1 if r.get("unsub") else 0,
                   1 if r.get("bulk") else 0, r.get("subject"),
-                  r.get("from_header"))
+                  r.get("from_header"), r.get("unsub_value"), r.get("unsub_post"))
                  for uid, r in rows.items()])
             conn.commit()
         finally:

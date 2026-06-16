@@ -142,6 +142,38 @@ class SpamStoreTests(unittest.TestCase):
                 self.assertEqual(
                     ss.list_addresses("a@x.com")["items"][0]["score"], 4)
 
+    def test_unsubscribe_fields_stored_and_targets(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):
+                s1 = _sender("auto@x.com", 9)
+                s1["unsub_mailto"] = "mailto:u@x.com?subject=stop"
+                s1["unsub_http"] = None; s1["unsub_oneclick"] = False
+                s2 = _sender("oneclick@x.com", 8)
+                s2["unsub_mailto"] = None
+                s2["unsub_http"] = "https://x.com/u?id=1"; s2["unsub_oneclick"] = True
+                s3 = _sender("manual@x.com", 7)
+                s3["unsub_mailto"] = None
+                s3["unsub_http"] = "https://x.com/page"; s3["unsub_oneclick"] = False
+                s4 = _sender("none@x.com", 6)  # no unsubscribe at all
+                ss.record_from_report("a@x.com",
+                                      _report([s1, s2, s3, s4]), "report")
+                rows = {it["address"]: it for it in
+                        ss.list_addresses("a@x.com", limit=50)["items"]}
+                self.assertTrue(rows["auto@x.com"]["unsub_auto"])        # mailto
+                self.assertTrue(rows["oneclick@x.com"]["unsub_auto"])    # one-click
+                self.assertFalse(rows["manual@x.com"]["unsub_auto"])     # plain link
+                self.assertEqual(rows["manual@x.com"]["unsub_url"],
+                                 "https://x.com/page")
+                self.assertFalse(rows["none@x.com"]["unsub_can"])
+                # targets returns only rows with a method
+                t = {x["address"]: x for x in ss.unsub_targets(
+                    "a@x.com", ["auto@x.com", "manual@x.com", "none@x.com"])}
+                self.assertIn("auto@x.com", t)
+                self.assertIn("manual@x.com", t)
+                self.assertNotIn("none@x.com", t)
+                self.assertEqual(t["auto@x.com"]["mailto"],
+                                 "mailto:u@x.com?subject=stop")
+
     def test_addresses_by_score_filter(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):

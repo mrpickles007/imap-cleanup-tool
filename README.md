@@ -877,6 +877,36 @@ reason + confidence) when a model was used.
   **during cleanup** (the *Flag senders as spam* option above).
 - **Add a sender manually** - type an address (with an optional 0-10 score) and
   **Add** to put it on this account's list yourself, alongside the AI-flagged ones.
+- **Unsubscribe (newsletters)** - select senders and click **Unsubscribe** to use
+  their `List-Unsubscribe` header. See [how it works](#bulk-unsubscribe-from-newsletters) below.
+
+### Bulk unsubscribe from newsletters
+
+Many bulk senders include a `List-Unsubscribe` header. The **Spam addresses** tab
+reads it (captured during an AI report) and lets you **unsubscribe from the
+selected senders in one go** - using the same row checkboxes / *select all* as the
+other bulk actions. It is **not** a magic "100% one-click", because the standard
+allows different mechanisms:
+
+- **`mailto:`** → unsubscribe by **sending an email** to the listed address. Fully
+  **automatic** (sent from your **active SMTP profile** in the Notifications tab).
+- **HTTPS one-click** (RFC 8058, the sender advertises `List-Unsubscribe-Post`) →
+  a single **HTTPS POST**. Fully **automatic**.
+- **Plain HTTPS link** (no one-click) → usually a **confirmation page** that
+  **can't be automated**; the tool **opens it in your browser** so you finish by
+  hand.
+
+So the result is **automatic for most, plus open-the-page for the rest**. The
+**Unsub** column shows which is which per sender: **`auto`** (will be done for
+you) or a **`link ↗`** (opens the page); blank means no `List-Unsubscribe` was
+seen (run a fresh AI report to detect it). After the action you get a summary:
+*N unsubscribed automatically, M opened to finish by hand, K failed*.
+
+> ⚠️ This makes **outbound requests** (an email and/or web POST/GET), so it's a
+> deliberate step. Use it for **newsletters** (legitimate senders with a
+> `List-Unsubscribe`), **not** for real spam - unsubscribing from actual spam just
+> confirms your address is live. `mailto:` unsubscribes need an **active SMTP
+> profile** configured in the Notifications tab.
 
 ### Load saved spam into a Target list
 

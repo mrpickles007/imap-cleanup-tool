@@ -669,7 +669,7 @@ def _fetch_sender_meta(conn: imaplib.IMAP4_SSL, uids: list[bytes],
     """
     from email import message_from_string
     fields = "(UID FLAGS BODY.PEEK[HEADER.FIELDS " \
-             "(FROM DATE SUBJECT LIST-UNSUBSCRIBE PRECEDENCE)])"
+             "(FROM DATE SUBJECT LIST-UNSUBSCRIBE LIST-UNSUBSCRIBE-POST PRECEDENCE)])"
     # Cap the per-request size: a single FETCH of hundreds of comma-listed UIDs
     # blocks with no feedback (and some servers stall on it). Smaller batches let
     # us log progress and stay cancellable.
@@ -707,15 +707,19 @@ def _fetch_sender_meta(conn: imaplib.IMAP4_SSL, uids: list[bytes],
             from_h = msg.get("From", "")
             sender = extract_sender_email(from_h) or "(no sender)"
             date_h = msg.get("Date", "")
-            unsub = bool(msg.get("List-Unsubscribe"))
+            unsub_value = msg.get("List-Unsubscribe", "") or ""
+            unsub_post = msg.get("List-Unsubscribe-Post", "") or ""
+            unsub = bool(unsub_value)
             bulk = "bulk" in (msg.get("Precedence", "").lower())
             subject = decode_mime_header(msg.get("Subject", ""))
             uid = _uid_from_meta(part[0])
             if use_cache and uid:
                 new_rows[uid] = {"sender": sender, "date_h": date_h,
                                  "unsub": unsub, "bulk": bulk, "subject": subject,
-                                 "from_header": from_h}
-            yield (sender, date_h, seen, unsub, bulk, subject)
+                                 "from_header": from_h, "unsub_value": unsub_value,
+                                 "unsub_post": unsub_post}
+            yield (sender, date_h, seen, unsub, bulk, subject, unsub_value,
+                   unsub_post)
 
     if use_cache and new_rows:
         try:
@@ -730,7 +734,8 @@ def _fetch_sender_meta(conn: imaplib.IMAP4_SSL, uids: list[bytes],
             uid = u.decode()
             c = cached[uid]
             yield (c["sender"], c["date_h"], seen_map.get(uid, False),
-                   c["unsub"], c["bulk"], c["subject"])
+                   c["unsub"], c["bulk"], c["subject"],
+                   c.get("unsub_value", ""), c.get("unsub_post", ""))
 
 
 def build_ai_report(conn: imaplib.IMAP4_SSL, folders: list[str], *,
@@ -783,18 +788,22 @@ def build_ai_report(conn: imaplib.IMAP4_SSL, folders: list[str], *,
             uids = data[0].split() if status == "OK" and data and data[0] else []
         logger.info("AI report: scanning %d message(s) in %r (%s) ...",
                     len(uids), folder, "filtered" if has_filter else "whole folder")
-        for sender, date_h, seen, unsub, bulk, subject in _fetch_sender_meta(
+        for (sender, date_h, seen, unsub, bulk, subject, unsub_value,
+                unsub_post) in _fetch_sender_meta(
                 conn, uids, batch_size, should_stop, cache=cache,
                 account=account, folder=folder, uidvalidity=uidvalidity):
             if sender.lower() in exclude:
                 continue
             s = agg.setdefault(sender, {"count": 0, "unread": 0, "unsub": False,
-                                        "bulk": False, "dates": [], "samples": []})
+                                        "bulk": False, "dates": [], "samples": [],
+                                        "unsub_value": "", "unsub_post": ""})
             s["count"] += 1
             if not seen:
                 s["unread"] += 1
             s["unsub"] = s["unsub"] or unsub
             s["bulk"] = s["bulk"] or bulk
+            if unsub_value and not s["unsub_value"]:
+                s["unsub_value"], s["unsub_post"] = unsub_value, unsub_post
             if date_h:
                 s["dates"].append(date_h)
             if len(s["samples"]) < sample_size:
@@ -815,6 +824,9 @@ def build_ai_report(conn: imaplib.IMAP4_SSL, folders: list[str], *,
             "frequency": min(1.0, per_week / 5.0),
         }
         score = round(sum(weights[k] * sig[k] for k in weights) / wsum * 10, 1)
+        from .unsubscribe import parse_list_unsubscribe
+        unsub = parse_list_unsubscribe(s.get("unsub_value", ""),
+                                       s.get("unsub_post", ""))
         senders.append({
             "sender": sender, "count": s["count"], "unread": s["unread"],
             "unread_ratio": round(unread_ratio, 3),
@@ -823,6 +835,8 @@ def build_ai_report(conn: imaplib.IMAP4_SSL, folders: list[str], *,
             "sender_pattern": pattern, "score": score,
             "flagged": score >= threshold,
             "samples": s["samples"] if score >= threshold else [],
+            "unsub_mailto": unsub["mailto"], "unsub_http": unsub["http"],
+            "unsub_oneclick": unsub["oneclick"],
         })
     senders.sort(key=lambda x: x["score"], reverse=True)
     flagged = [s for s in senders if s["flagged"]]

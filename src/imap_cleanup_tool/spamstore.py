@@ -43,8 +43,16 @@ def _connect() -> sqlite3.Connection:
         " verdict_reason TEXT,"
         " verdict_confidence REAL,"
         " source TEXT,"                   # 'report' | 'run'
+        " unsub_mailto TEXT,"             # List-Unsubscribe mailto: target
+        " unsub_http TEXT,"               # List-Unsubscribe https URL
+        " unsub_oneclick INTEGER,"        # RFC 8058 one-click POST supported
         " updated_at TEXT,"
         " PRIMARY KEY (account, address))")
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(spam)")}
+    for col, typ in (("unsub_mailto", "TEXT"), ("unsub_http", "TEXT"),
+                     ("unsub_oneclick", "INTEGER")):
+        if col not in cols:
+            conn.execute(f"ALTER TABLE spam ADD COLUMN {col} {typ}")
     return conn
 
 
@@ -67,7 +75,9 @@ def record_from_report(account: str, report: dict, source: str = "report") -> in
             1 if s.get("bulk") else 0, 1 if s.get("sender_pattern") else 0,
             (None if vd is None else (1 if vd else 0)),
             v.get("reason") if v else None,
-            v.get("confidence") if v else None, source, now))
+            v.get("confidence") if v else None, source,
+            s.get("unsub_mailto"), s.get("unsub_http"),
+            1 if s.get("unsub_oneclick") else 0, now))
     if not rows:
         return 0
     conn = _connect()
@@ -76,7 +86,8 @@ def record_from_report(account: str, report: dict, source: str = "report") -> in
             "INSERT INTO spam (account, address, score, messages, unread,"
             " unread_ratio, per_week, list_unsubscribe, bulk, sender_pattern,"
             " verdict_delete, verdict_reason, verdict_confidence, source,"
-            " updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            " unsub_mailto, unsub_http, unsub_oneclick,"
+            " updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT(account, address) DO UPDATE SET score=excluded.score,"
             " messages=excluded.messages, unread=excluded.unread,"
             " unread_ratio=excluded.unread_ratio, per_week=excluded.per_week,"
@@ -86,6 +97,9 @@ def record_from_report(account: str, report: dict, source: str = "report") -> in
             " verdict_reason=COALESCE(excluded.verdict_reason, spam.verdict_reason),"
             " verdict_confidence=COALESCE(excluded.verdict_confidence,"
             "  spam.verdict_confidence), source=excluded.source,"
+            " unsub_mailto=COALESCE(excluded.unsub_mailto, spam.unsub_mailto),"
+            " unsub_http=COALESCE(excluded.unsub_http, spam.unsub_http),"
+            " unsub_oneclick=excluded.unsub_oneclick,"
             " updated_at=excluded.updated_at", rows)
         conn.commit()
     finally:
@@ -94,6 +108,11 @@ def record_from_report(account: str, report: dict, source: str = "report") -> in
 
 
 def _row_dict(r: sqlite3.Row) -> dict:
+    mailto = r["unsub_mailto"]
+    http = r["unsub_http"]
+    oneclick = bool(r["unsub_oneclick"])
+    # "auto" = we can unsubscribe without the user (send an email, or one-click POST)
+    auto = bool(mailto) or (bool(http) and oneclick)
     return {"address": r["address"], "score": r["score"],
             "messages": r["messages"], "unread": r["unread"],
             "unread_ratio": r["unread_ratio"], "per_week": r["per_week"],
@@ -103,7 +122,41 @@ def _row_dict(r: sqlite3.Row) -> dict:
                                else bool(r["verdict_delete"])),
             "verdict_reason": r["verdict_reason"],
             "verdict_confidence": r["verdict_confidence"],
-            "source": r["source"], "updated_at": r["updated_at"]}
+            "source": r["source"], "updated_at": r["updated_at"],
+            # unsubscribe info for the UI: auto badge, or a link to open
+            "unsub_auto": auto, "unsub_url": http or None,
+            "unsub_can": bool(mailto or http)}
+
+
+def unsub_targets(account: str, addresses: list) -> list:
+    """Per-address unsubscribe data for the given addresses (for the bulk action).
+
+    Returns ``[{address, mailto, http, oneclick}]`` (only rows that have at least
+    one unsubscribe method).
+    """
+    account = (account or "").strip().lower()
+    addrs = [a.strip().lower() for a in (addresses or []) if a and a.strip()]
+    if not addrs:
+        return []
+    conn = _connect()
+    try:
+        out = []
+        for i in range(0, len(addrs), 400):
+            chunk = addrs[i:i + 400]
+            ph = ",".join("?" * len(chunk))
+            rows = conn.execute(
+                f"SELECT address, unsub_mailto, unsub_http, unsub_oneclick "
+                f"FROM spam WHERE account=? AND address IN ({ph})",
+                [account] + chunk).fetchall()
+            for r in rows:
+                if r["unsub_mailto"] or r["unsub_http"]:
+                    out.append({"address": r["address"],
+                                "mailto": r["unsub_mailto"],
+                                "http": r["unsub_http"],
+                                "oneclick": bool(r["unsub_oneclick"])})
+        return out
+    finally:
+        conn.close()
 
 
 # Whitelisted sort columns/expressions (the request maps a key here; never

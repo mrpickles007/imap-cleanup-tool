@@ -1111,6 +1111,48 @@ def create_app():
         return {"addresses": spamstore.addresses_by_score(
             sess.user, body.op, body.score)}
 
+    @app.post("/api/spam-unsubscribe")
+    def spam_unsubscribe(body: SpamActionIn) -> dict[str, Any]:
+        """Unsubscribe from the selected senders via their List-Unsubscribe.
+
+        Automatic for **mailto:** (sent from the active SMTP profile) and for
+        RFC 8058 **one-click** HTTPS POSTs. Senders whose only method is a plain
+        https link are returned as ``manual`` (the UI opens them).
+        """
+        sess = _session(body.sid)
+        from . import unsubscribe as unsub
+        targets = spamstore.unsub_targets(sess.user, body.addresses)
+        smtp_ok = notifications.has_active_profile()
+        done, manual, failed = [], [], []
+        for t in targets:
+            addr = t["address"]
+            try:
+                if t["mailto"]:
+                    if not smtp_ok:
+                        failed.append({"address": addr, "reason":
+                                       "no active SMTP profile (set one in "
+                                       "Notifications to send unsubscribe emails)"})
+                        continue
+                    to, subj, bod = unsub.parse_mailto(t["mailto"])
+                    notifications.send_from_active(to, subj, bod)
+                    done.append(addr)
+                elif t["http"] and t["oneclick"]:
+                    if unsub.http_one_click(t["http"]):
+                        done.append(addr)
+                    else:                               # POST failed -> open by hand
+                        manual.append({"address": addr, "url": t["http"]})
+                elif t["http"]:
+                    manual.append({"address": addr, "url": t["http"]})
+            except notifications.NotifyError as exc:
+                failed.append({"address": addr, "reason": str(exc)})
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                failed.append({"address": addr, "reason": str(exc)})
+        core.logger.info("Unsubscribe: %d auto, %d to open by hand, %d failed.",
+                         len(done), len(manual), len(failed))
+        return {"unsubscribed": done, "manual": manual, "failed": failed,
+                "requested": len(body.addresses or []),
+                "with_method": len(targets)}
+
     @app.post("/api/spam-select-all")
     def spam_select_all(body: SpamActionIn) -> dict[str, Any]:
         """All spam addresses for the account (used by 'select all' bulk ops)."""

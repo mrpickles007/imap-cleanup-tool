@@ -325,6 +325,29 @@ def send_notification(subject: str, body: str, *, when: str,
     return True
 
 
+def send_from_active(to_addr: str, subject: str, body: str,
+                     secret: str = "") -> None:
+    """Send a one-off email from the **active** SMTP profile (e.g. an unsubscribe
+    mailto). Raises NotifyError if no active profile is set or it's encrypted
+    without a secret."""
+    s = get_settings()
+    if not s["active"]:
+        raise NotifyError("No active SMTP profile - set one in the Notifications "
+                          "tab to send unsubscribe emails.")
+    cfg = load_profile(s["active"], secret)
+    if cfg["encrypted"] and not secret:
+        raise NotifyError("The active SMTP profile is encrypted - unlock it first.")
+    send_email(cfg, to_addr, subject, body)
+
+
+def has_active_profile() -> bool:
+    """True if an active SMTP profile is configured (for mailto unsubscribes)."""
+    try:
+        return bool(get_settings()["active"])
+    except Exception:  # pylint: disable=broad-exception-caught
+        return False
+
+
 def cleanup_summary(account: str, folders: list[str], total: int, *,
                     dry_run: bool, gmail: bool, kind: str = "Cleanup",
                     dest: str = "") -> tuple:
