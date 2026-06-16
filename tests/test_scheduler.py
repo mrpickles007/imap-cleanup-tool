@@ -229,6 +229,18 @@ class RunJobCliTests(unittest.TestCase):
                                    return_value=Path(tmp)):
                 self.assertEqual(cli.main(["--run-job", "no-such-job"]), 4)
 
+    def test_version_flag(self):
+        import io
+        import contextlib
+        from imap_cleanup_tool import cli, __version__
+        for flag in ("--version", "-V"):
+            out = io.StringIO()
+            with self.assertRaises(SystemExit) as ctx, \
+                    contextlib.redirect_stdout(out):
+                cli.parse_args([flag])
+            self.assertEqual(ctx.exception.code, 0)
+            self.assertIn(__version__, out.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

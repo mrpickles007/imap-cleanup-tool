@@ -35,6 +35,7 @@ import os
 import sys
 
 from . import core
+from . import __version__
 from .rules import RuleError, compile_search
 from .rule_parser import parse_rule_expression
 from .targets import load_targets
@@ -125,6 +126,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="imap-cleanup-tool",
         description="Delete or move IMAP emails by sender, domain or rule.")
+    parser.add_argument(
+        "-V", "--version", action="version",
+        version=f"%(prog)s {__version__}",
+        help="Show the installed version and exit. "
+             "Update with: pip install -U imap-cleanup-tool")
     _add_arguments(parser)
     return parser.parse_args(argv)
 

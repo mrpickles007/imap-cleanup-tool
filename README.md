@@ -204,6 +204,9 @@ python -m unittest discover -s tests -v
 ## Quick start - command line
 
 ```bash
+# 0. Check the installed version (update with: pip install -U imap-cleanup-tool)
+imap-cleanup-tool --version
+
 # 1. See your folders (find the real Trash/Sent names)
 imap-cleanup-tool --host imap.gmail.com --user you@gmail.com --list-folders
 
@@ -227,6 +230,7 @@ land in your shell history.
 
 | Option | Meaning |
 | --- | --- |
+| `-V`, `--version` | Print the installed version and exit. |
 | `--host`, `--port`, `--user`, `--password` | Connection (port default 993). |
 | `--timeout N` | Socket timeout in seconds (default 120). |
 | `--folder NAME` | Folder to scan; repeat for several. Default `INBOX`. |
