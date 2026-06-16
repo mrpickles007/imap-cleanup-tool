@@ -346,6 +346,11 @@ tailwind.config = { theme: { extend: {
           <span>Flag senders as spam (on Run)</span>
           <span class="tip"><span class="ic">i</span><span class="bub">Only affects <b>Run</b>. For each sender the AI confirms for deletion, <b>one</b> of their messages is moved to the <b>Junk/Spam</b> folder (the "report spam" signal that trains the server to send their <b>future</b> mail to spam) and the rest are deleted. Needs a Junk/Spam folder on the server.</span></span>
         </label>
+        <label class="flex items-center gap-1.5 text-[11px] text-muted pt-1 cursor-pointer">
+          <input id="aiCheckSpam" type="checkbox" class="scale-90" checked>
+          <span>Check spam addresses</span>
+          <span class="tip"><span class="ic">i</span><span class="bub">Saves LLM tokens: flagged senders that are <b>already in your Spam addresses</b> list (from earlier reports/runs) are accepted as spam <b>without asking the model again</b>, so fewer addresses are sent to the LLM. Edge case: an important email from a sender already on the list would be treated as spam - rare, and avoided by running with this <b>unchecked</b> (then every flagged sender is re-evaluated by the LLM).</span></span>
+        </label>
         <div class="flex gap-2 pt-1 flex-wrap items-center">
           <button id="btnAiReport" type="button" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-brand hover:bg-brand-light text-ink font-semibold text-sm">Generate report</button>
           <div class="flex gap-2 items-center flex-wrap sm:flex-nowrap min-w-0 basis-full grow">
@@ -519,6 +524,9 @@ tailwind.config = { theme: { extend: {
           </label>
           <label class="flex items-center gap-1.5 text-xs text-muted col-span-2 cursor-pointer"><input id="jobAiFlagSpam" type="checkbox"> Flag senders as spam
             <span class="tip"><span class="ic">i</span><span class="bub">When the job deletes a confirmed sender, first move <b>one</b> of their messages to the <b>Junk/Spam</b> folder (the "report spam" signal that trains the server to send their <b>future</b> mail to spam), then delete the rest. Ignored with <b>Report only</b> (nothing is deleted). Needs a Junk/Spam folder.</span></span>
+          </label>
+          <label class="flex items-center gap-1.5 text-xs text-muted col-span-2 cursor-pointer"><input id="jobAiCheckSpam" type="checkbox" checked> Check spam addresses
+            <span class="tip"><span class="ic">i</span><span class="bub">Saves LLM tokens: flagged senders <b>already in this account's Spam addresses</b> list are accepted as spam <b>without asking the model again</b>. Edge case: an important email from such a sender would be treated as spam (rare) - uncheck to re-evaluate every flagged sender with the LLM.</span></span>
           </label>
         </div>
       </div>
@@ -1215,7 +1223,8 @@ function jobPayload(){
     ai_sample:parseInt($('jobAiSample').value)||5,
     ai_report_only:$('jobAiReportOnly').checked,
     ai_skip_llm:$('jobAiSkipLlm').checked,
-    ai_flag_spam:$('jobAiFlagSpam').checked });
+    ai_flag_spam:$('jobAiFlagSpam').checked,
+    ai_check_spam:$('jobAiCheckSpam')?$('jobAiCheckSpam').checked:true });
 }
 function syncJobAi(){
   // Skip LLM requires Report only (heuristic alone can't decide deletions).
@@ -1404,6 +1413,7 @@ function aiPayload(){
     exclude:$('aiExclude').value, batch_size:parseInt($('batch').value)||500,
     model:$('aiModel').value||'', secret:$('aiSecret').value||'',
     dry_run:$('dryRun').checked, expunge:$('expunge').checked, flag_spam:$('aiFlagSpam')?$('aiFlagSpam').checked:false,
+    check_spam:$('aiCheckSpam')?$('aiCheckSpam').checked:true,
     weights:{ list_unsubscribe:parseFloat($('wUnsub').value)||0, unread_ratio:parseFloat($('wUnread').value)||0,
       bulk:parseFloat($('wBulk').value)||0, sender_pattern:parseFloat($('wPattern').value)||0, frequency:parseFloat($('wFreq').value)||0 } };
 }

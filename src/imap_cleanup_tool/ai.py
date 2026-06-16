@@ -159,7 +159,8 @@ def _batch_cost(model_cfg: dict, pt: int, ct: int):
 
 def evaluate(report: dict, model_cfg: dict, max_retries: int = 3,
              batch_size: int = LLM_BATCH_SIZE, should_stop=None,
-             timeout: int = LLM_TIMEOUT, record_cost=None) -> dict:
+             timeout: int = LLM_TIMEOUT, record_cost=None,
+             known_spam: set | None = None) -> dict:
     """Ask the LLM which flagged senders to delete, in batches.
 
     Flagged senders are sent ``batch_size`` at a time (each call retried up to
@@ -187,9 +188,26 @@ def evaluate(report: dict, model_cfg: dict, max_retries: int = 3,
     if model_cfg.get("api_base"):
         base_kwargs["api_base"] = model_cfg["api_base"]
 
-    flagged = [s for s in report.get("senders", []) if s.get("flagged")]
-    total = len(flagged)
+    flagged_all = [s for s in report.get("senders", []) if s.get("flagged")]
     verdicts: dict = {}
+    # Senders already saved as spam (from earlier reports/runs) are accepted as
+    # spam WITHOUT asking the LLM again - this saves tokens. They get a synthetic
+    # verdict so the report/run treats them as confirmed for deletion.
+    known = {a.strip().lower() for a in (known_spam or set()) if a}
+    if known:
+        skipped = 0
+        for s in flagged_all:
+            if s["sender"].lower() in known:
+                verdicts[s["sender"].lower()] = {
+                    "delete": True,
+                    "reason": "already in saved spam list (LLM skipped)",
+                    "confidence": 1.0}
+                skipped += 1
+        if skipped:
+            logger.info("Skipping %d flagged sender(s) already saved as spam "
+                        "(not sent to the LLM - saves tokens).", skipped)
+    flagged = [s for s in flagged_all if s["sender"].lower() not in known]
+    total = len(flagged)
     pt = ct = 0
     for start in range(0, total, max(1, batch_size)):
         if should_stop is not None and should_stop():

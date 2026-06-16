@@ -306,6 +306,46 @@ class LLMHelpersTests(unittest.TestCase):
         finally:
             del sys.modules["litellm"]
 
+    def test_evaluate_skips_known_spam(self):
+        """known_spam senders are NOT sent to the LLM but get a synthetic verdict."""
+        import sys
+        import types
+        import json as _j
+
+        seen = []
+
+        def fake_completion(**kw):
+            items = _j.loads(kw["messages"][1]["content"].split("\n", 1)[1])
+            seen.extend(it["sender"] for it in items)
+            verdicts = [{"sender": it["sender"], "delete": True} for it in items]
+
+            class _Resp:
+                choices = [type("C", (), {"message": type(
+                    "M", (), {"content": _j.dumps({"verdicts": verdicts})})()})()]
+                usage = type("U", (), {"prompt_tokens": 1,
+                                       "completion_tokens": 1})()
+            return _Resp()
+
+        fake = types.ModuleType("litellm")
+        fake.completion = fake_completion
+        sys.modules["litellm"] = fake
+        try:
+            senders = [{"sender": f"s{i}@x.com", "flagged": True, "count": 1,
+                        "unread_ratio": 1.0, "per_week": 1,
+                        "list_unsubscribe": True, "score": 9, "samples": []}
+                       for i in range(5)]
+            ev = ai.evaluate({"senders": senders}, {"model": "m"},
+                             known_spam={"s0@x.com", "S1@x.com"})  # case-insensitive
+            # only the 3 unknown senders reached the model
+            self.assertEqual(sorted(seen),
+                             ["s2@x.com", "s3@x.com", "s4@x.com"])
+            # but all 5 have a verdict; the known ones are synthetic deletes
+            self.assertEqual(len(ev["verdicts"]), 5)
+            self.assertTrue(ev["verdicts"]["s0@x.com"]["delete"])
+            self.assertIn("saved spam", ev["verdicts"]["s1@x.com"]["reason"])
+        finally:
+            del sys.modules["litellm"]
+
     def test_evaluate_records_cost_per_batch(self):
         import sys
         import types

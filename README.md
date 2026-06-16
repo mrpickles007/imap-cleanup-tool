@@ -256,6 +256,17 @@ standard "report spam" signal that trains the server to route that sender's
 jobs (a checkbox) and on the CLI (`--ai-flag-spam`). It needs a Junk/Spam folder
 on the server.
 
+**Check spam addresses (saves LLM tokens, on by default).** Flagged senders that
+are **already in this account's [Spam addresses](#spam-addresses) list** (from
+earlier reports/runs) are accepted as spam **without asking the model again**, so
+fewer addresses are sent to the LLM - real token savings on repeat runs. They are
+treated as confirmed for deletion with a synthetic verdict ("already in saved spam
+list"). It is a checkbox in the AI panel and in scheduled AI jobs (CLI:
+`--ai-no-check-spam` to turn it off). **Edge case:** an important email from a
+sender already on the list would be treated as spam - this is rare, and avoided by
+running with the option **off** (then every flagged sender is re-evaluated by the
+LLM).
+
 AI Cleanup deletes the **same way as a normal run**: on a regular server the
 messages are flagged `\Deleted` and, if you tick **Expunge**, immediately removed
 for good (otherwise they linger until an expunge). On **Gmail** they are moved to
@@ -451,6 +462,7 @@ python -m unittest discover -s tests -v
 | `--ai-report-only` | Build the report (and LLM verdicts if `--ai-model` is given) but delete nothing; a model is optional. |
 | `--ai-report-csv PATH` | Write the report as CSV (Excel-friendly) to `PATH`. |
 | `--ai-flag-spam` | On delete, first move one message per confirmed sender to Junk/Spam (trains the server), then delete the rest. Needs a Junk/Spam folder. |
+| `--ai-no-check-spam` | Re-evaluate every flagged sender with the LLM. By default, senders already in the saved Spam list are accepted as spam without asking the model (saves tokens). |
 | `--dry-run` | Report only; make no changes. |
 | `--expunge` | Permanently remove after flagging. |
 | `--yes` | Skip the confirmation prompt (for scripts/cron). |

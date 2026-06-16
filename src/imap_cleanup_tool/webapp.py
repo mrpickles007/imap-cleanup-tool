@@ -317,6 +317,7 @@ def create_app():
         dry_run: bool = True                 # used by /api/ai-run
         expunge: bool = False                # used by /api/ai-run
         flag_spam: bool = False              # move 1 msg/confirmed sender to Junk
+        check_spam: bool = True              # skip already-saved spam from the LLM
 
     class LLMModelIn(BaseModel):
         name: str
@@ -413,6 +414,7 @@ def create_app():
         ai_skip_llm: bool = False     # heuristic only (no model)
         ai_report_only: bool = False  # build report, delete nothing (emailed if on)
         ai_flag_spam: bool = False    # report confirmed senders as spam (1 msg -> Junk)
+        ai_check_spam: bool = True    # skip already-saved spam from the LLM
 
     # ----- helpers --------------------------------------------------------- #
     def _session(sid: str) -> "Session":
@@ -849,9 +851,11 @@ def create_app():
             recorder = None
             if model_cfg.get("track_costs"):
                 recorder = lambda p, c, co: llm.log_cost(body.model, p, c, co)
+            known_spam = (set(spamstore.all_addresses(sess.user))
+                          if getattr(body, "check_spam", True) else None)
             try:
                 ev = ai.evaluate(report, model_cfg, should_stop=rs.stop.is_set,
-                                 record_cost=recorder)
+                                 record_cost=recorder, known_spam=known_spam)
             except core.StopRequested:
                 raise
             except Exception as exc:  # pylint: disable=broad-exception-caught
@@ -1233,6 +1237,8 @@ def create_app():
                 args += ["--ai-report-only"]
             if body.ai_flag_spam:
                 args += ["--ai-flag-spam"]
+            if not body.ai_check_spam:
+                args += ["--ai-no-check-spam"]
             # Skip LLM = heuristic only -> no model. Otherwise a non-encrypted
             # model is required (for the run, or for the LLM verdicts in a report).
             if not body.ai_skip_llm:

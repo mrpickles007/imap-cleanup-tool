@@ -113,6 +113,11 @@ def _add_arguments(parser: argparse.ArgumentParser) -> None:
                         help="Report confirmed senders as spam: move one of each "
                              "sender's messages to the Junk/Spam folder (trains "
                              "the server filter) before deleting the rest.")
+    parser.add_argument("--ai-no-check-spam", action="store_false",
+                        dest="ai_check_spam", default=True,
+                        help="Do NOT skip already-saved spam senders from the LLM "
+                             "(by default they are accepted as spam without asking "
+                             "the model again, to save tokens).")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--expunge", action="store_true")
     parser.add_argument("--yes", action="store_true")
@@ -329,8 +334,13 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
         recorder = None
         if cfg.get("track_costs"):
             recorder = lambda p, c, co: log_cost(args.ai_model, p, c, co)
+        known_spam = None
+        if getattr(args, "ai_check_spam", True):
+            from . import spamstore
+            known_spam = set(spamstore.all_addresses(user))
         try:
-            ev = ai.evaluate(report, cfg, record_cost=recorder)
+            ev = ai.evaluate(report, cfg, record_cost=recorder,
+                             known_spam=known_spam)
         except RuntimeError as exc:
             print(f"[ERROR] {exc}")
             return 5
