@@ -1717,13 +1717,34 @@ $('btnConnect').onclick=async()=>{
 };
 // Pre-fill the AI exclude box with the connected mailbox so self-sent mail is
 // skipped by default; the user can remove the line to include their own address.
+// We track the address we auto-added so a later reconnect to a different account
+// replaces it instead of leaving the old account's address behind.
+let selfExcludeAddr='';
+function selfExcludeAddress(){
+  const me=($('user').value||'').trim(); if(!me) return '';
+  if(me.includes('@')) return me;                       // already a full address
+  // Some Gmail logins use the bare username; build the real address to exclude.
+  const host=($('host').value||'').toLowerCase();
+  if(host.includes('gmail')||host.includes('googlemail')) return me+'@gmail.com';
+  return me;                                            // unknown provider: as-is
+}
+function removeSelfExclude(){
+  if(!selfExcludeAddr) return;
+  const box=$('aiExclude'); if(box){
+    box.value=box.value.split('\n').map(s=>s.trim()).filter(Boolean)
+      .filter(l=>l.toLowerCase()!==selfExcludeAddr.toLowerCase()).join('\n');
+  }
+  selfExcludeAddr='';
+}
 function prefillSelfExclude(){
-  const me=($('user').value||'').trim(); if(!me) return;
+  removeSelfExclude();                                  // drop the previous account's entry
+  const addr=selfExcludeAddress(); if(!addr) return;
   const box=$('aiExclude'); if(!box) return;
   const lines=box.value.split('\n').map(s=>s.trim()).filter(Boolean);
-  if(!lines.some(l=>l.toLowerCase()===me.toLowerCase())){ lines.unshift(me); box.value=lines.join('\n'); }
+  if(!lines.some(l=>l.toLowerCase()===addr.toLowerCase())){ lines.unshift(addr); box.value=lines.join('\n'); }
+  selfExcludeAddr=addr;
 }
-$('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setStatus(false,'disconnected'); setConnectedUI(false); loadAiReports(); log('Disconnected.'); };
+$('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setStatus(false,'disconnected'); setConnectedUI(false); removeSelfExclude(); loadAiReports(); log('Disconnected.'); };
 $('btnValidate').onclick=async()=>{ try{ const d=await api('/api/validate-rule',{tree:toTree(ROOT)}); $('ruleOut').textContent='OK → SEARCH '+d.search; $('ruleOut').className='text-xs text-ok ml-2'; }catch(e){ $('ruleOut').textContent=e.message; $('ruleOut').className='text-xs text-danger ml-2'; } };
 $('btnStop').onclick=async()=>{ if(SID&&curRunId){ $('btnStop').disabled=true; $('btnStop').textContent='Stopping…'; try{ await api(`/api/stop/${SID}/${curRunId}`); log('Stop requested - finishing the current batch, then stopping…'); }catch(e){} } };
 $('btnSenders').onclick=async()=>{ if(!(await ensureFolderChosen())) return; log('Listing senders in: '+(selectedFolders.join(', ')||'INBOX')+' …'); startJob('/api/senders',{sid:SID,folders:selectedFolders.length?selectedFolders:['INBOX'],batch_size:parseInt($('batch').value)||500}); };
