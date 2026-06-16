@@ -10,11 +10,17 @@
   <img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="License: AGPL-3.0-or-later">
 </p>
 
-Clean your inbox **with AI, by hand, or both.** Let a **local-first LLM** decide
-what is junk and delete it - **BYOA (bring your own API key)**, or run a **free
-local model** via Ollama so nothing leaves your machine. Or write precise
-**sender / domain / nested-rule** filters yourself. Or **combine them** - point
-the AI at a single noisy domain, or let it sweep a whole folder.
+Clean your inbox **with AI, by hand, or both.** Let an **LLM** decide what is junk
+and delete it, with your choice of model:
+
+- **Free & private** - run a local model via **Ollama**, so nothing ever leaves
+  your machine; or
+- **BYOA (bring your own API key)** - point it at any cloud model (OpenAI,
+  OpenRouter, ...) using your own key.
+
+Prefer to stay in control? Write precise **sender / domain / nested-rule** filters
+yourself. Or **combine the two** - aim the AI at a single noisy domain, or let it
+sweep a whole folder.
 
 Bulk-delete or move IMAP emails from the **command line** and a local **web
 interface**. The CLI uses only the Python standard library; the web UI and the AI
