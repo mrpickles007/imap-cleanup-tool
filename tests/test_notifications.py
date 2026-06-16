@@ -127,6 +127,28 @@ class SMTPProfileTests(unittest.TestCase):
             "me@x.com", ["INBOX"], 3, dry_run=False, gmail=False)
         self.assertNotIn("Trash", body2)
 
+    def test_cleanup_summary_wording_per_operation(self):
+        # Move is worded "moved" (not "deleted") and shows the destination.
+        subj, body = nt.cleanup_summary(
+            "me@x.com", ["INBOX"], 5, dry_run=False, gmail=False,
+            kind="Move", dest="Archive")
+        self.assertIn("Move", subj)
+        self.assertIn("moved", body)
+        self.assertNotIn("deleted", body)
+        self.assertIn("Destination: Archive", body)
+        # Dry-run move says "would be moved".
+        _, body_dry = nt.cleanup_summary(
+            "me@x.com", ["INBOX"], 5, dry_run=True, gmail=False, kind="Move")
+        self.assertIn("would be moved", body_dry)
+        # A delete-style run still says "deleted".
+        _, body_del = nt.cleanup_summary(
+            "me@x.com", ["INBOX"], 5, dry_run=False, gmail=False, kind="Cleanup")
+        self.assertIn("deleted", body_del)
+        # A Move never carries the Gmail-Trash note.
+        _, body_move_gmail = nt.cleanup_summary(
+            "me@gmail.com", ["INBOX"], 5, dry_run=False, gmail=True, kind="Move")
+        self.assertNotIn("Trash", body_move_gmail)
+
 
 if __name__ == "__main__":
     unittest.main()

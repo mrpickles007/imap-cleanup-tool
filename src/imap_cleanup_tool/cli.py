@@ -166,7 +166,8 @@ _NOTIFY_WHEN = "run"
 
 
 def _notify_cli(args, folders: list[str], total: int, *, gmail: bool,
-                kind: str, attachments=None, subject=None, body=None) -> None:
+                kind: str, attachments=None, subject=None, body=None,
+                dest: str = "") -> None:
     """Best-effort email notification after a CLI cleanup (never fatal)."""
     try:
         from . import notifications as nt
@@ -174,7 +175,7 @@ def _notify_cli(args, folders: list[str], total: int, *, gmail: bool,
         if subject is None or body is None:
             subject, body = nt.cleanup_summary(
                 account, folders, total, dry_run=args.dry_run, gmail=gmail,
-                kind=kind)
+                kind=kind, dest=dest)
         if nt.send_notification(subject, body, when=_NOTIFY_WHEN,
                                 attachments=attachments):
             core.logger.info("Notification email sent to the configured "
@@ -216,7 +217,8 @@ def _run_operation(conn, args: argparse.Namespace, folders: list[str]) -> None:
     core.logger.info("Done. %d message(s) %s in total.", total, verb)
     kind = "Move" if args.move else "Cleanup"
     _notify_cli(args, folders, total,
-                gmail=args.gmail_trash and not args.move, kind=kind)
+                gmail=args.gmail_trash and not args.move, kind=kind,
+                dest=(args.dest_folder or "") if args.move else "")
 
 
 def _parse_ai_weights(items: list[str]) -> dict:

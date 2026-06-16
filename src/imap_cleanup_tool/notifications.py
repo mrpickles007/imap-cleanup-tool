@@ -326,16 +326,22 @@ def send_notification(subject: str, body: str, *, when: str,
 
 
 def cleanup_summary(account: str, folders: list[str], total: int, *,
-                    dry_run: bool, gmail: bool, kind: str = "Cleanup") -> tuple:
-    """Build (subject, body) for a finished cleanup run/job."""
-    verb = "would be deleted" if dry_run else "deleted"
+                    dry_run: bool, gmail: bool, kind: str = "Cleanup",
+                    dest: str = "") -> tuple:
+    """Build (subject, body) for a finished run/job, worded for the operation."""
+    if kind == "Move":
+        verb = "would be moved" if dry_run else "moved"
+    else:
+        verb = "would be deleted" if dry_run else "deleted"
     subject = f"[imap-cleanup-tool] {kind} on {account}: {total} message(s)"
     lines = [
         f"{kind} finished on account: {account}",
         f"Folders: {', '.join(folders)}",
-        f"Messages {verb}: {total}",
     ]
-    if gmail and total and not dry_run:
+    if kind == "Move" and dest:
+        lines.append(f"Destination: {dest}")
+    lines.append(f"Messages {verb}: {total}")
+    if kind != "Move" and gmail and total and not dry_run:
         lines += [
             "",
             "NOTE (Gmail): the messages were moved to the Trash, NOT permanently "

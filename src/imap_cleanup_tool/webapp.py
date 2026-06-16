@@ -602,11 +602,12 @@ def create_app():
         return notifications.get_settings()
 
     def _notify_run(account, folders, total, *, dry_run, gmail,
-                    kind="Cleanup") -> None:
+                    kind="Cleanup", dest="") -> None:
         """Send a run-completion email if 'notify on runs' is enabled (best effort)."""
         try:
             subj, body = notifications.cleanup_summary(
-                account, folders, total, dry_run=dry_run, gmail=gmail, kind=kind)
+                account, folders, total, dry_run=dry_run, gmail=gmail, kind=kind,
+                dest=dest)
             if notifications.send_notification(subj, body, when="run"):
                 core.logger.info("Notification email sent to the configured "
                                  "recipient.")
@@ -728,9 +729,15 @@ def create_app():
             verb = "would be processed" if body.dry_run else "processed"
             core.logger.info("Done. %d message(s) %s.", total, verb)
             rs.result = {"processed": total, "dry_run": body.dry_run}
-            kind = "Empty folder" if body.empty_folder else "Cleanup"
+            if body.empty_folder:
+                kind = "Empty folder"
+            elif body.move:
+                kind = "Move"
+            else:
+                kind = "Cleanup"
             _notify_run(sess.user, folders, total, dry_run=body.dry_run,
-                        gmail=body.gmail_trash, kind=kind)
+                        gmail=body.gmail_trash and not body.move, kind=kind,
+                        dest=dest)
 
         run_state = _start_run(sess, "run", work)
         return {"run_id": run_state.run_id}
