@@ -912,13 +912,14 @@ def create_app():
 
     @app.get("/api/header-cache/{sid}")
     def header_cache_status(sid: str) -> dict[str, Any]:
-        """Whether a local header cache exists for the connected account."""
+        """How many cached headers exist for the connected account (0 = none)."""
         sess = _session(sid)
         try:
             from .headercache import HeaderCache
-            return {"exists": HeaderCache().has_account(sess.user)}
+            n = HeaderCache().count_account(sess.user)
+            return {"exists": n > 0, "count": n}
         except Exception:  # pylint: disable=broad-exception-caught
-            return {"exists": False}
+            return {"exists": False, "count": 0}
 
     @app.delete("/api/header-cache/{sid}")
     def header_cache_clear(sid: str) -> dict[str, Any]:

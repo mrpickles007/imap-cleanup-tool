@@ -318,6 +318,10 @@ start cold again), or *Skip*, tick **Enable local cache**, and run again to reus
 it for a fast report. (On the CLI, an existing cache is simply left untouched and
 ignored, with a note suggesting `--local-cache`.)
 
+A **Clear cache** button appears under the checkbox when the connected account has
+cached headers, showing **how many are stored**; click it to wipe them (the next
+report runs cold again).
+
 It stays correct: headers never change, and the volatile `\Seen` flag is always
 re-read fresh (a cheap fetch) so unread counts stay accurate. The cache is pinned
 to each folder's **UIDVALIDITY** (the IMAP value that changes only if the server

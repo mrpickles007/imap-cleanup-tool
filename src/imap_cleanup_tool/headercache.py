@@ -188,6 +188,16 @@ class HeaderCache:
         finally:
             conn.close()
 
+    def count_account(self, account: str) -> int:
+        """How many header rows are cached for this account."""
+        conn = self._connect()
+        try:
+            return conn.execute(
+                "SELECT COUNT(*) FROM headers WHERE account=?",
+                (account,)).fetchone()[0]
+        finally:
+            conn.close()
+
     def clear(self, account: str | None = None) -> None:
         """Wipe the whole cache, or just one account's rows."""
         conn = self._connect()

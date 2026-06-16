@@ -201,6 +201,10 @@ tailwind.config = { theme: { extend: {
             <span class="tip"><span class="ic">i</span><span class="bub">Caches message headers (From / Date / Subject) on this machine so <b>repeat AI reports are much faster</b>, especially on slow servers - only <b>new</b> messages are fetched next time. The cache is <b>per account</b> and is saved with this <b>connection profile</b>. Headers never change, so it's safe; unread counts are always re-read fresh. Stored locally in a small SQLite file.</span></span>
           </span>
         </label>
+        <div id="cacheCtl" class="col-span-2 hidden flex items-center gap-2 pl-6 -mt-1">
+          <button id="btnClearCache" type="button" class="px-3 py-1 rounded-lg border border-line text-danger hover:underline text-xs">Clear cache</button>
+          <span id="cacheCount" class="text-[11px] text-muted"></span>
+        </div>
         <div class="col-span-2 flex gap-2">
           <button id="btnConnect" class="flex-1 bg-brand hover:bg-brand-light text-ink font-semibold rounded-lg px-4 py-2 transition">Connect &amp; load folders</button>
           <button id="btnDisconnect" class="px-4 py-2 rounded-lg bg-danger text-ink font-semibold hover:brightness-110">Disconnect</button>
@@ -1164,6 +1168,7 @@ async function pollLog(){
     else { poll=null; if(d.status && d.status!=='running') log('- '+d.status+(d.error?(': '+d.error):'')+' -'); setBusy(false); curRunId=null; persistLog();
       loadAiReports();   // a finished run may have saved a new report
       refreshLoadSpam(); // a finished AI run may have added spam addresses
+      refreshCacheInfo(); // ... and may have grown the header cache
       // Deletion changes folder counts - refresh the folder list (unified flow).
       if(pendingRefreshFolders && d.status==='done'){ pendingRefreshFolders=false; refreshFoldersQuiet(); }
       if(gmailTrashSeen && d.status==='done'){ gmailTrashSeen=false; showTrashNotice(); }
@@ -1797,6 +1802,7 @@ $('btnConnect').onclick=async()=>{
     prefillSelfExclude();
     loadAiReports();   // show this account's reports right away (no manual reload)
     refreshLoadSpam(); // show the "Load saved Spam addresses" box if any exist
+    refreshCacheInfo(); // show cached-header count + Clear cache control
     log('Connected. Loaded '+knownFolders.length+' folder(s).'); refreshConditional();
   }catch(e){ setStatus(false,'failed'); setConnectedUI(false); log('[ERROR] '+e.message); }
 };
@@ -1829,7 +1835,7 @@ function prefillSelfExclude(){
   if(!lines.some(l=>l.toLowerCase()===addr.toLowerCase())){ lines.unshift(addr); box.value=lines.join('\n'); }
   selfExcludeAddr=addr;
 }
-$('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setStatus(false,'disconnected'); setConnectedUI(false); removeSelfExclude(); loadAiReports(); refreshLoadSpam(); log('Disconnected.'); };
+$('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setStatus(false,'disconnected'); setConnectedUI(false); removeSelfExclude(); loadAiReports(); refreshLoadSpam(); refreshCacheInfo(); log('Disconnected.'); };
 $('btnValidate').onclick=async()=>{ try{ const d=await api('/api/validate-rule',{tree:toTree(ROOT)}); $('ruleOut').textContent='OK → SEARCH '+d.search; $('ruleOut').className='text-xs text-ok ml-2'; }catch(e){ $('ruleOut').textContent=e.message; $('ruleOut').className='text-xs text-danger ml-2'; } };
 $('btnStop').onclick=async()=>{ if(SID&&curRunId){ $('btnStop').disabled=true; $('btnStop').textContent='Stopping…'; try{ await api(`/api/stop/${SID}/${curRunId}`); log('Stop requested - finishing the current batch, then stopping…'); }catch(e){} } };
 $('btnSenders').onclick=async()=>{ if(!(await ensureFolderChosen())) return; log('Listing senders in: '+(selectedFolders.join(', ')||'INBOX')+' …'); startJob('/api/senders',{sid:SID,folders:selectedFolders.length?selectedFolders:['INBOX'],batch_size:parseInt($('batch').value)||500}); };
@@ -1912,6 +1918,23 @@ async function saveTargets(){
 }
 $('btnSaveTargets').onclick=saveTargets;
 
+/* ---------- Local header cache: count + clear ---------- */
+async function refreshCacheInfo(){
+  const ctl=$('cacheCtl'); if(!ctl) return;
+  if(!SID){ ctl.classList.add('hidden'); return; }
+  try{
+    const d=await (await fetch('/api/header-cache/'+SID)).json();
+    const n=d.count||0;
+    ctl.classList.toggle('hidden', n===0);
+    if($('cacheCount')) $('cacheCount').textContent = n? (n+' header'+(n===1?'':'s')+' cached') : '';
+  }catch(_){ /* leave as-is */ }
+}
+if($('btnClearCache')) $('btnClearCache').onclick=async()=>{
+  if(!SID){ log('[ERROR] Not connected.'); return; }
+  if(!(await confirmDialog({title:'Clear local cache', message:'Delete this account\'s cached message headers? The next report will fetch them again (a cold run can take a few minutes on a slow server).', okText:'Clear cache', danger:true}))) return;
+  try{ await api('/api/header-cache/'+SID, null, 'DELETE'); log('Local header cache cleared.'); refreshCacheInfo(); }
+  catch(e){ log('[ERROR] '+e.message); }
+};
 /* ---------- Load saved Spam addresses into the Target list ---------- */
 async function refreshLoadSpam(){
   const row=$('loadSpamRow'); if(!row) return;
@@ -2196,7 +2219,7 @@ function maybeAutoTour(){
   if(!done) setTimeout(startTour, 700);   // first access: show it once
 }
 
-loadMeta().then(()=>{ refreshConditional(); restore(); restoreUiState(); loadLLMModels(); loadAiReports(); refreshLoadSpam(); maybeAutoTour(); });
+loadMeta().then(()=>{ refreshConditional(); restore(); restoreUiState(); loadLLMModels(); loadAiReports(); refreshLoadSpam(); refreshCacheInfo(); maybeAutoTour(); });
 
 // Blink the provider user/password tooltips at random intervals to draw the
 // eye - only while NOT connected, and only for tips that are actually shown.
