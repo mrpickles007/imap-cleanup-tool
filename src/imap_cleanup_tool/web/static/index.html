@@ -788,6 +788,7 @@ tailwind.config = { theme: { extend: {
     <label class="flex items-center gap-2 text-sm mt-3">
       <input id="saveEncrypt" type="checkbox"> Encrypt the password
     </label>
+    <p id="saveReencryptNote" class="hidden text-[11px] text-warn mt-1">🔒 This profile is <b>encrypted</b>. Re-enter the passphrase to keep it encrypted, or <b>untick</b> to store the password in plain text.</p>
     <p class="text-[11px] text-muted mt-1">Note: an encrypted profile <b>can't be used by scheduled jobs</b> (a cron can't type the password to decrypt it).</p>
     <div id="saveSecretRow" class="hidden mt-3 space-y-2">
       <div class="flex gap-2">
@@ -2119,16 +2120,25 @@ function updateSmtpSaveBtn(){
   // when encrypting, require a password to encrypt + a strong, matching passphrase
   $('btnSaveSmtp').disabled = $('smEncrypt').checked && (!$('smKey').value || !evalSmtpPw());
 }
+let saveWasEncrypted=false;   // whether the profile being (over)written is encrypted
 function updateSaveBtn(){ $('saveConfirm').disabled = $('saveEncrypt').checked && !evalPw(); }
 $('saveSecret').addEventListener('input', updateSaveBtn);
 $('saveSecret2').addEventListener('input', updateSaveBtn);
 $('saveSecretEye').onclick=()=>{ const t=$('saveSecret').type==='password'?'text':'password'; $('saveSecret').type=t; $('saveSecret2').type=t; $('saveSecretEye').textContent= t==='password'?'show':'hide'; };
 function openSaveModal(prefill){
   if(!$('host').value.trim()||!$('user').value.trim()){ log('[ERROR] Fill host and user before saving a profile.'); return; }
-  $('saveName').value = prefill || selectedProfile || $('user').value || '';
-  $('saveEncrypt').checked=false; $('saveSecret').value=''; $('saveSecret2').value='';
+  const name = prefill || selectedProfile || $('user').value || '';
+  $('saveName').value = name;
+  // Keep an already-encrypted profile encrypted by default, so re-saving it does
+  // NOT silently downgrade it to plain text (you re-enter the passphrase to keep
+  // it, or untick on purpose).
+  saveWasEncrypted = !!(PROFILES.find(p=>p.name===name)||{}).encrypted;
+  const wasEncrypted = saveWasEncrypted;
+  $('saveEncrypt').checked=wasEncrypted; $('saveSecret').value=''; $('saveSecret2').value='';
   $('saveSecret').type='password'; $('saveSecret2').type='password'; $('saveSecretEye').textContent='show';
-  $('saveSecretRow').classList.add('hidden'); $('savePlainWarn').classList.remove('hidden');
+  $('saveSecretRow').classList.toggle('hidden', !wasEncrypted);
+  $('savePlainWarn').classList.toggle('hidden', wasEncrypted);
+  if($('saveReencryptNote')) $('saveReencryptNote').classList.toggle('hidden', !wasEncrypted);
   evalPw(); updateSaveBtn();
   $('saveModal').classList.remove('hidden'); setTimeout(()=>$('saveName').focus(),50);
 }
@@ -2156,14 +2166,18 @@ $('importFile').onchange=(e)=>{
   };
   r.readAsText(f); e.target.value='';
 };
-$('saveEncrypt').onchange=()=>{ const on=$('saveEncrypt').checked; $('saveSecretRow').classList.toggle('hidden',!on); $('savePlainWarn').classList.toggle('hidden',on); updateSaveBtn(); };
+$('saveEncrypt').onchange=()=>{ const on=$('saveEncrypt').checked; $('saveSecretRow').classList.toggle('hidden',!on); $('savePlainWarn').classList.toggle('hidden',on); if($('saveReencryptNote')) $('saveReencryptNote').classList.toggle('hidden', !(saveWasEncrypted && on)); updateSaveBtn(); };
 $('saveCancel').onclick=()=>$('saveModal').classList.add('hidden');
 $('saveConfirm').onclick=async ()=>{
   const name=$('saveName').value.trim(); if(!name){ $('saveName').focus(); return; }
   const encrypt=$('saveEncrypt').checked, secret=$('saveSecret').value;
   if(encrypt && !evalPw()){ return; }
-  if(PROFILES.some(p=>p.name===name)){
-    if(!(await confirmDialog({title:'Overwrite profile', message:'A profile named "'+name+'" already exists. Overwrite it?', okText:'Overwrite', danger:true}))) return;
+  const existing=PROFILES.find(p=>p.name===name);
+  if(existing){
+    if(existing.encrypted && !encrypt){
+      // Never silently downgrade an encrypted profile to plain text.
+      if(!(await confirmDialog({title:'Store password in plain text?', message:'"'+name+'" is currently encrypted. Saving without encryption will overwrite it and store the IMAP password in plain text on this machine. Continue?', okText:'Save as plain text', danger:true}))) return;
+    } else if(!(await confirmDialog({title:'Overwrite profile', message:'A profile named "'+name+'" already exists. Overwrite it?', okText:'Overwrite', danger:true}))) return;
   }
   try{
     await api('/api/profiles', {name, host:$('host').value.trim(), port:parseInt($('port').value)||993, user:$('user').value.trim(), password:$('password').value, timeout:parseInt($('timeout').value)||120, encrypt, secret, local_cache:$('localCache')?$('localCache').checked:false});
