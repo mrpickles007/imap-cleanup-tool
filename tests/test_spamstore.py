@@ -165,6 +165,13 @@ class SpamStoreTests(unittest.TestCase):
                 self.assertEqual(rows["manual@x.com"]["unsub_url"],
                                  "https://x.com/page")
                 self.assertFalse(rows["none@x.com"]["unsub_can"])
+                # unsub_kind drives the UI badge (email / oneclick / link / "")
+                self.assertEqual(rows["auto@x.com"]["unsub_kind"], "email")
+                self.assertEqual(rows["oneclick@x.com"]["unsub_kind"], "oneclick")
+                self.assertEqual(rows["manual@x.com"]["unsub_kind"], "link")
+                self.assertEqual(rows["none@x.com"]["unsub_kind"], "")
+                # only the mailto sender needs SMTP
+                self.assertEqual(ss.count_unsub_email("a@x.com"), 1)
                 # targets returns only rows with a method
                 t = {x["address"]: x for x in ss.unsub_targets(
                     "a@x.com", ["auto@x.com", "manual@x.com", "none@x.com"])}

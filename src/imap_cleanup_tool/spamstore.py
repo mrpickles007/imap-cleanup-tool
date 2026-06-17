@@ -113,7 +113,20 @@ def _row_dict(r: sqlite3.Row) -> dict:
     oneclick = bool(r["unsub_oneclick"])
     # "auto" = we can unsubscribe without the user (send an email, or one-click POST)
     auto = bool(mailto) or (bool(http) and oneclick)
-    return {"address": r["address"], "score": r["score"],
+    # how it would be done (mailto wins, matching the unsubscribe endpoint):
+    #   "email"    -> auto, an unsubscribe email sent from the active SMTP profile
+    #   "oneclick" -> auto, a one-click HTTPS POST (RFC 8058)
+    #   "link"     -> manual, a plain link that opens a confirmation page
+    #   ""         -> nothing actionable captured
+    if mailto:
+        kind = "email"
+    elif http and oneclick:
+        kind = "oneclick"
+    elif http:
+        kind = "link"
+    else:
+        kind = ""
+    return {"address": r["address"], "score": r["score"], "unsub_kind": kind,
             "messages": r["messages"], "unread": r["unread"],
             "unread_ratio": r["unread_ratio"], "per_week": r["per_week"],
             "list_unsubscribe": bool(r["list_unsubscribe"]),
@@ -261,6 +274,22 @@ def count(account: str) -> int:
     try:
         return conn.execute("SELECT COUNT(*) FROM spam WHERE account=?",
                             (account,)).fetchone()[0]
+    finally:
+        conn.close()
+
+
+def count_unsub_email(account: str) -> int:
+    """Senders whose automatic unsubscribe needs an email (a ``mailto:`` target).
+
+    These are the ones that require an active SMTP profile to unsubscribe
+    automatically; used to decide whether to warn the user.
+    """
+    account = (account or "").strip().lower()
+    conn = _connect()
+    try:
+        return conn.execute(
+            "SELECT COUNT(*) FROM spam WHERE account=? AND unsub_mailto IS NOT NULL"
+            " AND unsub_mailto<>''", (account,)).fetchone()[0]
     finally:
         conn.close()
 

@@ -51,6 +51,10 @@ features are optional extras (see [Install](#install)).
 - **Spam addresses**: the senders AI flags are saved per account, and you can
   **report them as spam** to the server (train it so their *future* mail
   auto-routes to spam).
+- **Bulk unsubscribe from newsletters**: from that same list, unsubscribe in one
+  go via each sender's `List-Unsubscribe` - **automatic** for `mailto:` (sent from
+  your SMTP profile) and one-click links, open-the-page for the rest. See
+  [Bulk unsubscribe from newsletters](#bulk-unsubscribe-from-newsletters).
 - **Email notifications**: get a mail when a cleanup/AI run finishes, with the AI
   report attached as CSV.
 - **Gmail mode**: moves matches to Trash (the only way to truly delete on Gmail).

@@ -1088,9 +1088,13 @@ def create_app():
                   unsub: str = "all", sort: str = "score",
                   dir: str = "desc") -> dict[str, Any]:
         sess = _session(sid)
-        return spamstore.list_addresses(sess.user, offset=offset, limit=limit,
-                                        search=q, unsub=unsub, sort_by=sort,
-                                        sort_dir=dir)
+        res = spamstore.list_addresses(sess.user, offset=offset, limit=limit,
+                                       search=q, unsub=unsub, sort_by=sort,
+                                       sort_dir=dir)
+        # so the UI can warn when mailto-unsubscribes can't be sent (no SMTP)
+        res["smtp_active"] = notifications.has_active_profile()
+        res["unsub_email_total"] = spamstore.count_unsub_email(sess.user)
+        return res
 
     @app.post("/api/spam-delete")
     def spam_delete(body: SpamActionIn) -> dict[str, Any]:
