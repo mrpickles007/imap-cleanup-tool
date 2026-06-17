@@ -644,6 +644,8 @@ Highlights:
 - **List senders** with counts (export to CSV), a **Spam addresses** tab, an
   **Email notifications** tab, and a **Scheduling** tab to create jobs and install
   them into the OS scheduler.
+- A **light / dark theme** toggle (top bar on desktop, in the menu on mobile); your
+  choice is remembered. The brand colors stay the same in both.
 
 ---
 
