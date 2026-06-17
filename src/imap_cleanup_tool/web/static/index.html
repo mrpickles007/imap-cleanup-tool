@@ -358,9 +358,12 @@ tailwind.config = { theme: { extend: {
           <select id="aiModel" class="field mt-1"></select>
         </label>
         <p id="aiNoModelNote" class="hidden text-[11px] text-warn -mt-1">No LLM model configured. You can still <b>Generate report</b> heuristic-only (tick <b>Skip LLM</b> below); <b>Run</b> (which deletes) needs a model. <b>Tip:</b> add a model in the <b>LLM</b> tab for a more precise, LLM-verified analysis.</p>
-        <div id="aiSecretRow" class="hidden flex gap-2">
-          <input id="aiSecret" type="password" class="field" placeholder="Password used to encrypt model">
-          <button id="aiSecretEye" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream text-sm">show</button>
+        <div id="aiSecretRow" class="hidden flex flex-col gap-1">
+          <label for="aiSecret" class="text-[11px] text-warn font-semibold">🔒 encrypted model - use password to decrypt</label>
+          <div class="flex gap-2">
+            <input id="aiSecret" type="password" class="field" placeholder="Password to decrypt the model">
+            <button id="aiSecretEye" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream text-sm">show</button>
+          </div>
         </div>
         <label class="text-xs text-muted block">Spam-score threshold: <b id="thrVal" class="text-cream">6.0</b> / 10
           <span class="tip"><span class="ic">i</span><span class="bub">Only senders scoring at or above this are flagged (and later sent to the LLM / deleted on Run). Higher = stricter, fewer senders.</span></span>
