@@ -1223,22 +1223,25 @@ def create_app():
             done_it = False
             reason = ""
             # 1) prefer the mailto path (most senders identify you by the To token)
-            try:
-                if t["mailto"]:
-                    if not smtp_ok:
-                        reason = ("no active SMTP profile (set one in Notifications "
-                                  "to send unsubscribe emails)")
-                    else:
-                        to, subj, bod = unsub.parse_mailto(t["mailto"])
-                        notifications.send_from_active(to, subj, bod)
-                        done.append(addr)
-                        spamstore.mark_unsubscribed(sess.user, addr, "email",
-                                                    "unsubscribe email sent", now)
-                        done_it = True
-            except Exception as exc:  # pylint: disable=broad-exception-caught
-                reason = str(exc)
-            # 2) if the email path didn't work, fall back to the https link so the
-            #    user can still finish it (one-click if advertised, else by hand)
+            if t["mailto"]:
+                if not smtp_ok:
+                    # missing SMTP is already flagged upstream by the spam-tab
+                    # banner, so just report it - no silent fall back to a link
+                    failed.append({"address": addr, "reason":
+                                   "no active SMTP profile (set one in "
+                                   "Notifications to send unsubscribe emails)"})
+                    continue
+                try:
+                    to, subj, bod = unsub.parse_mailto(t["mailto"])
+                    notifications.send_from_active(to, subj, bod)
+                    done.append(addr)
+                    spamstore.mark_unsubscribed(sess.user, addr, "email",
+                                                "unsubscribe email sent", now)
+                    done_it = True
+                except Exception as exc:  # pylint: disable=broad-exception-caught
+                    reason = str(exc)     # the send errored -> try the link below
+            # 2) no mailto, or the email send errored: use the https link if any
+            #    (RFC 8058 one-click if advertised, else a manual confirmation page)
             if not done_it and t["http"]:
                 if t["oneclick"] and unsub.http_one_click(t["http"]):
                     done.append(addr)

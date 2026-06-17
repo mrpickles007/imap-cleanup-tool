@@ -71,17 +71,50 @@ class OneClickTests(unittest.TestCase):
         resp = mock.MagicMock()
         resp.status = 200
         resp.__enter__.return_value = resp
-        with mock.patch.object(u.urllib.request, "urlopen", return_value=resp) as m:
+        opener = mock.MagicMock()
+        opener.open.return_value = resp
+        with mock.patch.object(u.urllib.request, "build_opener",
+                               return_value=opener) as m:
             self.assertTrue(u.http_one_click("https://x.example/u"))
-            # it POSTs the RFC 8058 body
-            req = m.call_args[0][0]
+            # it POSTs the RFC 8058 body...
+            req = opener.open.call_args[0][0]
             self.assertEqual(req.get_method(), "POST")
             self.assertEqual(req.data, b"List-Unsubscribe=One-Click")
+            # ...through the POST-preserving redirect handler
+            self.assertIs(m.call_args[0][0], u._RepostRedirect)
 
     def test_post_failure_is_false(self):
-        with mock.patch.object(u.urllib.request, "urlopen",
-                               side_effect=OSError("boom")):
+        opener = mock.MagicMock()
+        opener.open.side_effect = OSError("boom")
+        with mock.patch.object(u.urllib.request, "build_opener",
+                               return_value=opener):
             self.assertFalse(u.http_one_click("https://x.example/u"))
+
+
+class RedirectTests(unittest.TestCase):
+    """The one-click POST must survive a redirect without losing its body."""
+
+    def _req(self):
+        return u.urllib.request.Request(
+            "https://a.example/u", data=b"List-Unsubscribe=One-Click",
+            method="POST", headers=dict(u._ONE_CLICK_HEADERS))
+
+    def test_redirect_keeps_post_and_body(self):
+        h = u._RepostRedirect()
+        for code in (301, 302, 303, 307, 308):
+            new = h.redirect_request(self._req(), None, code, "redir", {},
+                                     "https://b.example/u2")
+            self.assertIsNotNone(new, code)
+            self.assertEqual(new.get_method(), "POST", code)
+            self.assertEqual(new.data, b"List-Unsubscribe=One-Click", code)
+            self.assertEqual(new.full_url, "https://b.example/u2", code)
+            self.assertEqual(new.get_header("Content-type"),
+                             "application/x-www-form-urlencoded", code)
+
+    def test_redirect_refuses_non_http_scheme(self):
+        h = u._RepostRedirect()
+        self.assertIsNone(h.redirect_request(
+            self._req(), None, 302, "redir", {}, "ftp://evil.example/x"))
 
 
 if __name__ == "__main__":

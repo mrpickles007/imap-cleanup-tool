@@ -944,7 +944,9 @@ allows different mechanisms:
 - **`mailto:`** → unsubscribe by **sending an email** to the listed address. Fully
   **automatic** (sent from your **active SMTP profile** in the Notifications tab).
 - **HTTPS one-click** (RFC 8058, the sender advertises `List-Unsubscribe-Post`) →
-  a single **HTTPS POST**. Fully **automatic**.
+  a single **HTTPS POST** (`List-Unsubscribe=One-Click`). Fully **automatic**. If the
+  endpoint sits behind a redirect, the POST is **re-issued to the new location** (so
+  the body isn't dropped), and success is an **HTTP 2xx**.
 - **Plain HTTPS link** (no one-click) → usually a **confirmation page** that
   **can't be automated**; you finish it by hand in the browser.
 
@@ -981,12 +983,12 @@ them. If any selected sender can only be unsubscribed by **email** but you have 
 active SMTP profile, a banner points you to the **Notifications** tab to set one up.
 After
 the action you get a summary (*N unsubscribed automatically, M need a manual page,
-K failed*). When a sender can be unsubscribed by **email** but that path can't run
-(no active SMTP profile, or the send errors), it **falls back to the sender's HTTPS
-link** if there is one - so it becomes a **manual** row you can finish by hand
-rather than a hard failure. A sender only counts as **failed** when there is **no
-usable method left**, and the summary then shows the **reason** (e.g. *no active
-SMTP profile*) so you know what to fix. Rather than blasting dozens of browser tabs
+K failed*). If a sender's **email** send **errors**, it **falls back to the sender's
+HTTPS link** when there is one - so it becomes a **manual** row you can finish by
+hand rather than a hard failure. (Senders that need email when you have **no active
+SMTP profile** are flagged up front by the banner above the list and reported with a
+**reason**, rather than quietly using another method.) The summary shows the
+**reason** for any failures so you know what to fix. Rather than blasting dozens of browser tabs
 (pop-up blockers eat them anyway), the list
 then **filters itself to the manual ones** so they are the only rows left - open
 each with its per-row **`link ↗`**. You can reach that view any time with the

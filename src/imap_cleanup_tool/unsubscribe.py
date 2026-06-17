@@ -74,19 +74,44 @@ def parse_mailto(uri: str) -> tuple[str, str, str]:
     return urllib.parse.unquote(addr).strip(), subject, body
 
 
+_ONE_CLICK_BODY = b"List-Unsubscribe=One-Click"
+_ONE_CLICK_HEADERS = {"Content-Type": "application/x-www-form-urlencoded",
+                      "User-Agent": "imap-cleanup-tool"}
+
+
+class _RepostRedirect(urllib.request.HTTPRedirectHandler):
+    """Follow redirects while keeping the One-Click **POST + body**.
+
+    urllib's default downgrades a 301/302/303 POST to a bodyless GET (which
+    would drop ``List-Unsubscribe=One-Click`` and silently no-op the
+    unsubscribe), and won't auto-follow a 307/308 that carries a body. Some
+    RFC 8058 endpoints sit behind a redirect, so we re-issue the same POST to
+    the new location instead. The parent still enforces the redirect-count caps.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        newurl = newurl.replace(" ", "%20")
+        if not newurl.lower().startswith(("http://", "https://")):
+            return None                         # don't follow to other schemes
+        return urllib.request.Request(
+            newurl, data=_ONE_CLICK_BODY, method="POST",
+            headers=dict(_ONE_CLICK_HEADERS),
+            origin_req_host=req.origin_req_host, unverifiable=True)
+
+
 def http_one_click(url: str, timeout: int = 15) -> bool:
     """RFC 8058 one-click unsubscribe: POST ``List-Unsubscribe=One-Click``.
 
+    Follows redirects **as POST** (keeping the body) via ``_RepostRedirect``.
     Returns True on a 2xx response, False otherwise. Never raises - any network
     error is reported as a failure to the caller.
     """
-    data = b"List-Unsubscribe=One-Click"
     req = urllib.request.Request(
-        url, data=data, method="POST",
-        headers={"Content-Type": "application/x-www-form-urlencoded",
-                 "User-Agent": "imap-cleanup-tool"})
+        url, data=_ONE_CLICK_BODY, method="POST",
+        headers=dict(_ONE_CLICK_HEADERS))
+    opener = urllib.request.build_opener(_RepostRedirect)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with opener.open(req, timeout=timeout) as resp:
             return 200 <= resp.status < 300
     except Exception:  # pylint: disable=broad-exception-caught
         return False
