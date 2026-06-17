@@ -1719,7 +1719,7 @@ function renderSpam(items){
     }
     else if(it.unsub_kind==='email') unsubCell='<span class="text-ok text-[11px] font-semibold cursor-help" title="Automatic: an unsubscribe email is sent from your active SMTP profile (Notifications tab).">auto ✉</span>';
     else if(it.unsub_kind==='oneclick') unsubCell='<span class="text-ok text-[11px] font-semibold cursor-help" title="Automatic: a single one-click HTTPS request (RFC 8058). No SMTP needed.">auto</span>';
-    else if(it.unsub_url) unsubCell='<a href="'+escapeHtml(it.unsub_url)+'" target="_blank" rel="noopener" class="text-brand-light text-[11px] hover:underline">link ↗</a>';
+    else if(it.unsub_url) unsubCell='<a href="'+escapeHtml(it.unsub_url)+'" target="_blank" rel="noopener" title="Opens this sender&#39;s unsubscribe page in a new tab. The link is personalized to your subscription, so you usually just confirm there (no need to type your address)." class="text-brand-light text-[11px] hover:underline">link ↗</a>';
     else if(it.list_unsubscribe) unsubCell='<span class="text-warn text-[11px] cursor-help" title="A List-Unsubscribe header was seen but no usable link is stored yet. Run a fresh AI report and it is normally captured (it then shows auto / auto ✉ / link ↗). If it persists, clear the local cache (connection card) and run the report again.">rescan</span>';
     else unsubCell='<span class="text-muted text-[11px] cursor-help" title="No List-Unsubscribe header - this sender can\'t be unsubscribed from here (only flagged/removed).">none</span>';
     tr.innerHTML='<td class="py-2 pr-2"><input type="checkbox" data-addr="'+escapeHtml(it.address)+'" '+checked+'></td>'
