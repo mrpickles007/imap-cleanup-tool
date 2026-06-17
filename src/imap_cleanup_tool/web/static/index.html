@@ -1599,7 +1599,7 @@ async function loadLLMModels(){
 }
 let EDITING_MODEL=null;
 function editLLMModel(m){
-  EDITING_MODEL=m.name;
+  EDITING_MODEL=m.name; llmWasEncrypted=!!m.encrypted;
   $('llmName').value=m.name; $('llmName').readOnly=true; $('llmName').classList.add('opacity-60');
   $('llmModel').value=m.model; $('llmApiBase').value=m.api_base||'';
   $('llmType').value=m.model.startsWith('ollama/')?'local':'remote'; populateLlmPresets(); setLlmEdit(false);
@@ -1613,7 +1613,7 @@ function editLLMModel(m){
   $('llmName').scrollIntoView({behavior:'smooth',block:'center'});
 }
 function resetLLMForm(){
-  EDITING_MODEL=null;
+  EDITING_MODEL=null; llmWasEncrypted=false;
   $('llmName').value=''; $('llmName').readOnly=false; $('llmName').classList.remove('opacity-60');
   $('llmModel').value='gpt-4o-mini'; $('llmApiBase').value=''; $('llmType').value='remote'; populateLlmPresets(); setLlmEdit(false);
   $('llmKey').value=''; $('llmKey').placeholder='sk-...'; $('llmEncrypt').checked=false; $('llmSecretRow').classList.add('hidden'); $('llmSecret').value=''; $('llmSecret2').value='';
@@ -1708,6 +1708,9 @@ if($('btnSaveLLM')) $('btnSaveLLM').onclick=async()=>{
     const editing = EDITING_MODEL!==null;
     const keyTyped = $('llmKey').value.length>0;
     const update_key = !editing || keyTyped;   // creating always sets the key; editing only if a new one is typed
+    if(editing && llmWasEncrypted && keyTyped && !$('llmEncrypt').checked){
+      if(!(await confirmDialog({title:'Save without encryption?', message:'This model\'s API key was encrypted. Saving a new key with Encrypt off will store it in plain text - no longer encrypted.\n\nContinue?', okText:'Save unencrypted', cancelText:'Cancel', danger:true}))) return;
+    }
     await api('/api/llm-models',{ name:$('llmName').value, model:$('llmModel').value, api_key:$('llmKey').value, api_base:$('llmApiBase').value, encrypt:$('llmEncrypt').checked, secret:$('llmSecret').value, track_costs:$('llmTrack').checked, cost_input:parseFloat($('llmCostIn').value)||0, cost_output:parseFloat($('llmCostOut').value)||0, update_key });
     const wasEditing=editing; resetLLMForm();
     $('llmMsg').textContent=wasEditing?'Updated.':'Saved.'; $('llmMsg').className='text-[11px] mt-2 text-ok'; loadLLMModels();
@@ -1727,6 +1730,7 @@ $('costModal').onclick=(e)=>{ if(e.target.id==='costModal') $('costModal').class
 
 /* ---------- Notifications tab (SMTP profiles + settings) ---------- */
 let SMTP_PROFILES=[], SMTP_PROVIDERS_DONE=false, EDITING_SMTP=null;
+let smWasEncrypted=false, llmWasEncrypted=false;   // was the edited profile/model encrypted?
 function fillSmtpProviders(){
   if(SMTP_PROVIDERS_DONE) return; const sel=$('smProvider'); if(!sel) return;
   (META.smtp_providers||[]).forEach((p,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=p.name; sel.appendChild(o); });
@@ -1786,7 +1790,7 @@ async function smtpTest(p){
   catch(e){ $('smNotifyMsg').textContent='✗ '+e.message; $('smNotifyMsg').className='text-[11px] mt-2 text-danger'; }
 }
 function editSmtp(p){
-  EDITING_SMTP=p.name;
+  EDITING_SMTP=p.name; smWasEncrypted=!!p.encrypted;
   $('smName').value=p.name; $('smName').readOnly=true; $('smName').classList.add('opacity-60');
   $('smHost').value=p.host; $('smPort').value=p.port; $('smSecurity').value=p.security||'starttls';
   $('smUser').value=p.user||''; $('smFrom').value=p.from_addr||'';
@@ -1798,7 +1802,7 @@ function editSmtp(p){
   $('smName').scrollIntoView({behavior:'smooth',block:'center'});
 }
 function resetSmtpForm(){
-  EDITING_SMTP=null;
+  EDITING_SMTP=null; smWasEncrypted=false;
   ['smName','smHost','smUser','smFrom','smKey','smSecret','smSecret2'].forEach(id=>$(id).value='');
   $('smName').readOnly=false; $('smName').classList.remove('opacity-60');
   $('smPort').value='587'; $('smSecurity').value='starttls'; $('smKey').placeholder='SMTP password / API key';
@@ -1811,6 +1815,9 @@ if($('btnSaveSmtp')) $('btnSaveSmtp').onclick=async()=>{
   try{
     const editing=EDITING_SMTP!==null; const keyTyped=$('smKey').value.length>0;
     const update_password = !editing || keyTyped;
+    if(editing && smWasEncrypted && keyTyped && !$('smEncrypt').checked){
+      if(!(await confirmDialog({title:'Save without encryption?', message:'This profile\'s password was encrypted. Saving a new password with Encrypt off will store it in plain text - no longer encrypted.\n\nContinue?', okText:'Save unencrypted', cancelText:'Cancel', danger:true}))) return;
+    }
     await api('/api/smtp-profiles',{ name:$('smName').value, host:$('smHost').value, port:parseInt($('smPort').value)||587, security:$('smSecurity').value, user:$('smUser').value, password:$('smKey').value, from_addr:$('smFrom').value, encrypt:$('smEncrypt').checked, secret:$('smSecret').value, update_password });
     const was=editing; resetSmtpForm(); $('smMsg').textContent=was?'Updated.':'Saved.'; $('smMsg').className='text-[11px] mt-2 text-ok'; loadSmtp();
   }catch(e){ $('smMsg').textContent='Error: '+e.message; $('smMsg').className='text-[11px] mt-2 text-danger'; }
