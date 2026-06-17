@@ -20,11 +20,27 @@ Standard library only (``urllib`` for the POST; the e-mail send lives in
 
 from __future__ import annotations
 
+import email.header
 import re
 import urllib.parse
 import urllib.request
 
 _URI_RE = re.compile(r"<([^>]+)>")
+
+
+def _decode_mime_words(value: str) -> str:
+    """Decode RFC 2047 encoded-words in a header value.
+
+    Some senders MIME-encode their ``List-Unsubscribe`` (e.g.
+    ``=?us-ascii?Q?=3Cmailto=3A...?=``), which hides the ``<...>`` URIs from a
+    plain regex. Returns the input unchanged if it isn't encoded or on any error.
+    """
+    if not value or "=?" not in value:
+        return value or ""
+    try:
+        return str(email.header.make_header(email.header.decode_header(value)))
+    except Exception:  # pylint: disable=broad-exception-caught
+        return value
 
 
 def parse_list_unsubscribe(value: str, post: str = "") -> dict:
@@ -34,6 +50,7 @@ def parse_list_unsubscribe(value: str, post: str = "") -> dict:
     the first mailto: URI, the first http(s) URI, and whether RFC 8058 one-click
     POST is advertised (``post`` contains ``List-Unsubscribe=One-Click``).
     """
+    value = _decode_mime_words(value)
     mailto = http = None
     for uri in _URI_RE.findall(value or ""):
         u = uri.strip()

@@ -37,6 +37,21 @@ class ParseTests(unittest.TestCase):
         r = u.parse_list_unsubscribe("")
         self.assertEqual(r, {"mailto": None, "http": None, "oneclick": False})
 
+    def test_mime_encoded_word_mailto(self):
+        # some senders MIME-encode the header (RFC 2047), hiding the <...> URIs;
+        # we must decode it before parsing, or it looks like "no target" (rescan)
+        enc = ("=?us-ascii?Q?=3Cmailto=3Aunsubscribe=40em=2Eexample=2Ecom"
+               "=3Fsubject=3Dstop=3E?=")
+        r = u.parse_list_unsubscribe(enc)
+        self.assertEqual(r["mailto"],
+                         "mailto:unsubscribe@em.example.com?subject=stop")
+
+    def test_mime_encoded_word_https_oneclick(self):
+        enc = "=?us-ascii?Q?=3Chttps=3A=2F=2Fx=2Eexample=2Fu=3Fid=3D1=3E?="
+        r = u.parse_list_unsubscribe(enc, "List-Unsubscribe=One-Click")
+        self.assertEqual(r["http"], "https://x.example/u?id=1")
+        self.assertTrue(r["oneclick"])
+
     def test_parse_mailto(self):
         to, subj, body = u.parse_mailto(
             "mailto:unsub@list.example?subject=Unsubscribe%20me&body=stop")

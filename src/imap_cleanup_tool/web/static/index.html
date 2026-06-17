@@ -1691,7 +1691,7 @@ function renderSpamSmtpBanner(smtpActive, emailTotal){
   const el=$('spamSmtpBanner'); if(!el) return;
   if(!smtpActive && emailTotal>0){
     el.classList.remove('hidden');
-    el.innerHTML='⚠️ <b>'+emailTotal+'</b> sender'+(emailTotal===1?'':'s')+' can only be unsubscribed by <b>email</b> (shown as <b>auto ✉</b>), but you have <b>no active SMTP profile</b> - those would fail. <a href="#" id="spamSmtpGo" class="underline font-semibold">Set one up in Notifications</a> to unsubscribe them automatically.';
+    el.innerHTML='⚠️ <b>'+emailTotal+'</b> sender'+(emailTotal===1?'':'s')+' need an <b>email</b> to unsubscribe (<b>auto ✉</b>), but you have <b>no active SMTP profile</b> - those will be <b>skipped</b>. The one-click <b>auto</b> and <b>link ↗</b> ones still work, so clicking <b>Unsubscribe</b> still processes them. <a href="#" id="spamSmtpGo" class="underline font-semibold">Set up SMTP in Notifications</a> to handle the email ones too.';
     const go=$('spamSmtpGo'); if(go) go.onclick=(e)=>{ e.preventDefault(); switchTab('notifications'); };
   } else { el.classList.add('hidden'); el.innerHTML=''; }
 }
