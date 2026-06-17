@@ -629,7 +629,7 @@ tailwind.config = { theme: { extend: {
         <input id="llmApiBase" class="field mt-1" placeholder="(default) or http://localhost:11434">
       </label>
       <label class="text-xs text-muted col-span-2">API key
-        <span class="tip"><span class="ic">i</span><span class="bub">Stored locally (SQLite). Not needed for local models. Tick "Encrypt" to protect it (encrypted = not usable in scheduling).</span></span>
+        <span class="tip"><span class="ic">i</span><span class="bub"><b>Optional.</b> Stored locally (SQLite). You can leave it blank and instead set the provider's <b>environment variable</b> before launching the app - litellm reads it automatically. Examples: <code>OPENAI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code>, <code>GEMINI_API_KEY</code>, <code>GROQ_API_KEY</code>, <code>OPENROUTER_API_KEY</code>. Not needed at all for <b>local</b> (Ollama) models. Tick "Encrypt" to protect a key you do store here (encrypted = not usable in scheduling).</span></span>
         <div class="flex gap-2 mt-1"><input id="llmKey" type="password" class="field" placeholder="sk-..."><button id="llmKeyToggle" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream">show</button></div>
       </label>
     </div>
@@ -1611,19 +1611,19 @@ function resetLLMForm(){
 }
 if($('btnCancelLLM')) $('btnCancelLLM').onclick=()=>{ resetLLMForm(); $('llmMsg').textContent=''; };
 const LLM_PRESETS={
+  // remote ids validated against the litellm package (model map); the field is
+  // still free text, so any other litellm id works too.
   remote:[
-    'gpt-4o-mini','gpt-4o','gpt-4.1','gpt-4.1-mini','gpt-4.1-nano','o3-mini','o1-mini','gpt-3.5-turbo',
-    'claude-3-5-sonnet-latest','claude-3-5-haiku-latest','claude-3-opus-latest','claude-3-haiku-20240307',
-    'gemini/gemini-2.0-flash','gemini/gemini-1.5-pro','gemini/gemini-1.5-flash',
-    'mistral/mistral-large-latest','mistral/mistral-small-latest','mistral/codestral-latest','mistral/open-mistral-nemo',
-    'cohere/command-r-plus','cohere/command-r',
-    'groq/llama-3.3-70b-versatile','groq/llama-3.1-8b-instant','groq/mixtral-8x7b-32768','groq/gemma2-9b-it',
-    'deepseek/deepseek-chat','deepseek/deepseek-reasoner',
-    'xai/grok-2-latest',
-    'openrouter/meta-llama/llama-3.1-8b-instruct','openrouter/anthropic/claude-3.5-sonnet','openrouter/google/gemini-2.0-flash-001','openrouter/deepseek/deepseek-chat',
-    'perplexity/llama-3.1-sonar-large-128k-online',
-    'together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo',
-    'azure/your-deployment-name','bedrock/anthropic.claude-3-5-sonnet-20240620-v1:0'
+    'gpt-4o-mini','gpt-4o','gpt-4.1','gpt-4.1-mini','gpt-4.1-nano','gpt-5','gpt-5-mini','o3-mini','o1','gpt-4-turbo','gpt-3.5-turbo',
+    'claude-sonnet-4-5','claude-sonnet-4-20250514','claude-opus-4-5','claude-haiku-4-5','claude-3-7-sonnet-20250219','claude-3-haiku-20240307',
+    'gemini/gemini-2.5-pro','gemini/gemini-2.5-flash','gemini/gemini-2.0-flash','gemini/gemini-2.0-flash-lite','gemini/gemini-1.5-flash',
+    'mistral/mistral-large-latest','mistral/mistral-medium-latest','mistral/mistral-small-latest','mistral/codestral-latest','mistral/open-mistral-nemo',
+    'command-r-plus','command-r','command-a-03-2025',
+    'groq/llama-3.3-70b-versatile','groq/llama-3.1-8b-instant','groq/qwen/qwen3-32b','groq/openai/gpt-oss-20b','groq/openai/gpt-oss-120b',
+    'deepseek/deepseek-chat','deepseek/deepseek-reasoner','deepseek/deepseek-r1',
+    'xai/grok-4-latest','xai/grok-3-latest','xai/grok-3-mini','xai/grok-2-latest',
+    'openrouter/anthropic/claude-3.5-sonnet',
+    'perplexity/sonar','perplexity/sonar-pro','perplexity/sonar-reasoning'
   ],
   local:[
     'ollama/llama3','ollama/llama3.1','ollama/llama3.2','ollama/llama3.3',
