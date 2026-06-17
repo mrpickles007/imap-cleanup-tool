@@ -1220,32 +1220,39 @@ def create_app():
         done, manual, failed = [], [], []
         for t in targets:
             addr = t["address"]
+            done_it = False
+            reason = ""
+            # 1) prefer the mailto path (most senders identify you by the To token)
             try:
                 if t["mailto"]:
                     if not smtp_ok:
-                        failed.append({"address": addr, "reason":
-                                       "no active SMTP profile (set one in "
-                                       "Notifications to send unsubscribe emails)"})
-                        continue
-                    to, subj, bod = unsub.parse_mailto(t["mailto"])
-                    notifications.send_from_active(to, subj, bod)
-                    done.append(addr)
-                    spamstore.mark_unsubscribed(sess.user, addr, "email",
-                                                "unsubscribe email sent", now)
-                elif t["http"] and t["oneclick"]:
-                    if unsub.http_one_click(t["http"]):
+                        reason = ("no active SMTP profile (set one in Notifications "
+                                  "to send unsubscribe emails)")
+                    else:
+                        to, subj, bod = unsub.parse_mailto(t["mailto"])
+                        notifications.send_from_active(to, subj, bod)
                         done.append(addr)
-                        spamstore.mark_unsubscribed(
-                            sess.user, addr, "oneclick",
-                            "one-click request confirmed (HTTP 2xx)", now)
-                    else:                               # POST failed -> open by hand
-                        manual.append({"address": addr, "url": t["http"]})
-                elif t["http"]:
-                    manual.append({"address": addr, "url": t["http"]})
-            except notifications.NotifyError as exc:
-                failed.append({"address": addr, "reason": str(exc)})
+                        spamstore.mark_unsubscribed(sess.user, addr, "email",
+                                                    "unsubscribe email sent", now)
+                        done_it = True
             except Exception as exc:  # pylint: disable=broad-exception-caught
-                failed.append({"address": addr, "reason": str(exc)})
+                reason = str(exc)
+            # 2) if the email path didn't work, fall back to the https link so the
+            #    user can still finish it (one-click if advertised, else by hand)
+            if not done_it and t["http"]:
+                if t["oneclick"] and unsub.http_one_click(t["http"]):
+                    done.append(addr)
+                    spamstore.mark_unsubscribed(
+                        sess.user, addr, "oneclick",
+                        "one-click request confirmed (HTTP 2xx)", now)
+                else:
+                    manual.append({"address": addr, "url": t["http"]})
+                done_it = True
+            # 3) nothing usable left - report why (with any link, for the UI)
+            if not done_it:
+                failed.append({"address": addr,
+                               "reason": reason or "no usable unsubscribe method",
+                               "url": t["http"] or ""})
         core.logger.info("Unsubscribe: %d auto, %d to open by hand, %d failed, "
                          "%d skipped (already done).",
                          len(done), len(manual), len(failed), skipped)

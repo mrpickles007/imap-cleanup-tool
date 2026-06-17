@@ -948,6 +948,18 @@ allows different mechanisms:
 - **Plain HTTPS link** (no one-click) → usually a **confirmation page** that
   **can't be automated**; you finish it by hand in the browser.
 
+**How the `mailto:` email works (and "is an empty email enough?").** The
+`List-Unsubscribe` `mailto:` carries a **unique token in the To address** (e.g.
+`unsub+ab12cd@list.example`); the sender identifies *which* subscription to cancel
+from that token, **not** from the message content. So the body barely matters - an
+empty email would usually work. The tool still sends a minimal, standards-friendly
+message: **Subject** and **Body** are taken from the `mailto:`'s `?subject=` /
+`?body=` parameters, falling back to `unsubscribe` when the sender doesn't specify
+them. The email is sent **from your active SMTP profile's From address**. Because
+almost all senders rely on the To token, this works regardless of the From; a
+**few** senders verify the From matches the originally-subscribed mailbox - for
+those, use an **SMTP profile for the same mailbox you are cleaning**.
+
 So the result is **automatic for most, plus open-the-page for the rest**. The
 **Unsub** column shows the state per sender:
 
@@ -969,8 +981,13 @@ them. If any selected sender can only be unsubscribed by **email** but you have 
 active SMTP profile, a banner points you to the **Notifications** tab to set one up.
 After
 the action you get a summary (*N unsubscribed automatically, M need a manual page,
-K failed*). Rather than blasting dozens of browser tabs (pop-up blockers eat them
-anyway), the list
+K failed*). When a sender can be unsubscribed by **email** but that path can't run
+(no active SMTP profile, or the send errors), it **falls back to the sender's HTTPS
+link** if there is one - so it becomes a **manual** row you can finish by hand
+rather than a hard failure. A sender only counts as **failed** when there is **no
+usable method left**, and the summary then shows the **reason** (e.g. *no active
+SMTP profile*) so you know what to fix. Rather than blasting dozens of browser tabs
+(pop-up blockers eat them anyway), the list
 then **filters itself to the manual ones** so they are the only rows left - open
 each with its per-row **`link ↗`**. You can reach that view any time with the
 **Unsub filter** at the top of the tab (`all` / `auto` / `manual` / `none`).
