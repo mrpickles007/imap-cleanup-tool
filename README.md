@@ -925,8 +925,9 @@ So the result is **automatic for most, plus open-the-page for the rest**. The
 - **`auto ✉`** - automatic via a `mailto:` (an email sent from your active SMTP
   profile). **`auto`** - automatic via a one-click HTTPS request (no SMTP needed).
 - **`link ↗`** - a confirmation page you open by hand.
-- **`rescan`** - a `List-Unsubscribe` was seen but no usable link is stored (the
-  headers were cached in an older format - clear the cache and run a fresh report).
+- **`rescan`** - a `List-Unsubscribe` was seen but no usable link is stored **yet**;
+  just **run a fresh AI report** and it is normally captured. If it still persists,
+  **clear the local cache** (connection card) and run the report again.
 - **`none`** - no `List-Unsubscribe` at all, so the sender can't be unsubscribed
   from here (you can still flag or remove it). Only senders that actually have the
   header can be unsubscribed.
