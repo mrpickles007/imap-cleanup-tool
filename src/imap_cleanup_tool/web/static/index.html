@@ -341,7 +341,7 @@ tailwind.config = { theme: { extend: {
     <section id="secOptions" class="bg-panel border border-line rounded-xl p-5">
       <h2 class="font-display font-semibold text-brand-light mb-3">Options</h2>
 
-      <label id="rowAI" class="flex items-center justify-between text-sm py-2 px-3 -mx-1 mb-3 rounded-lg cursor-pointer" style="background:rgba(24,144,216,.10);border:1px solid rgba(24,144,216,.4)">
+      <label id="rowAI" class="flex items-center justify-between text-base py-3 px-3.5 -mx-1 mb-3 rounded-lg cursor-pointer" style="background:rgba(24,144,216,.10);border:1px solid rgba(24,144,216,.4)">
         <span class="flex items-center font-semibold text-brand-light">✨ AI Cleanup
           <span class="tip"><span class="ic">i</span><span class="bub">Scores every sender with a <b>heuristic spam score</b> (List-Unsubscribe, unread ratio, send frequency, sender pattern, bulk), then - with a configured model - asks an LLM to judge the senders above your threshold. <b>Generate report</b> only analyzes; later, <b>Run</b> will also delete the confirmed ones. Selecting this disables the other actions and the match list (it looks at all senders).</span></span>
         </span>
