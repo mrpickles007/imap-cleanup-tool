@@ -643,7 +643,22 @@ tailwind.config = { theme: { extend: {
       </span>
       <input id="llmEncrypt" type="checkbox">
     </label>
-    <div id="llmSecretRow" class="hidden mb-1"><input id="llmSecret" type="password" class="field" placeholder="encryption password"></div>
+    <div id="llmSecretRow" class="hidden mb-1 space-y-2">
+      <div class="flex gap-2">
+        <input id="llmSecret" type="password" class="field" placeholder="Encryption passphrase" autocomplete="new-password">
+        <button id="llmSecretEye" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream text-sm">show</button>
+      </div>
+      <input id="llmSecret2" type="password" class="field" placeholder="Confirm passphrase" autocomplete="new-password">
+      <ul id="llmPwCriteria" class="text-[11px] space-y-0.5 mt-1">
+        <li data-c="len" class="text-muted"><span class="mark">○</span> at least 8 characters</li>
+        <li data-c="lower" class="text-muted"><span class="mark">○</span> a lowercase letter</li>
+        <li data-c="upper" class="text-muted"><span class="mark">○</span> an uppercase letter</li>
+        <li data-c="num" class="text-muted"><span class="mark">○</span> a number</li>
+        <li data-c="sym" class="text-muted"><span class="mark">○</span> a special character</li>
+        <li data-c="match" class="text-muted"><span class="mark">○</span> both passphrases match</li>
+      </ul>
+      <p class="text-[11px] text-muted">This passphrase is never stored - you'll need it to use the model (encrypted models can't run scheduled jobs).</p>
+    </div>
     <label class="flex items-center justify-between text-sm py-2">
       <span class="flex items-center">Keep track of costs
         <span class="tip"><span class="ic">i</span><span class="bub">Logs token usage and computes cost from the prices below (per <b>million</b> tokens). A per-model cost log is shown in the list.</span></span>
@@ -1582,7 +1597,7 @@ function editLLMModel(m){
   $('llmType').value=m.model.startsWith('ollama/')?'local':'remote';
   $('llmTrack').checked=!!m.track_costs; $('llmCostRow').classList.toggle('hidden',!m.track_costs);
   $('llmCostIn').value=m.cost_input||0; $('llmCostOut').value=m.cost_output||0;
-  $('llmEncrypt').checked=false; $('llmSecretRow').classList.add('hidden'); $('llmSecret').value='';
+  $('llmEncrypt').checked=false; $('llmSecretRow').classList.add('hidden'); $('llmSecret').value=''; $('llmSecret2').value=''; updateLlmSaveBtn();
   $('llmKey').value=''; $('llmKey').placeholder = m.has_key ? '(leave blank to keep current key)' : 'sk-... (none set)';
   $('btnSaveLLM').textContent='Update model'; $('btnCancelLLM').classList.remove('hidden');
   $('llmMsg').textContent='Editing "'+m.name+'" - name is locked (delete to rename). Leave the key blank to keep the current one.'; $('llmMsg').className='text-[11px] mt-2 text-muted';
@@ -1592,17 +1607,21 @@ function resetLLMForm(){
   EDITING_MODEL=null;
   $('llmName').value=''; $('llmName').readOnly=false; $('llmName').classList.remove('opacity-60');
   $('llmModel').value='gpt-4o-mini'; $('llmApiBase').value=''; $('llmType').value='remote';
-  $('llmKey').value=''; $('llmKey').placeholder='sk-...'; $('llmEncrypt').checked=false; $('llmSecretRow').classList.add('hidden'); $('llmSecret').value='';
+  $('llmKey').value=''; $('llmKey').placeholder='sk-...'; $('llmEncrypt').checked=false; $('llmSecretRow').classList.add('hidden'); $('llmSecret').value=''; $('llmSecret2').value='';
+  $('llmSecret').type='password'; $('llmSecret2').type='password'; if($('llmSecretEye'))$('llmSecretEye').textContent='show'; updateLlmSaveBtn();
   $('llmTrack').checked=false; $('llmCostRow').classList.add('hidden'); $('llmCostIn').value=0; $('llmCostOut').value=0;
   $('btnSaveLLM').textContent='Save model'; $('btnCancelLLM').classList.add('hidden');
 }
 if($('btnCancelLLM')) $('btnCancelLLM').onclick=()=>{ resetLLMForm(); $('llmMsg').textContent=''; };
 if($('llmType')) $('llmType').onchange=()=>{ if($('llmType').value==='local'){ if(!$('llmModel').value.startsWith('ollama/')) $('llmModel').value='ollama/llama3'; if(!$('llmApiBase').value) $('llmApiBase').value='http://localhost:11434'; } };
 if($('llmKeyToggle')) $('llmKeyToggle').onclick=()=>{ const k=$('llmKey'); k.type=k.type==='password'?'text':'password'; $('llmKeyToggle').textContent=k.type==='password'?'show':'hide'; };
-if($('llmEncrypt')) $('llmEncrypt').onchange=()=>$('llmSecretRow').classList.toggle('hidden', !$('llmEncrypt').checked);
+if($('llmEncrypt')) $('llmEncrypt').onchange=()=>{ $('llmSecretRow').classList.toggle('hidden', !$('llmEncrypt').checked); if($('llmEncrypt').checked) evalLlmPw(); updateLlmSaveBtn(); };
+if($('llmSecretEye')) $('llmSecretEye').onclick=()=>{ const t=$('llmSecret').type==='password'?'text':'password'; $('llmSecret').type=t; $('llmSecret2').type=t; $('llmSecretEye').textContent=t==='password'?'show':'hide'; };
+['llmSecret','llmSecret2','llmKey'].forEach(id=>{ if($(id)) $(id).addEventListener('input', updateLlmSaveBtn); });
 if($('llmTrack')) $('llmTrack').onchange=()=>$('llmCostRow').classList.toggle('hidden', !$('llmTrack').checked);
 if($('btnSaveLLM')) $('btnSaveLLM').onclick=async()=>{
   try{
+    if($('llmEncrypt').checked && (!$('llmKey').value || !evalLlmPw())){ $('llmMsg').textContent='Enter an API key and a passphrase that meets all the requirements.'; $('llmMsg').className='text-[11px] mt-2 text-danger'; return; }
     const editing = EDITING_MODEL!==null;
     const keyTyped = $('llmKey').value.length>0;
     const update_key = !editing || keyTyped;   // creating always sets the key; editing only if a new one is typed
@@ -2259,6 +2278,11 @@ function evalSmtpPw(){ return checkPwCriteria($('smSecret').value, $('smSecret2'
 function updateSmtpSaveBtn(){
   // when encrypting, require a password to encrypt + a strong, matching passphrase
   $('btnSaveSmtp').disabled = $('smEncrypt').checked && (!$('smKey').value || !evalSmtpPw());
+}
+function evalLlmPw(){ return checkPwCriteria($('llmSecret').value, $('llmSecret2').value, '#llmPwCriteria'); }
+function updateLlmSaveBtn(){
+  // when encrypting the API key, require a key to encrypt + a strong, matching passphrase
+  if($('btnSaveLLM')) $('btnSaveLLM').disabled = $('llmEncrypt').checked && (!$('llmKey').value || !evalLlmPw());
 }
 let saveWasEncrypted=false;   // whether the profile being (over)written is encrypted
 let saveReuseSecret='';       // passphrase already known (entered at load) -> reuse on re-save
