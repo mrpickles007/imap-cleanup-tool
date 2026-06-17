@@ -877,8 +877,9 @@ provide it:
 - **Scheduled jobs** can **not** use an encrypted profile (a cron has no one to
   type the passphrase). In the **Scheduling** tab each job has a **Notification
   SMTP profile** dropdown listing only the **non-encrypted** profiles (or *use
-  active*); if there are none, the job form says so and the job simply runs
-  **without** the email even when notifications are enabled.
+  active*), with a **Test** button to check the connection; if there are none, the
+  job form says so and the job simply runs **without** the email even when
+  notifications are enabled.
 
 For an **encrypted LLM model** used in an interactive AI run, you enter its
 passphrase in the **AI panel** before running (the *Password used to encrypt model*

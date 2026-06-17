@@ -532,9 +532,13 @@ tailwind.config = { theme: { extend: {
         <span class="block text-[11px] text-muted mt-1">Only non-encrypted profiles appear here - a cron can't type a password to decrypt one.</span>
       </label>
       <label class="text-xs text-muted col-span-2">Notification SMTP profile
-        <select id="jobSmtpProfile" class="field mt-1"></select>
+        <div class="flex gap-2 mt-1">
+          <select id="jobSmtpProfile" class="field"></select>
+          <button id="btnJobSmtpTest" type="button" class="px-3 rounded-lg border border-line text-cream hover:border-brand text-sm whitespace-nowrap" title="Test the connection to the selected SMTP server">Test</button>
+        </div>
         <span class="block text-[11px] text-muted mt-1">For this job's completion email. Only <b>non-encrypted</b> profiles (a cron can't type a passphrase). Leave on <i>use active profile</i> for the globally active one.</span>
         <p id="jobSmtpNote" class="hidden text-[11px] text-warn mt-1">⚠️ No non-encrypted SMTP profile available - this job will run <b>without notifications</b> even if they're enabled. Add a non-encrypted profile in the <b>Notifications</b> tab.</p>
+        <p id="jobSmtpTestMsg" class="hidden text-[11px] mt-1"></p>
       </label>
       <label class="text-xs text-muted">Name <input id="jobName" class="field mt-1" value="nightly_cleanup"></label>
       <label class="text-xs text-muted">Frequency
@@ -1420,6 +1424,14 @@ function populateJobSmtp(){
   }
   if($('jobSmtpNote')) $('jobSmtpNote').classList.toggle('hidden', plain.length>0);
 }
+if($('btnJobSmtpTest')) $('btnJobSmtpTest').onclick=async()=>{
+  const el=$('jobSmtpTestMsg'); const show=(t,cls)=>{ if(el){ el.classList.remove('hidden'); el.textContent=t; el.className='text-[11px] mt-1 '+cls; } };
+  const name=$('jobSmtpProfile').value || (NOTIFY_SETTINGS.active||'');
+  if(!name){ show('No SMTP profile to test - pick one (or set an active profile in Notifications).','text-warn'); return; }
+  show('Testing '+name+' …','text-muted');
+  try{ const r=await api('/api/smtp-test',{name, secret:''}); show((r.ok?'✓ ':'✗ ')+r.message, r.ok?'text-ok':'text-danger'); }
+  catch(e){ show('✗ '+e.message,'text-danger'); }
+};
 function populateJobProfiles(){
   const sel=$('jobProfile'); if(!sel) return;
   const cur=sel.value;
