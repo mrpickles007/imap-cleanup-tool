@@ -358,7 +358,10 @@ tailwind.config = { theme: { extend: {
           <select id="aiModel" class="field mt-1"></select>
         </label>
         <p id="aiNoModelNote" class="hidden text-[11px] text-warn -mt-1">No LLM model configured. You can still <b>Generate report</b> heuristic-only (tick <b>Skip LLM</b> below); <b>Run</b> (which deletes) needs a model. <b>Tip:</b> add a model in the <b>LLM</b> tab for a more precise, LLM-verified analysis.</p>
-        <input id="aiSecret" type="password" class="field hidden" placeholder="model password (encrypted model)">
+        <div id="aiSecretRow" class="hidden flex gap-2">
+          <input id="aiSecret" type="password" class="field" placeholder="Password used to encrypt model">
+          <button id="aiSecretEye" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream text-sm">show</button>
+        </div>
         <label class="text-xs text-muted block">Spam-score threshold: <b id="thrVal" class="text-cream">6.0</b> / 10
           <span class="tip"><span class="ic">i</span><span class="bub">Only senders scoring at or above this are flagged (and later sent to the LLM / deleted on Run). Higher = stricter, fewer senders.</span></span>
           <input id="aiThreshold" type="range" min="0" max="10" step="0.1" value="6" class="w-full mt-1">
@@ -991,11 +994,12 @@ function promptDialog(opts){
     ov.innerHTML='<div class="bg-panel border border-line rounded-xl p-5 w-full max-w-sm">'
       +'<h3 class="font-display font-semibold text-brand-light mb-2">'+escapeHtml(opts.title||'Enter value')+'</h3>'
       +'<p class="text-muted text-sm mb-3">'+escapeHtml(opts.message||'')+'</p>'
-      +'<input type="'+(opts.type||'password')+'" class="field" placeholder="'+escapeHtml(opts.placeholder||'')+'">'
+      +'<div class="flex gap-2"><input type="'+(opts.type||'password')+'" class="field" placeholder="'+escapeHtml(opts.placeholder||'')+'"><button data-x="eye" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream text-sm">show</button></div>'
       +'<div class="flex justify-end gap-2 mt-4"><button data-x="c" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Cancel</button>'
       +'<button data-x="o" class="px-4 py-2 rounded-lg font-semibold bg-brand text-ink hover:bg-brand-light">OK</button></div></div>';
     document.body.appendChild(ov);
     const inp=ov.querySelector('input'); setTimeout(()=>inp.focus(),50);
+    const eye=ov.querySelector('[data-x=eye]'); if(eye) eye.onclick=()=>{ inp.type=inp.type==='password'?'text':'password'; eye.textContent=inp.type==='password'?'show':'hide'; };
     const done=(v)=>{ ov.remove(); resolve(v); };
     ov.querySelector('[data-x=o]').onclick=()=>done(inp.value);
     ov.querySelector('[data-x=c]').onclick=()=>done(null);
@@ -1534,8 +1538,9 @@ function aiPayload(){
 }
 function updateAiSecret(){
   const sel=$('aiModel'); const m=LLM_MODELS.find(x=>x.name===(sel?sel.value:''));
-  if($('aiSecret')) $('aiSecret').classList.toggle('hidden', !(m && m.encrypted));
+  if($('aiSecretRow')) $('aiSecretRow').classList.toggle('hidden', !(m && m.encrypted));
 }
+if($('aiSecretEye')) $('aiSecretEye').onclick=()=>{ const i=$('aiSecret'); i.type=i.type==='password'?'text':'password'; $('aiSecretEye').textContent=i.type==='password'?'show':'hide'; };
 // Note: the "Enable local cache" flag just controls whether this run reads/writes
 // the cache. When OFF, an existing cache is simply left untouched (it self-heals
 // when re-enabled - only missing UIDs are fetched), so there is nothing to delete

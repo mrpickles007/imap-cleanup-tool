@@ -858,8 +858,25 @@ Get an email when a cleanup finishes. Configure it in the **Notifications** tab:
   *Empty folder* job on `[Gmail]/Trash`).
 
 Sending uses the Python standard library (`smtplib`), so notifications also fire
-for scheduled CLI jobs. Scheduled jobs require a **non-encrypted** active profile
-(no one is there to type the passphrase).
+for scheduled CLI jobs.
+
+**Encrypted active profile - when the passphrase is asked.** The passphrase is
+**never stored**, so an encrypted profile can only send when you are there to
+provide it:
+
+- **Send test email** (and a `mailto:` **bulk unsubscribe**) prompt for the
+  passphrase **at send time**.
+- **Interactive runs** - **Run**, **AI Cleanup**, and **Generate report** - with
+  *notifications for interactive runs* enabled ask for the passphrase **up front,
+  before the run starts** (kept in memory for that session only); the completion
+  email is then sent. **Cancel / leave it blank** to run **without** the email -
+  the run itself is unaffected.
+- **Scheduled jobs** can **not** use an encrypted profile (a cron has no one to
+  type the passphrase) - use a **non-encrypted** active profile for those.
+
+The same up-front prompt applies to an **encrypted LLM model** used in an
+interactive AI run: you enter its passphrase in the **AI panel** before running
+(scheduled AI jobs likewise need a non-encrypted model).
 
 ---
 
