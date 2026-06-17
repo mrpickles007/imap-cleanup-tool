@@ -648,6 +648,7 @@ tailwind.config = { theme: { extend: {
       </span>
       <input id="llmEncrypt" type="checkbox" disabled>
     </label>
+    <p id="llmEncNote" class="hidden text-[11px] text-ok -mt-1 mb-1">🔒 This model's key is <b>encrypted</b>. Leave the key blank to <b>keep it</b> (and its passphrase); type a new one to change it.</p>
     <div id="llmSecretRow" class="hidden mb-1 space-y-2">
       <div class="flex gap-2">
         <input id="llmSecret" type="password" class="field" placeholder="Encryption passphrase" autocomplete="new-password">
@@ -712,6 +713,7 @@ tailwind.config = { theme: { extend: {
       </span>
       <input id="smEncrypt" type="checkbox" disabled>
     </label>
+    <p id="smEncNote" class="hidden text-[11px] text-ok -mt-1 mb-1">🔒 This profile is <b>encrypted</b>. Leave the password blank to <b>keep it</b> (and its passphrase); type a new one to change it.</p>
     <div id="smSecretRow" class="hidden mb-1 space-y-2">
       <div class="flex gap-2">
         <input id="smSecret" type="password" class="field" placeholder="Encryption passphrase" autocomplete="new-password">
@@ -1600,6 +1602,7 @@ async function loadLLMModels(){
 let EDITING_MODEL=null;
 function editLLMModel(m){
   EDITING_MODEL=m.name; llmWasEncrypted=!!m.encrypted;
+  if($('llmEncNote')) $('llmEncNote').classList.toggle('hidden', !llmWasEncrypted);
   $('llmName').value=m.name; $('llmName').readOnly=true; $('llmName').classList.add('opacity-60');
   $('llmModel').value=m.model; $('llmApiBase').value=m.api_base||'';
   $('llmType').value=m.model.startsWith('ollama/')?'local':'remote'; populateLlmPresets(); setLlmEdit(false);
@@ -1614,6 +1617,7 @@ function editLLMModel(m){
 }
 function resetLLMForm(){
   EDITING_MODEL=null; llmWasEncrypted=false;
+  if($('llmEncNote')) $('llmEncNote').classList.add('hidden');
   $('llmName').value=''; $('llmName').readOnly=false; $('llmName').classList.remove('opacity-60');
   $('llmModel').value='gpt-4o-mini'; $('llmApiBase').value=''; $('llmType').value='remote'; populateLlmPresets(); setLlmEdit(false);
   $('llmKey').value=''; $('llmKey').placeholder='sk-...'; $('llmEncrypt').checked=false; $('llmSecretRow').classList.add('hidden'); $('llmSecret').value=''; $('llmSecret2').value='';
@@ -1791,6 +1795,7 @@ async function smtpTest(p){
 }
 function editSmtp(p){
   EDITING_SMTP=p.name; smWasEncrypted=!!p.encrypted;
+  if($('smEncNote')) $('smEncNote').classList.toggle('hidden', !smWasEncrypted);
   $('smName').value=p.name; $('smName').readOnly=true; $('smName').classList.add('opacity-60');
   $('smHost').value=p.host; $('smPort').value=p.port; $('smSecurity').value=p.security||'starttls';
   $('smUser').value=p.user||''; $('smFrom').value=p.from_addr||'';
@@ -1803,6 +1808,7 @@ function editSmtp(p){
 }
 function resetSmtpForm(){
   EDITING_SMTP=null; smWasEncrypted=false;
+  if($('smEncNote')) $('smEncNote').classList.add('hidden');
   ['smName','smHost','smUser','smFrom','smKey','smSecret','smSecret2'].forEach(id=>$(id).value='');
   $('smName').readOnly=false; $('smName').classList.remove('opacity-60');
   $('smPort').value='587'; $('smSecurity').value='starttls'; $('smKey').placeholder='SMTP password / API key';
