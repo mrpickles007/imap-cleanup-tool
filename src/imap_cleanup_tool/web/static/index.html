@@ -1544,6 +1544,7 @@ $('btnAiReport').onclick=async()=>{ if(!SID){ log('[ERROR] Not connected.'); ret
   const p=aiPayload();
   if($('aiSkipLlm') && $('aiSkipLlm').checked){ p.model=''; log('Generating heuristic-only report (LLM skipped) on: '+p.folders.join(', ')+' …'); }
   else log('Generating AI report on: '+p.folders.join(', ')+' …');
+  await ensureSmtpNotifySecret(); p.notify_secret=smtpNotifySecret;
   startJob('/api/ai-report', p); };
 async function loadAiReports(){
   const sel=$('aiReportList'); if(!sel) return;
@@ -1735,6 +1736,8 @@ $('costModal').onclick=(e)=>{ if(e.target.id==='costModal') $('costModal').class
 /* ---------- Notifications tab (SMTP profiles + settings) ---------- */
 let SMTP_PROFILES=[], SMTP_PROVIDERS_DONE=false, EDITING_SMTP=null;
 let smWasEncrypted=false, llmWasEncrypted=false;   // was the edited profile/model encrypted?
+let NOTIFY_SETTINGS={};                             // saved notification settings (active/notify_runs/…)
+let smtpNotifySecret='', smtpNotifyDeclined=false;  // SMTP passphrase for run emails (memory only)
 function fillSmtpProviders(){
   if(SMTP_PROVIDERS_DONE) return; const sel=$('smProvider'); if(!sel) return;
   (META.smtp_providers||[]).forEach((p,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=p.name; sel.appendChild(o); });
@@ -1758,12 +1761,27 @@ if($('smEncrypt')) $('smEncrypt').onchange=()=>{ $('smSecretRow').classList.togg
 if($('smSecretEye')) $('smSecretEye').onclick=()=>{ const t=$('smSecret').type==='password'?'text':'password'; $('smSecret').type=t; $('smSecret2').type=t; $('smSecretEye').textContent=t==='password'?'show':'hide'; };
 ['smSecret','smSecret2'].forEach(id=>{ if($(id)) $(id).addEventListener('input', updateSmtpSaveBtn); });
 if($('smKey')) $('smKey').addEventListener('input', ()=>{ syncSmtpEncryptEnabled(); updateSmtpSaveBtn(); });
+// When run-notifications are on and the active SMTP profile is encrypted, the
+// completion email can't be sent unattended - so we collect the passphrase up-front.
+function activeSmtpNeedsSecret(){
+  const active = NOTIFY_SETTINGS.active || '';
+  if(!active || !NOTIFY_SETTINGS.notify_runs) return false;
+  const p = (SMTP_PROFILES||[]).find(x=>x.name===active);
+  return !!(p && p.encrypted);
+}
+async function ensureSmtpNotifySecret(){
+  if(!activeSmtpNeedsSecret() || smtpNotifySecret || smtpNotifyDeclined) return;
+  const pw = await promptDialog({title:'Notification email passphrase',
+    message:'A completion email is set to be sent, and your active SMTP profile is encrypted. Enter its passphrase so the email can be sent.\n\nKept only in memory for this session. Leave blank / cancel to run without the email.', okText:'OK'});
+  if(pw) smtpNotifySecret = pw; else smtpNotifyDeclined = true;
+}
 async function loadSmtp(){
   fillSmtpProviders();
   try{ const d=await (await fetch('/api/smtp-profiles')).json(); SMTP_PROFILES=d.profiles||[]; renderSmtp(d.settings||{}); }
   catch(e){ /* ignore */ }
 }
 function renderSmtp(settings){
+  NOTIFY_SETTINGS = settings || {};
   // active-profile dropdown
   const act=$('smActive'); if(act){ const cur=settings.active||act.value; act.innerHTML='';
     const none=document.createElement('option'); none.value=''; none.textContent='— none —'; act.appendChild(none);
@@ -1830,6 +1848,8 @@ if($('btnSaveSmtp')) $('btnSaveSmtp').onclick=async()=>{
 };
 if($('btnSaveNotify')) $('btnSaveNotify').onclick=async()=>{
   try{ await api('/api/notify-settings',{ active:$('smActive').value, notify_to:$('smTo').value, notify_jobs:$('smNotifyJobs').checked, notify_runs:$('smNotifyRuns').checked });
+    NOTIFY_SETTINGS={active:$('smActive').value, notify_to:$('smTo').value, notify_jobs:$('smNotifyJobs').checked, notify_runs:$('smNotifyRuns').checked};
+    smtpNotifySecret=''; smtpNotifyDeclined=false;   // settings changed -> re-ask if needed
     $('smNotifyMsg').textContent='Settings saved.'; $('smNotifyMsg').className='text-[11px] mt-2 text-ok'; }
   catch(e){ $('smNotifyMsg').textContent='Error: '+e.message; $('smNotifyMsg').className='text-[11px] mt-2 text-danger'; }
 };
@@ -2092,7 +2112,7 @@ function prefillSelfExclude(){
   if(!lines.some(l=>l.toLowerCase()===addr.toLowerCase())){ lines.unshift(addr); box.value=lines.join('\n'); }
   selfExcludeAddr=addr;
 }
-$('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setStatus(false,'disconnected'); setConnectedUI(false); removeSelfExclude(); loadAiReports(); refreshLoadSpam(); refreshCacheInfo(); Object.keys(unlockedSecrets).forEach(k=>delete unlockedSecrets[k]); log('Disconnected.'); };
+$('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setStatus(false,'disconnected'); setConnectedUI(false); removeSelfExclude(); loadAiReports(); refreshLoadSpam(); refreshCacheInfo(); Object.keys(unlockedSecrets).forEach(k=>delete unlockedSecrets[k]); smtpNotifySecret=''; smtpNotifyDeclined=false; log('Disconnected.'); };
 $('btnValidate').onclick=async()=>{ try{ const d=await api('/api/validate-rule',{tree:toTree(ROOT)}); $('ruleOut').textContent='OK → SEARCH '+d.search; $('ruleOut').className='text-xs text-ok ml-2'; }catch(e){ $('ruleOut').textContent=e.message; $('ruleOut').className='text-xs text-danger ml-2'; } };
 $('btnStop').onclick=async()=>{ if(SID&&curRunId){ $('btnStop').disabled=true; $('btnStop').textContent='Stopping…'; try{ await api(`/api/stop/${SID}/${curRunId}`); log('Stop requested - finishing the current batch, then stopping…'); }catch(e){} } };
 $('btnSenders').onclick=async()=>{ if(!(await ensureFolderChosen())) return; log('Listing senders in: '+(selectedFolders.join(', ')||'INBOX')+' …'); startJob('/api/senders',{sid:SID,folders:selectedFolders.length?selectedFolders:['INBOX'],batch_size:parseInt($('batch').value)||500}); };
@@ -2124,6 +2144,7 @@ $('btnRun').onclick=async ()=>{
     if(!$('aiModel').value){ log('[ERROR] Choose a model in the AI panel (configure one in the LLM tab).'); return; }
     const ap=aiPayload();
     if(!ap.dry_run && !(await confirmDialog({title:'AI Cleanup - not a dry-run', message:'The AI will judge the flagged senders and DELETE the confirmed ones in:\n'+ap.folders.join(', ')+'\n\nContinue?', okText:'Run AI cleanup', danger:true}))) return;
+    await ensureSmtpNotifySecret(); ap.notify_secret=smtpNotifySecret;
     log((ap.dry_run?'[DRY-RUN] ':'')+'AI Cleanup on: '+ap.folders.join(', ')+' …'); startJob('/api/ai-run', ap, !ap.dry_run); return;
   }
   if(!(await ensureFolderChosen())) return;
@@ -2140,6 +2161,7 @@ $('btnRun').onclick=async ()=>{
     else { what='Flag matched messages as deleted in';
       note='\n\nNote: without Expunge, messages are only flagged \\Deleted (hidden but recoverable) - they are NOT permanently removed. Enable Expunge to delete for good.'; }
     if(!(await confirmDialog({title:'This is not a dry-run', message:'About to '+what+':\n'+p.folders.join(', ')+note+'\n\nContinue?', okText:'Run for real', danger:true}))) return; }
+  await ensureSmtpNotifySecret(); p.notify_secret=smtpNotifySecret;
   log((p.dry_run?'[DRY-RUN] ':'')+'Starting on: '+p.folders.join(', ')); startJob('/api/run',p, !p.dry_run);
 };
 async function confirmJobOverwrite(){
@@ -2564,7 +2586,7 @@ function maybeAutoTour(){
   if(!done) setTimeout(startTour, 700);   // first access: show it once
 }
 
-loadMeta().then(()=>{ refreshConditional(); restore(); restoreUiState(); loadLLMModels(); loadAiReports(); refreshLoadSpam(); refreshCacheInfo(); maybeAutoTour(); });
+loadMeta().then(()=>{ refreshConditional(); restore(); restoreUiState(); loadLLMModels(); loadAiReports(); refreshLoadSpam(); refreshCacheInfo(); loadSmtp(); maybeAutoTour(); });
 
 // Blink the provider user/password tooltips at random intervals to draw the
 // eye - only while NOT connected, and only for tips that are actually shown.

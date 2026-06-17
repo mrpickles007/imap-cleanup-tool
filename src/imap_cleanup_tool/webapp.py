@@ -339,6 +339,7 @@ def create_app():
 
     class RunIn(Match, Options):
         sid: str
+        notify_secret: str = ""          # SMTP passphrase for the completion email
 
     class CreateFolderIn(BaseModel):
         sid: str
@@ -358,6 +359,7 @@ def create_app():
         expunge: bool = False                # used by /api/ai-run
         flag_spam: bool = False              # move 1 msg/confirmed sender to Junk
         check_spam: bool = True              # skip already-saved spam from the LLM
+        notify_secret: str = ""              # SMTP passphrase for the report/run email
 
     class LLMModelIn(BaseModel):
         name: str
@@ -681,19 +683,25 @@ def create_app():
         return notifications.get_settings()
 
     def _notify_run(account, folders, total, *, dry_run, gmail,
-                    kind="Cleanup", dest="") -> None:
-        """Send a run-completion email if 'notify on runs' is enabled (best effort)."""
+                    kind="Cleanup", dest="", secret="") -> None:
+        """Send a run-completion email if 'notify on runs' is enabled (best effort).
+
+        ``secret`` is the SMTP passphrase when the active profile is encrypted
+        (collected up-front by the UI); without it an encrypted profile is skipped.
+        """
         try:
             subj, body = notifications.cleanup_summary(
                 account, folders, total, dry_run=dry_run, gmail=gmail, kind=kind,
                 dest=dest)
-            if notifications.send_notification(subj, body, when="run"):
+            if notifications.send_notification(subj, body, when="run",
+                                               secret=secret):
                 core.logger.info("Notification email sent to the configured "
                                  "recipient.")
         except notifications.NotifyError as exc:
             core.logger.warning("Notification email not sent: %s", exc)
 
-    def _notify_report(account, report, filename: str = "ai_report.csv") -> None:
+    def _notify_report(account, report, filename: str = "ai_report.csv",
+                       secret: str = "") -> None:
         """Email the AI report as a CSV attachment if 'notify on runs' is on.
 
         ``filename`` should match the report's saved-on-disk name so the emailed
@@ -710,7 +718,7 @@ def create_app():
                     f"The full report is attached as CSV.\n\n- imap-cleanup-tool")
             csv_text = core.ai_report_csv(report)
             if notifications.send_notification(
-                    subject, body, when="run",
+                    subject, body, when="run", secret=secret,
                     attachments=[(filename, csv_text)]):
                 core.logger.info("Report emailed to the configured recipient.")
         except notifications.NotifyError as exc:
@@ -830,7 +838,7 @@ def create_app():
                 kind = "Cleanup"
             _notify_run(sess.user, folders, total, dry_run=body.dry_run,
                         gmail=body.gmail_trash and not body.move, kind=kind,
-                        dest=dest)
+                        dest=dest, secret=body.notify_secret)
 
         run_state = _start_run(sess, "run", work)
         return {"run_id": run_state.run_id}
@@ -1017,7 +1025,8 @@ def create_app():
             saved = _save_ai_report(report, sess.user)
             _record_spam(sess, report, "report")
             _notify_report(sess.user, report,
-                           saved.name if saved else "ai_report.csv")
+                           saved.name if saved else "ai_report.csv",
+                           secret=body.notify_secret)
 
         run_state = _start_run(sess, "ai-report", work)
         return {"run_id": run_state.run_id}
@@ -1070,7 +1079,7 @@ def create_app():
             verb = "would be deleted" if body.dry_run else "deleted"
             core.logger.info("=> AI Cleanup: %d message(s) %s.", total, verb)
             _notify_run(sess.user, folders, total, dry_run=body.dry_run,
-                        gmail=gmail, kind="AI Cleanup")
+                        gmail=gmail, kind="AI Cleanup", secret=body.notify_secret)
 
         run_state = _start_run(sess, "ai-run", work)
         return {"run_id": run_state.run_id}
