@@ -1763,12 +1763,19 @@ if($('spamUnsub')) $('spamUnsub').onclick=async()=>{
     const r=await api('/api/spam-unsubscribe',{sid:SID,addresses:addrs});
     const auto=(r.unsubscribed||[]).length, manual=(r.manual||[]), failed=(r.failed||[]).length;
     const noMethod=Math.max(0,(r.requested||0)-(r.with_method||0));
-    manual.forEach(m=>{ try{ window.open(m.url,'_blank','noopener'); }catch(_){} });   // open confirmation pages
     let msg='Unsubscribed '+auto+' automatically';
-    if(manual.length) msg+=', '+manual.length+' opened to finish by hand';
+    if(manual.length) msg+=', '+manual.length+' need a manual confirmation page';
     if(failed) msg+=', '+failed+' failed';
     if(noMethod) msg+=', '+noMethod+' had no unsubscribe info (run a fresh AI report to detect it)';
     spamMsg(msg+'.', failed?'text-warn':'text-ok');
+    // Don't blast dozens of tabs (popup blockers eat them). Ask, then open in
+    // small waves; the per-row "link ↗" stays as the reliable fallback.
+    if(manual.length){
+      const ok=await confirmDialog({title:'Open confirmation pages?',
+        message:manual.length+' sender(s) can\'t be unsubscribed automatically - each needs a confirmation page. Open them now in new tabs? Your browser may block several at once; you can always click the "link ↗" in each row instead.',
+        okText:'Open '+manual.length+' page'+(manual.length===1?'':'s'), cancelText:'Not now'});
+      if(ok){ manual.forEach(m=>{ try{ window.open(m.url,'_blank','noopener'); }catch(_){} }); }
+    }
   }catch(e){ spamMsg('Error: '+e.message,'text-danger'); }
 };
 if($('spamFlag')) $('spamFlag').onclick=async()=>{

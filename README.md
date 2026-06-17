@@ -893,14 +893,16 @@ allows different mechanisms:
 - **HTTPS one-click** (RFC 8058, the sender advertises `List-Unsubscribe-Post`) →
   a single **HTTPS POST**. Fully **automatic**.
 - **Plain HTTPS link** (no one-click) → usually a **confirmation page** that
-  **can't be automated**; the tool **opens it in your browser** so you finish by
-  hand.
+  **can't be automated**; you finish it by hand in the browser.
 
 So the result is **automatic for most, plus open-the-page for the rest**. The
 **Unsub** column shows which is which per sender: **`auto`** (will be done for
 you) or a **`link ↗`** (opens the page); blank means no `List-Unsubscribe` was
-seen (run a fresh AI report to detect it). After the action you get a summary:
-*N unsubscribed automatically, M opened to finish by hand, K failed*.
+seen (run a fresh AI report to detect it). After the action you get a summary
+(*N unsubscribed automatically, M need a manual page, K failed*) and, if there are
+manual ones, it **asks before opening** their pages - so it never blasts dozens of
+tabs at you. Browsers may still block several pop-ups at once, so the per-row
+**`link ↗`** is always there as the reliable way to open them one by one.
 
 > ⚠️ This makes **outbound requests** (an email and/or web POST/GET), so it's a
 > deliberate step. Use it for **newsletters** (legitimate senders with a
