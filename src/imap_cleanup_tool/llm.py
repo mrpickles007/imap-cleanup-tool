@@ -18,6 +18,7 @@ only when encrypting.
 from __future__ import annotations
 
 import base64
+import json
 import os
 import sqlite3
 from datetime import datetime
@@ -221,6 +222,52 @@ def load_model(name: str, secret: str = "") -> dict:
             "encrypted": bool(row["encrypted"]),
             "track_costs": bool(row["track_costs"]),
             "cost_input": row["cost_input"], "cost_output": row["cost_output"]}
+
+
+def user_presets() -> dict:
+    """User-added model presets for the picker, as ``{"remote": [...], "local": [...]}``.
+
+    Stored in the ``meta`` table (key ``user_presets``) so they persist locally and
+    survive package upgrades (unlike the bundled ``assets/llm_models.json``).
+    """
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT value FROM meta WHERE key='user_presets'").fetchone()
+    finally:
+        conn.close()
+    if row:
+        try:
+            data = json.loads(row["value"])
+            if isinstance(data, dict):
+                return {"remote": list(data.get("remote") or []),
+                        "local": list(data.get("local") or [])}
+        except (ValueError, TypeError):
+            pass
+    return {"remote": [], "local": []}
+
+
+def add_user_preset(kind: str, value: str) -> bool:
+    """Add a model id to the user's preset list for ``kind`` ('remote'|'local').
+
+    Returns True if stored (or already present). No-op for empty values.
+    """
+    kind = kind if kind in ("remote", "local") else "remote"
+    value = (value or "").strip()
+    if not value:
+        return False
+    data = user_presets()
+    if value not in data[kind]:
+        data[kind].append(value)
+    conn = _connect()
+    try:
+        conn.execute(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES ('user_presets', ?)",
+            (json.dumps(data),))
+        conn.commit()
+    finally:
+        conn.close()
+    return True
 
 
 def delete_model(name: str) -> None:

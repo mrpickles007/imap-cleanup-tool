@@ -25,6 +25,20 @@ class LLMConfigTests(unittest.TestCase):
                 self.assertEqual(loaded["api_key"], "sk-test")
                 self.assertEqual(loaded["model"], "gpt-4o-mini")
 
+    def test_user_presets_add_and_persist(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(llm, "config_dir", return_value=Path(tmp)):
+                self.assertEqual(llm.user_presets(), {"remote": [], "local": []})
+                self.assertTrue(llm.add_user_preset("remote", "my/custom-model"))
+                self.assertTrue(llm.add_user_preset("local", "ollama/my-model"))
+                # duplicates are ignored; empty is a no-op; unknown kind -> remote
+                llm.add_user_preset("remote", "my/custom-model")
+                self.assertFalse(llm.add_user_preset("remote", "   "))
+                llm.add_user_preset("bogus", "x/y")
+                p = llm.user_presets()
+                self.assertEqual(p["remote"], ["my/custom-model", "x/y"])
+                self.assertEqual(p["local"], ["ollama/my-model"])
+
     def test_encrypted_needs_secret(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(llm, "config_dir", return_value=Path(tmp)):

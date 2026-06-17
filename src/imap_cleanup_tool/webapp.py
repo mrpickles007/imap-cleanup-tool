@@ -87,15 +87,29 @@ def _load_smtp_providers() -> list:
 
 def _load_llm_models() -> dict:
     """Load the LLM model presets (``{"remote": [...], "local": [...]}``) used by
-    the model-string picker. Free text is still allowed, so this is a shortlist."""
+    the model-string picker: the bundled shortlist plus the user's own saved presets
+    (which persist locally). Free text is still allowed, so this is just a shortlist."""
+    bundled = {"remote": ["gpt-4o-mini", "gpt-4o"], "local": ["ollama/llama3"]}
     try:
         data = json.loads(MODELS_FILE.read_text(encoding="utf-8"))
         if isinstance(data, dict) and (data.get("remote") or data.get("local")):
-            return {"remote": list(data.get("remote") or []),
-                    "local": list(data.get("local") or [])}
+            bundled = {"remote": list(data.get("remote") or []),
+                       "local": list(data.get("local") or [])}
     except (OSError, ValueError):
         pass
-    return {"remote": ["gpt-4o-mini", "gpt-4o"], "local": ["ollama/llama3"]}
+    try:
+        from . import llm
+        user = llm.user_presets()
+    except Exception:  # pylint: disable=broad-exception-caught
+        user = {"remote": [], "local": []}
+    out = {}
+    for kind in ("remote", "local"):
+        seen = []
+        for m in list(bundled.get(kind, [])) + list(user.get(kind, [])):
+            if m and m not in seen:
+                seen.append(m)
+        out[kind] = seen
+    return out
 
 
 def _safe_job_name(name: str) -> str:
@@ -346,6 +360,10 @@ def create_app():
         cost_input: float = 0.0
         cost_output: float = 0.0
         update_key: bool = True          # False = keep the stored key when editing
+
+    class LlmPresetIn(BaseModel):
+        kind: str = "remote"             # 'remote' | 'local'
+        value: str
 
     class SmtpProfileIn(BaseModel):
         name: str
@@ -706,6 +724,12 @@ def create_app():
     def delete_llm_model(name: str) -> dict[str, Any]:
         llm.delete_model(name)
         return {"deleted": name}
+
+    @app.post("/api/llm-presets")
+    def add_llm_preset(body: LlmPresetIn) -> dict[str, Any]:
+        """Save a custom model id to the user's presets; returns the merged list."""
+        llm.add_user_preset(body.kind, body.value)
+        return {"models": _load_llm_models()}
 
     @app.post("/api/senders")
     def senders(body: SendersIn) -> dict[str, Any]:
