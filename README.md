@@ -380,9 +380,13 @@ your IMAP server**, so on a slow provider each report is slow again.
 That is why **Enable local cache** (in the connection card) is **on by default**.
 You can untick it; the setting is **saved with the connection profile**, and on
 the CLI it is opt-in via `--local-cache` (or carried by a saved profile). With it
-on, the tool caches the immutable header fields (`From` / `Date` / `Subject`) on
-your machine, keyed by message **UID**; the next time only the **new** messages
-are fetched, so repeat reports are near-instant. The cache is **per account**.
+on, the tool caches the **immutable** header fields on your machine, keyed by
+message **UID**: `From`, `Date`, `Subject`, the `List-Unsubscribe` /
+`List-Unsubscribe-Post` info (so one-click unsubscribe data is cached too) and the
+`Precedence: bulk` marker. **No message bodies** are ever stored, and the volatile
+`\Seen` (read/unread) flag is **not** cached - it is always re-read fresh so unread
+counts stay accurate. The next time, only the **new** messages are fetched, so
+repeat reports are near-instant. The cache is **per account**.
 
 The cache applies to **every operation that downloads headers**: AI reports/runs,
 **List senders**, and matching with **`--scan-mode full`** (interactive *and*
@@ -899,10 +903,11 @@ So the result is **automatic for most, plus open-the-page for the rest**. The
 **Unsub** column shows which is which per sender: **`auto`** (will be done for
 you) or a **`link ↗`** (opens the page); blank means no `List-Unsubscribe` was
 seen (run a fresh AI report to detect it). After the action you get a summary
-(*N unsubscribed automatically, M need a manual page, K failed*) and, if there are
-manual ones, it **asks before opening** their pages - so it never blasts dozens of
-tabs at you. Browsers may still block several pop-ups at once, so the per-row
-**`link ↗`** is always there as the reliable way to open them one by one.
+(*N unsubscribed automatically, M need a manual page, K failed*). Rather than
+blasting dozens of browser tabs (pop-up blockers eat them anyway), the list then
+**filters itself to the manual ones** so they are the only rows left - open each
+with its per-row **`link ↗`**. You can reach that view any time with the **Unsub
+filter** at the top of the tab (`all` / `auto` / `manual` / `none`).
 
 > ⚠️ This makes **outbound requests** (an email and/or web POST/GET), so it's a
 > deliberate step. Use it for **newsletters** (legitimate senders with a

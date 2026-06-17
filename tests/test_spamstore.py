@@ -174,6 +174,39 @@ class SpamStoreTests(unittest.TestCase):
                 self.assertEqual(t["auto@x.com"]["mailto"],
                                  "mailto:u@x.com?subject=stop")
 
+    def test_unsub_capability_filter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):
+                s1 = _sender("auto@x.com", 9)
+                s1["unsub_mailto"] = "mailto:u@x.com"
+                s1["unsub_http"] = None; s1["unsub_oneclick"] = False
+                s2 = _sender("oneclick@x.com", 8)
+                s2["unsub_mailto"] = None
+                s2["unsub_http"] = "https://x.com/u"; s2["unsub_oneclick"] = True
+                s3 = _sender("manual@x.com", 7)
+                s3["unsub_mailto"] = None
+                s3["unsub_http"] = "https://x.com/page"; s3["unsub_oneclick"] = False
+                s4 = _sender("none@x.com", 6)  # no List-Unsubscribe at all
+                ss.record_from_report("a@x.com",
+                                      _report([s1, s2, s3, s4]), "report")
+
+                def addrs(unsub):
+                    return {it["address"] for it in ss.list_addresses(
+                        "a@x.com", limit=50, unsub=unsub)["items"]}
+
+                self.assertEqual(addrs("all"),
+                                 {"auto@x.com", "oneclick@x.com",
+                                  "manual@x.com", "none@x.com"})
+                self.assertEqual(addrs("auto"),
+                                 {"auto@x.com", "oneclick@x.com"})
+                self.assertEqual(addrs("manual"), {"manual@x.com"})
+                self.assertEqual(addrs("none"), {"none@x.com"})
+                # totals reflect the filter (not just the page)
+                self.assertEqual(
+                    ss.list_addresses("a@x.com", unsub="manual")["total"], 1)
+                # unknown filter behaves like "all"
+                self.assertEqual(len(addrs("bogus")), 4)
+
     def test_addresses_by_score_filter(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):

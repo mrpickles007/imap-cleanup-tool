@@ -172,19 +172,37 @@ _SORTS = {
 }
 
 
+# Unsubscribe-capability filters for the Spam tab. "auto" = we can do it without
+# the user (mailto, or a one-click http link); "manual" = only a plain http link
+# that opens a confirmation page; "none" = no List-Unsubscribe at all.
+_UNSUB_AUTO = ("((unsub_mailto IS NOT NULL AND unsub_mailto<>'')"
+               " OR (unsub_http IS NOT NULL AND unsub_http<>'' AND unsub_oneclick=1))")
+_UNSUB_ANY = ("((unsub_mailto IS NOT NULL AND unsub_mailto<>'')"
+              " OR (unsub_http IS NOT NULL AND unsub_http<>''))")
+_UNSUB_FILTERS = {
+    "auto": _UNSUB_AUTO,
+    "manual": f"({_UNSUB_ANY} AND NOT {_UNSUB_AUTO})",
+    "none": f"NOT {_UNSUB_ANY}",
+}
+
+
 def list_addresses(account: str, *, offset: int = 0, limit: int = 25,
-                   search: str = "", sort_by: str = "score",
+                   search: str = "", unsub: str = "all", sort_by: str = "score",
                    sort_dir: str = "desc") -> dict:
     """Return {items, total, offset, limit, sort_by, sort_dir} for an account.
 
     Sorting is over the **whole** list (then paginated). ``sort_by`` is one of
-    _SORTS; ``sort_dir`` is 'asc' or 'desc'.
+    _SORTS; ``sort_dir`` is 'asc' or 'desc'. ``unsub`` filters by unsubscribe
+    capability (all / auto / manual / none).
     """
     account = (account or "").strip().lower()
     where, params = "account=?", [account]
     if (search or "").strip():
         where += " AND address LIKE ?"
         params.append(f"%{search.strip().lower()}%")
+    uf = _UNSUB_FILTERS.get((unsub or "all").lower())
+    if uf:
+        where += f" AND {uf}"
     col = _SORTS.get(sort_by, _SORTS["score"])
     direction = "ASC" if str(sort_dir).lower() == "asc" else "DESC"
     order = f"{col} {direction}"

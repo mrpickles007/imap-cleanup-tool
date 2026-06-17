@@ -198,7 +198,7 @@ tailwind.config = { theme: { extend: {
         <label class="col-span-2 flex items-center gap-2 text-sm py-1 cursor-pointer">
           <input id="localCache" type="checkbox" checked>
           <span class="flex items-center">Enable local cache
-            <span class="tip"><span class="ic">i</span><span class="bub">Caches message headers (From / Date / Subject) on this machine so <b>repeat AI reports are much faster</b>, especially on slow servers - only <b>new</b> messages are fetched next time. The cache is <b>per account</b> and is saved with this <b>connection profile</b>. Headers never change, so it's safe; unread counts are always re-read fresh. Stored locally in a small SQLite file.</span></span>
+            <span class="tip"><span class="ic">i</span><span class="bub">Caches the <b>immutable</b> header fields of each message on this machine - <b>From, Date, Subject</b>, plus the <b>List-Unsubscribe</b> info (used for one-click unsubscribe) and the <code>Precedence: bulk</code> marker - so <b>repeat AI reports are much faster</b>, especially on slow servers; only <b>new</b> messages are fetched next time. The cache is <b>per account</b> and saved with this <b>connection profile</b>. These fields never change, so it's safe; the unread (<code>\Seen</code>) flag is <b>not</b> cached and is always re-read fresh. No message bodies are stored. Stored locally in a small SQLite file.</span></span>
           </span>
         </label>
         <div id="cacheCtl" class="col-span-2 hidden flex items-center gap-2 pl-6 -mt-1">
@@ -705,11 +705,20 @@ tailwind.config = { theme: { extend: {
       <h2 class="font-display font-semibold text-brand-light">Spam addresses <span id="spamAccount" class="text-muted text-xs font-normal"></span></h2>
       <div class="flex items-center gap-2">
         <input id="spamSearch" class="field text-sm" style="max-width:12rem" placeholder="Search address…">
+        <span class="inline-flex items-center">
+          <select id="spamUnsubFilter" class="field text-sm" style="width:auto" title="Filter by unsubscribe type">
+            <option value="all">Unsub: all</option>
+            <option value="auto">Unsub: auto</option>
+            <option value="manual">Unsub: manual</option>
+            <option value="none">Unsub: none</option>
+          </select>
+          <span class="tip"><span class="ic">i</span><span class="bub">Filter the list by how each sender can be unsubscribed. <b>auto</b> = done for you (mailto via SMTP, or one-click link). <b>manual</b> = only a confirmation page (open each with its <b>link ↗</b>). <b>none</b> = no <code>List-Unsubscribe</code> header. After a bulk Unsubscribe this jumps to <b>manual</b> so you can finish the leftovers by hand.</span></span>
+        </span>
         <select id="spamPageSize" class="field text-sm" style="width:auto" title="Rows per page"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
       </div>
     </div>
     <div id="spamMsg" class="hidden"></div>
-    <p class="text-xs text-muted mb-3">Senders flagged by <b>AI Cleanup</b> (report or run) for the connected mailbox, with their heuristic <b>spam score</b> and the <b>LLM verdict</b>. Click a column header to <b>sort</b> the whole list. Select rows to <b>remove</b> them from the list, or <b>flag senders as spam</b> - a popup lets you either move one message to the Junk/Spam folder and <b>delete</b> the rest (like Run), or just <b>move</b> all their mail to Spam. It scans the <b>folders selected in the Cleanup tab</b> (just like a run); the popup shows which ones. Moving mail to Spam is the standard "report spam" signal that trains the server to route their <b>future</b> mail to spam. Each connection has its own list. You can also <b>add a sender manually</b> below, and load matching addresses into a <b>Target list</b> from the Cleanup tab.</p>
+    <p class="text-xs text-muted mb-3">Senders flagged by <b>AI Cleanup</b> (report or run) for the connected mailbox, with their heuristic <b>spam score</b> and the <b>LLM verdict</b>. Click a column header to <b>sort</b> the whole list. Select rows to <b>remove</b> them from the list, or <b>flag senders as spam</b> - a popup lets you either move one message to the Junk/Spam folder and <b>delete</b> the rest (like Run), or just <b>move</b> all their mail to Spam. It scans the <b>folders selected in the Cleanup tab</b> (just like a run); the popup shows which ones. Moving mail to Spam is the standard "report spam" signal that trains the server to route their <b>future</b> mail to spam. Each connection has its own list. You can also <b>add a sender manually</b> below, and load matching addresses into a <b>Target list</b> from the Cleanup tab. To <b>unsubscribe</b> from newsletters, select senders and click <b>Unsubscribe</b>: it is automatic where possible; the rest only offer a confirmation page (a <b>link ↗</b> in the Unsub column) - use the <b>Unsub filter</b> (top right) to list just those and open each by hand.</p>
     <div class="flex items-center gap-2 flex-wrap mb-3">
       <input id="spamAddAddr" class="field text-sm" style="max-width:15rem" placeholder="add a sender manually…">
       <label class="flex items-center gap-1 text-xs text-muted">score <input id="spamAddScore" type="number" min="0" max="10" step="0.1" value="10" class="field text-sm" style="max-width:4.5rem" title="Heuristic score 0-10 stored with this address (used by the score filter)"></label>
@@ -720,6 +729,9 @@ tailwind.config = { theme: { extend: {
       <label class="flex items-center gap-1.5 text-xs text-muted"><input id="spamSelectAll" type="checkbox"> Select all (this page)</label>
       <button id="spamSelectAllAcct" type="button" class="text-xs text-brand-light hover:underline">select all <span id="spamTotalCount"></span></button>
       <span class="flex-1"></span>
+      <button id="spamFlag" class="px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-light text-ink font-semibold text-sm flex items-center gap-1.5" disabled>Flag senders as spam
+        <span class="tip"><span class="ic" style="border-color:rgba(0,0,0,.35);color:rgba(0,0,0,.6)">i</span><span class="bub">Reports the selected senders to the mail server (moves their mail to the Junk/Spam folder) so it routes their <b>future</b> mail to spam. A popup lets you either move one message and <b>delete</b> the rest (like Run), or just <b>move</b> all their mail to Spam. It scans the folders selected in the Cleanup tab.</span></span>
+      </button>
       <button id="spamUnsub" class="px-3 py-1.5 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm flex items-center gap-1.5" disabled>Unsubscribe
         <span class="tip"><span class="ic">i</span><span class="bub">Uses each selected sender's <code>List-Unsubscribe</code> header. <b>Automatic</b> when it's a <code>mailto:</code> (sent from your active SMTP profile) or a one-click HTTPS link (RFC 8058). When the only option is a plain link that opens a confirmation page, it <b>can't be automated</b> - those are opened in your browser to finish by hand. It makes outbound requests; do it for <b>newsletters</b>, not actual spam (unsubscribing from real spam just confirms your address).</span></span>
       </button>
@@ -1651,7 +1663,7 @@ if($('btnSendTest')) $('btnSendTest').onclick=async()=>{
 };
 
 /* ---------- Spam addresses tab ---------- */
-const spamState={offset:0, limit:25, total:0, search:'', sel:new Set(), sortBy:'score', sortDir:'desc'};
+const spamState={offset:0, limit:25, total:0, search:'', unsub:'all', sel:new Set(), sortBy:'score', sortDir:'desc'};
 let spamMsgTimer=null;
 function spamMsg(t,cls){
   const el=$('spamMsg'); if(!el) return;
@@ -1669,7 +1681,7 @@ async function loadSpam(){
   if(!SID){ return; }
   spamState.limit=parseInt($('spamPageSize').value)||25;
   try{
-    const d=await (await fetch(`/api/spam/${SID}?offset=${spamState.offset}&limit=${spamState.limit}&q=${encodeURIComponent(spamState.search)}&sort=${spamState.sortBy}&dir=${spamState.sortDir}`)).json();
+    const d=await (await fetch(`/api/spam/${SID}?offset=${spamState.offset}&limit=${spamState.limit}&q=${encodeURIComponent(spamState.search)}&unsub=${spamState.unsub}&sort=${spamState.sortBy}&dir=${spamState.sortDir}`)).json();
     spamState.total=d.total; renderSpam(d.items||[]);
   }catch(e){ spamMsg('Error: '+e.message,'text-danger'); }
 }
@@ -1677,7 +1689,7 @@ function renderSpam(items){
   $('spamAccount').textContent = SID? ('· '+($('user').value||'')) : '· not connected';
   $('spamTotalCount').textContent='('+spamState.total+')';
   const body=$('spamBody'); body.innerHTML='';
-  if(!items.length){ body.innerHTML='<tr><td colspan="8" class="py-6 text-center text-muted text-xs">No spam addresses'+(spamState.search?' match your search':' yet - run an AI Cleanup report first')+'.</td></tr>'; }
+  if(!items.length){ const why = spamState.search ? ' match your search' : (spamState.unsub&&spamState.unsub!=='all' ? ' match this Unsub filter' : ' yet - run an AI Cleanup report first'); body.innerHTML='<tr><td colspan="9" class="py-6 text-center text-muted text-xs">No spam addresses'+why+'.</td></tr>'; }
   items.forEach(it=>{
     const tr=document.createElement('tr'); tr.className='border-b border-line/60 hover:bg-white/5';
     const sig=[it.list_unsubscribe?'unsub':'', it.bulk?'bulk':'', it.sender_pattern?'pattern':''].filter(Boolean).join(', ')||'-';
@@ -1740,6 +1752,7 @@ if($('spamNext')) $('spamNext').onclick=()=>{ spamState.offset+=spamState.limit;
 if($('spamPageSize')) $('spamPageSize').onchange=()=>{ spamState.offset=0; loadSpam(); };
 let spamSearchT=null;
 if($('spamSearch')) $('spamSearch').oninput=()=>{ clearTimeout(spamSearchT); spamSearchT=setTimeout(()=>{ spamState.search=$('spamSearch').value.trim(); spamState.offset=0; loadSpam(); },300); };
+if($('spamUnsubFilter')) $('spamUnsubFilter').onchange=()=>{ spamState.unsub=$('spamUnsubFilter').value||'all'; spamState.offset=0; loadSpam(); };
 if($('spamRemove')) $('spamRemove').onclick=async()=>{
   const addrs=[...spamState.sel]; if(!addrs.length) return;
   if(!(await confirmDialog({title:'Remove from spam list', message:'Remove '+addrs.length+' address(es) from this account\'s spam list? (does not touch the mailbox)', okText:'Remove'}))) return;
@@ -1757,25 +1770,27 @@ if($('spamAddBtn')) $('spamAddBtn').onclick=async()=>{
 };
 if($('spamUnsub')) $('spamUnsub').onclick=async()=>{
   const addrs=[...spamState.sel]; if(!addrs.length) return;
-  if(!(await confirmDialog({title:'Unsubscribe from newsletters', message:'Unsubscribe from '+addrs.length+' selected sender(s)? It is automatic where possible (mailto via your active SMTP profile, or one-click links); senders that only offer a confirmation page are opened in your browser to finish by hand. This makes outbound requests - do it for newsletters, not real spam.', okText:'Unsubscribe'}))) return;
+  if(!(await confirmDialog({title:'Unsubscribe from newsletters', message:'Unsubscribe from '+addrs.length+' selected sender(s)? It is automatic where possible (mailto via your active SMTP profile, or one-click links); senders that only offer a confirmation page can\'t be automated - afterwards the list filters to those so you can open each by hand. This makes outbound requests - do it for newsletters, not real spam.', okText:'Unsubscribe'}))) return;
   spamMsg('Unsubscribing '+addrs.length+' sender(s)… this can take a moment.','text-muted');
   try{
     const r=await api('/api/spam-unsubscribe',{sid:SID,addresses:addrs});
-    const auto=(r.unsubscribed||[]).length, manual=(r.manual||[]), failed=(r.failed||[]).length;
+    const auto=(r.unsubscribed||[]).length, manual=(r.manual||[]).length, failed=(r.failed||[]).length;
     const noMethod=Math.max(0,(r.requested||0)-(r.with_method||0));
     let msg='Unsubscribed '+auto+' automatically';
-    if(manual.length) msg+=', '+manual.length+' need a manual confirmation page';
-    if(failed) msg+=', '+failed+' failed';
-    if(noMethod) msg+=', '+noMethod+' had no unsubscribe info (run a fresh AI report to detect it)';
-    spamMsg(msg+'.', failed?'text-warn':'text-ok');
-    // Don't blast dozens of tabs (popup blockers eat them). Ask, then open in
-    // small waves; the per-row "link ↗" stays as the reliable fallback.
-    if(manual.length){
-      const ok=await confirmDialog({title:'Open confirmation pages?',
-        message:manual.length+' sender(s) can\'t be unsubscribed automatically - each needs a confirmation page. Open them now in new tabs? Your browser may block several at once; you can always click the "link ↗" in each row instead.',
-        okText:'Open '+manual.length+' page'+(manual.length===1?'':'s'), cancelText:'Not now'});
-      if(ok){ manual.forEach(m=>{ try{ window.open(m.url,'_blank','noopener'); }catch(_){} }); }
+    if(manual) msg+='; '+manual+' need a manual confirmation page';
+    if(failed) msg+='; '+failed+' failed';
+    if(noMethod) msg+='; '+noMethod+' had no unsubscribe info (run a fresh AI report to detect it)';
+    spamState.sel.clear();
+    // No tab-blasting (popup blockers eat dozens of window.open at once). Instead
+    // jump the list to the "manual" filter so the leftovers are the only rows
+    // shown - the user opens each via its per-row "link ↗".
+    if(manual){
+      spamState.unsub='manual';
+      if($('spamUnsubFilter')) $('spamUnsubFilter').value='manual';
+      msg+='. Showing the '+manual+' manual one'+(manual===1?'':'s')+' below - open each with its "link ↗"';
     }
+    spamMsg(msg+'.', failed?'text-warn':'text-ok');
+    spamState.offset=0; loadSpam();
   }catch(e){ spamMsg('Error: '+e.message,'text-danger'); }
 };
 if($('spamFlag')) $('spamFlag').onclick=async()=>{

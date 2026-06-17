@@ -1085,10 +1085,12 @@ def create_app():
     # ----- Spam addresses (per-account list from AI Cleanup) --------------- #
     @app.get("/api/spam/{sid}")
     def spam_list(sid: str, offset: int = 0, limit: int = 25, q: str = "",
-                  sort: str = "score", dir: str = "desc") -> dict[str, Any]:
+                  unsub: str = "all", sort: str = "score",
+                  dir: str = "desc") -> dict[str, Any]:
         sess = _session(sid)
         return spamstore.list_addresses(sess.user, offset=offset, limit=limit,
-                                        search=q, sort_by=sort, sort_dir=dir)
+                                        search=q, unsub=unsub, sort_by=sort,
+                                        sort_dir=dir)
 
     @app.post("/api/spam-delete")
     def spam_delete(body: SpamActionIn) -> dict[str, Any]:
