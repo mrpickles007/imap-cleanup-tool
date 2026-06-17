@@ -357,6 +357,7 @@ tailwind.config = { theme: { extend: {
           <span class="tip"><span class="ic">i</span><span class="bub">The LLM that judges the flagged senders. Configure models in the <b>LLM</b> tab. The local heuristic report works even without a model.</span></span>
           <select id="aiModel" class="field mt-1"></select>
         </label>
+        <p id="aiNoModelNote" class="hidden text-[11px] text-warn -mt-1">No LLM model configured. You can still <b>Generate report</b> heuristic-only (tick <b>Skip LLM</b> below); <b>Run</b> (which deletes) needs a model. <b>Tip:</b> add a model in the <b>LLM</b> tab for a more precise, LLM-verified analysis.</p>
         <input id="aiSecret" type="password" class="field hidden" placeholder="model password (encrypted model)">
         <label class="text-xs text-muted block">Spam-score threshold: <b id="thrVal" class="text-cream">6.0</b> / 10
           <span class="tip"><span class="ic">i</span><span class="bub">Only senders scoring at or above this are flagged (and later sent to the LLM / deleted on Run). Higher = stricter, fewer senders.</span></span>
@@ -565,6 +566,7 @@ tailwind.config = { theme: { extend: {
         <p id="jobAiOffNote" class="text-[11px] text-muted mt-1">When <b>off</b>, this job runs a normal cleanup using the <b>match (targets/rule) and options you set in the Cleanup tab</b> (folders, move/delete, gmail-trash, expunge…). Turn it on for an AI Cleanup job instead.</p>
         <div id="jobAIRow" class="hidden grid grid-cols-2 gap-2 mt-2">
           <label class="text-xs text-muted col-span-2">Model <select id="jobAiModel" class="field mt-1"></select></label>
+          <p id="jobAiNoModelNote" class="hidden text-[11px] text-warn col-span-2 -mt-1">No non-encrypted model configured. Tick <b>Report only</b> + <b>Skip LLM</b> for a heuristic-only job; for an LLM-verified job add a <b>non-encrypted</b> model in the <b>LLM</b> tab (scheduled jobs can't use encrypted models).</p>
           <label class="text-xs text-muted">Threshold <input id="jobAiThreshold" type="number" step="0.1" min="0" max="10" value="6" class="field mt-1"></label>
           <label class="text-xs text-muted">Sample <input id="jobAiSample" type="number" min="1" max="50" value="5" class="field mt-1"></label>
           <label class="flex items-center gap-1.5 text-xs text-muted col-span-2 cursor-pointer"><input id="jobAiReportOnly" type="checkbox"> Report only (save the report, delete nothing)
@@ -708,7 +710,7 @@ tailwind.config = { theme: { extend: {
       <span class="flex items-center">Encrypt the password
         <span class="tip"><span class="ic">i</span><span class="bub">Encrypts the password with a passphrase (never stored). An <b>encrypted</b> profile cannot send from scheduled jobs (no one to type it).</span></span>
       </span>
-      <input id="smEncrypt" type="checkbox">
+      <input id="smEncrypt" type="checkbox" disabled>
     </label>
     <div id="smSecretRow" class="hidden mb-1 space-y-2">
       <div class="flex gap-2">
@@ -1340,6 +1342,7 @@ function populateJobAiModels(){
   if(!plain.length){ const o=document.createElement('option'); o.value=''; o.textContent='- no non-encrypted model -'; sel.appendChild(o); }
   plain.forEach(m=>{ const o=document.createElement('option'); o.value=m.name; o.textContent=m.name+' ('+m.model+')'; sel.appendChild(o); });
   if(cur && plain.some(m=>m.name===cur)) sel.value=cur;
+  if($('jobAiNoModelNote')) $('jobAiNoModelNote').classList.toggle('hidden', plain.length>0);
 }
 if($('jobAI')) $('jobAI').onchange=()=>{ const on=$('jobAI').checked; $('jobAIRow').classList.toggle('hidden', !on); $('jobAiOffNote').classList.toggle('hidden', on); populateJobAiModels(); syncJobAi(); };
 if($('jobAiReportOnly')) $('jobAiReportOnly').onchange=()=>{ if(!$('jobAiReportOnly').checked) $('jobAiSkipLlm').checked=false; syncJobAi(); };
@@ -1577,6 +1580,7 @@ async function loadLLMModels(){
     if(cur && LLM_MODELS.some(m=>m.name===cur)) sel.value=cur;
     updateAiSecret();
   }
+  if($('aiNoModelNote')) $('aiNoModelNote').classList.toggle('hidden', LLM_MODELS.length>0);
   const box=$('llmList');
   if(box){ box.innerHTML='';
     if(!LLM_MODELS.length){ box.innerHTML='<p class="text-muted text-xs">No models yet.</p>'; }
@@ -1744,7 +1748,8 @@ if($('smProvider')) $('smProvider').onchange=()=>{ const p=(META.smtp_providers|
 if($('smKeyToggle')) $('smKeyToggle').onclick=()=>{ const k=$('smKey'); k.type=k.type==='password'?'text':'password'; $('smKeyToggle').textContent=k.type==='password'?'show':'hide'; };
 if($('smEncrypt')) $('smEncrypt').onchange=()=>{ $('smSecretRow').classList.toggle('hidden', !$('smEncrypt').checked); if($('smEncrypt').checked) evalSmtpPw(); updateSmtpSaveBtn(); };
 if($('smSecretEye')) $('smSecretEye').onclick=()=>{ const t=$('smSecret').type==='password'?'text':'password'; $('smSecret').type=t; $('smSecret2').type=t; $('smSecretEye').textContent=t==='password'?'show':'hide'; };
-['smSecret','smSecret2','smKey'].forEach(id=>{ if($(id)) $(id).addEventListener('input', updateSmtpSaveBtn); });
+['smSecret','smSecret2'].forEach(id=>{ if($(id)) $(id).addEventListener('input', updateSmtpSaveBtn); });
+if($('smKey')) $('smKey').addEventListener('input', ()=>{ syncSmtpEncryptEnabled(); updateSmtpSaveBtn(); });
 async function loadSmtp(){
   fillSmtpProviders();
   try{ const d=await (await fetch('/api/smtp-profiles')).json(); SMTP_PROFILES=d.profiles||[]; renderSmtp(d.settings||{}); }
@@ -1787,6 +1792,7 @@ function editSmtp(p){
   $('smUser').value=p.user||''; $('smFrom').value=p.from_addr||'';
   $('smKey').value=''; $('smKey').placeholder=p.encrypted?'(leave blank to keep current)':'(leave blank to keep current)';
   $('smEncrypt').checked=false; $('smSecretRow').classList.add('hidden'); $('smSecret').value=''; $('smSecret2').value=''; $('btnSaveSmtp').disabled=false;
+  syncSmtpEncryptEnabled();
   $('btnSaveSmtp').textContent='Update profile'; $('btnCancelSmtp').classList.remove('hidden');
   $('smMsg').textContent='Editing "'+p.name+'" - name locked; leave the password blank to keep it.'; $('smMsg').className='text-[11px] mt-2 text-muted';
   $('smName').scrollIntoView({behavior:'smooth',block:'center'});
@@ -1796,7 +1802,7 @@ function resetSmtpForm(){
   ['smName','smHost','smUser','smFrom','smKey','smSecret','smSecret2'].forEach(id=>$(id).value='');
   $('smName').readOnly=false; $('smName').classList.remove('opacity-60');
   $('smPort').value='587'; $('smSecurity').value='starttls'; $('smKey').placeholder='SMTP password / API key';
-  $('smEncrypt').checked=false; $('smSecretRow').classList.add('hidden');
+  $('smEncrypt').checked=false; $('smSecretRow').classList.add('hidden'); syncSmtpEncryptEnabled();
   $('smSecret').type='password'; $('smSecret2').type='password'; if($('smSecretEye')) $('smSecretEye').textContent='show';
   $('btnSaveSmtp').textContent='Save profile'; $('btnCancelSmtp').classList.add('hidden'); $('btnSaveSmtp').disabled=false;
 }
@@ -2357,6 +2363,12 @@ function evalSmtpPw(){ return checkPwCriteria($('smSecret').value, $('smSecret2'
 function updateSmtpSaveBtn(){
   // when encrypting, require a password to encrypt + a strong, matching passphrase
   $('btnSaveSmtp').disabled = $('smEncrypt').checked && (!$('smKey').value || !evalSmtpPw());
+}
+function syncSmtpEncryptEnabled(){
+  // can't encrypt nothing - the Encrypt toggle needs a password first
+  const hasKey = $('smKey').value.length>0;
+  $('smEncrypt').disabled = !hasKey;
+  if(!hasKey && $('smEncrypt').checked){ $('smEncrypt').checked=false; $('smSecretRow').classList.add('hidden'); }
 }
 function evalLlmPw(){ return checkPwCriteria($('llmSecret').value, $('llmSecret2').value, '#llmPwCriteria'); }
 function updateLlmSaveBtn(){
