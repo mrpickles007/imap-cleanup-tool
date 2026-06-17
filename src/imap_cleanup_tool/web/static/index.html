@@ -613,7 +613,7 @@ tailwind.config = { theme: { extend: {
   </div>
   <section class="bg-panel border border-line rounded-xl p-5">
     <h2 class="font-display font-semibold text-brand-light mb-3">Add / edit a model</h2>
-    <p class="text-xs text-muted mb-3">The model used by <b>AI Cleanup</b>. <b>Local-first &amp; BYOA</b> (Bring Your Own API key): run a free <b>local</b> model (Ollama) so nothing leaves your machine, or <b>bring your own key</b> for any cloud model (OpenAI, OpenRouter, ...). Powered by <b>litellm</b>, so both use the same form. The key is stored in a local SQLite DB and can be <b>encrypted</b>, and is <b>never committed</b>. ⚠️ Remote models send only sender <b>subjects + stats</b> (never the message body) to that provider - for full privacy prefer a <b>local</b> model.</p>
+    <p class="text-xs text-muted mb-3">The model used by <b>AI Cleanup</b>. <b>Local-first &amp; BYOA</b> (Bring Your Own API key): run a free <b>local</b> model (Ollama) so nothing leaves your machine, or <b>bring your own key</b> for any cloud model (OpenAI, OpenRouter, ...). Powered by <b>litellm</b>, so both use the same form. The key is stored in a local SQLite DB and can be <b>encrypted</b>. ⚠️ Remote models send only sender <b>subjects + stats</b> (never the message body) to that provider - for full privacy prefer a <b>local</b> model.</p>
     <div class="grid grid-cols-2 gap-3">
       <label class="text-xs text-muted">Name <input id="llmName" class="field mt-1" placeholder="my-model"></label>
       <label class="text-xs text-muted">Type
@@ -633,7 +633,7 @@ tailwind.config = { theme: { extend: {
         <input id="llmApiBase" class="field mt-1" placeholder="(default) or http://localhost:11434">
       </label>
       <label class="text-xs text-muted col-span-2">API key
-        <span class="tip"><span class="ic">i</span><span class="bub">Stored locally (SQLite), <b>never committed</b>. Not needed for local models. Tick "Encrypt" to protect it (encrypted = not usable in scheduling).</span></span>
+        <span class="tip"><span class="ic">i</span><span class="bub">Stored locally (SQLite). Not needed for local models. Tick "Encrypt" to protect it (encrypted = not usable in scheduling).</span></span>
         <div class="flex gap-2 mt-1"><input id="llmKey" type="password" class="field" placeholder="sk-..."><button id="llmKeyToggle" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream">show</button></div>
       </label>
     </div>
@@ -641,7 +641,7 @@ tailwind.config = { theme: { extend: {
       <span class="flex items-center">Encrypt the API key
         <span class="tip"><span class="ic">i</span><span class="bub">Encrypts the key with a password (never stored). An <b>encrypted</b> model cannot run in scheduled jobs (no one to type the password).</span></span>
       </span>
-      <input id="llmEncrypt" type="checkbox">
+      <input id="llmEncrypt" type="checkbox" disabled>
     </label>
     <div id="llmSecretRow" class="hidden mb-1 space-y-2">
       <div class="flex gap-2">
@@ -1597,8 +1597,9 @@ function editLLMModel(m){
   $('llmType').value=m.model.startsWith('ollama/')?'local':'remote';
   $('llmTrack').checked=!!m.track_costs; $('llmCostRow').classList.toggle('hidden',!m.track_costs);
   $('llmCostIn').value=m.cost_input||0; $('llmCostOut').value=m.cost_output||0;
-  $('llmEncrypt').checked=false; $('llmSecretRow').classList.add('hidden'); $('llmSecret').value=''; $('llmSecret2').value=''; updateLlmSaveBtn();
+  $('llmEncrypt').checked=false; $('llmSecretRow').classList.add('hidden'); $('llmSecret').value=''; $('llmSecret2').value='';
   $('llmKey').value=''; $('llmKey').placeholder = m.has_key ? '(leave blank to keep current key)' : 'sk-... (none set)';
+  syncLlmEncryptEnabled(); updateLlmSaveBtn();
   $('btnSaveLLM').textContent='Update model'; $('btnCancelLLM').classList.remove('hidden');
   $('llmMsg').textContent='Editing "'+m.name+'" - name is locked (delete to rename). Leave the key blank to keep the current one.'; $('llmMsg').className='text-[11px] mt-2 text-muted';
   $('llmName').scrollIntoView({behavior:'smooth',block:'center'});
@@ -1608,7 +1609,7 @@ function resetLLMForm(){
   $('llmName').value=''; $('llmName').readOnly=false; $('llmName').classList.remove('opacity-60');
   $('llmModel').value='gpt-4o-mini'; $('llmApiBase').value=''; $('llmType').value='remote';
   $('llmKey').value=''; $('llmKey').placeholder='sk-...'; $('llmEncrypt').checked=false; $('llmSecretRow').classList.add('hidden'); $('llmSecret').value=''; $('llmSecret2').value='';
-  $('llmSecret').type='password'; $('llmSecret2').type='password'; if($('llmSecretEye'))$('llmSecretEye').textContent='show'; updateLlmSaveBtn();
+  $('llmSecret').type='password'; $('llmSecret2').type='password'; if($('llmSecretEye'))$('llmSecretEye').textContent='show'; syncLlmEncryptEnabled(); updateLlmSaveBtn();
   $('llmTrack').checked=false; $('llmCostRow').classList.add('hidden'); $('llmCostIn').value=0; $('llmCostOut').value=0;
   $('btnSaveLLM').textContent='Save model'; $('btnCancelLLM').classList.add('hidden');
 }
@@ -1617,7 +1618,8 @@ if($('llmType')) $('llmType').onchange=()=>{ if($('llmType').value==='local'){ i
 if($('llmKeyToggle')) $('llmKeyToggle').onclick=()=>{ const k=$('llmKey'); k.type=k.type==='password'?'text':'password'; $('llmKeyToggle').textContent=k.type==='password'?'show':'hide'; };
 if($('llmEncrypt')) $('llmEncrypt').onchange=()=>{ $('llmSecretRow').classList.toggle('hidden', !$('llmEncrypt').checked); if($('llmEncrypt').checked) evalLlmPw(); updateLlmSaveBtn(); };
 if($('llmSecretEye')) $('llmSecretEye').onclick=()=>{ const t=$('llmSecret').type==='password'?'text':'password'; $('llmSecret').type=t; $('llmSecret2').type=t; $('llmSecretEye').textContent=t==='password'?'show':'hide'; };
-['llmSecret','llmSecret2','llmKey'].forEach(id=>{ if($(id)) $(id).addEventListener('input', updateLlmSaveBtn); });
+['llmSecret','llmSecret2'].forEach(id=>{ if($(id)) $(id).addEventListener('input', updateLlmSaveBtn); });
+if($('llmKey')) $('llmKey').addEventListener('input', ()=>{ syncLlmEncryptEnabled(); updateLlmSaveBtn(); });
 if($('llmTrack')) $('llmTrack').onchange=()=>$('llmCostRow').classList.toggle('hidden', !$('llmTrack').checked);
 if($('btnSaveLLM')) $('btnSaveLLM').onclick=async()=>{
   try{
@@ -2283,6 +2285,12 @@ function evalLlmPw(){ return checkPwCriteria($('llmSecret').value, $('llmSecret2
 function updateLlmSaveBtn(){
   // when encrypting the API key, require a key to encrypt + a strong, matching passphrase
   if($('btnSaveLLM')) $('btnSaveLLM').disabled = $('llmEncrypt').checked && (!$('llmKey').value || !evalLlmPw());
+}
+function syncLlmEncryptEnabled(){
+  // can't encrypt nothing - the Encrypt toggle needs an API key first
+  const hasKey = $('llmKey').value.length>0;
+  $('llmEncrypt').disabled = !hasKey;
+  if(!hasKey && $('llmEncrypt').checked){ $('llmEncrypt').checked=false; $('llmSecretRow').classList.add('hidden'); }
 }
 let saveWasEncrypted=false;   // whether the profile being (over)written is encrypted
 let saveReuseSecret='';       // passphrase already known (entered at load) -> reuse on re-save
