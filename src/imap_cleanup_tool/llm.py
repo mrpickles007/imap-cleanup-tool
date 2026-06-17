@@ -270,6 +270,25 @@ def add_user_preset(kind: str, value: str) -> bool:
     return True
 
 
+def remove_user_preset(kind: str, value: str) -> bool:
+    """Remove a user-added model preset for ``kind``. Returns True if it was there."""
+    kind = kind if kind in ("remote", "local") else "remote"
+    value = (value or "").strip()
+    data = user_presets()
+    if value not in data[kind]:
+        return False
+    data[kind] = [m for m in data[kind] if m != value]
+    conn = _connect()
+    try:
+        conn.execute(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES ('user_presets', ?)",
+            (json.dumps(data),))
+        conn.commit()
+    finally:
+        conn.close()
+    return True
+
+
 def delete_model(name: str) -> None:
     """Remove a model config by name (no error if it does not exist)."""
     conn = _connect()

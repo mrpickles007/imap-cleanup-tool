@@ -38,6 +38,10 @@ class LLMConfigTests(unittest.TestCase):
                 p = llm.user_presets()
                 self.assertEqual(p["remote"], ["my/custom-model", "x/y"])
                 self.assertEqual(p["local"], ["ollama/my-model"])
+                # remove one; unknown value is a no-op
+                self.assertTrue(llm.remove_user_preset("remote", "x/y"))
+                self.assertFalse(llm.remove_user_preset("remote", "not-there"))
+                self.assertEqual(llm.user_presets()["remote"], ["my/custom-model"])
 
     def test_encrypted_needs_secret(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -112,6 +112,16 @@ def _load_llm_models() -> dict:
     return out
 
 
+def _llm_user_presets() -> dict:
+    """Just the user-added presets (so the UI knows which dropdown items are
+    removable). Bundled presets are not deletable."""
+    try:
+        from . import llm
+        return llm.user_presets()
+    except Exception:  # pylint: disable=broad-exception-caught
+        return {"remote": [], "local": []}
+
+
 def _safe_job_name(name: str) -> str:
     """Sanitise a job name so it is safe in a scheduler command line / task id."""
     return re.sub(r"[^A-Za-z0-9_-]+", "_", (name or "job").strip()) or "job"
@@ -364,6 +374,7 @@ def create_app():
     class LlmPresetIn(BaseModel):
         kind: str = "remote"             # 'remote' | 'local'
         value: str
+        remove: bool = False             # True = delete this user preset
 
     class SmtpProfileIn(BaseModel):
         name: str
@@ -486,6 +497,7 @@ def create_app():
             "providers": _load_providers(),
             "smtp_providers": _load_smtp_providers(),
             "models": _load_llm_models(),
+            "models_user": _llm_user_presets(),
             "fields": list(FIELD_OPERATORS),
             "operators": FIELD_OPERATORS,
             "gmail_store_cap": core.GMAIL_STORE_CAP,
@@ -727,9 +739,13 @@ def create_app():
 
     @app.post("/api/llm-presets")
     def add_llm_preset(body: LlmPresetIn) -> dict[str, Any]:
-        """Save a custom model id to the user's presets; returns the merged list."""
-        llm.add_user_preset(body.kind, body.value)
-        return {"models": _load_llm_models()}
+        """Add or remove a custom model id in the user's presets; returns the
+        merged picker list plus the user-only presets (which are removable)."""
+        if body.remove:
+            llm.remove_user_preset(body.kind, body.value)
+        else:
+            llm.add_user_preset(body.kind, body.value)
+        return {"models": _load_llm_models(), "models_user": _llm_user_presets()}
 
     @app.post("/api/senders")
     def senders(body: SendersIn) -> dict[str, Any]:

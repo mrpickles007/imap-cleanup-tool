@@ -397,6 +397,7 @@ tailwind.config = { theme: { extend: {
         </label>
         <div class="flex gap-2 pt-1 flex-wrap items-center">
           <button id="btnAiReport" type="button" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-brand hover:bg-brand-light text-ink font-semibold text-sm">Generate report</button>
+          <span class="tip"><span class="ic">i</span><span class="bub">Builds the report <b>only</b>: it scores senders, asks the model, <b>saves the CSV</b> (and <b>emails it</b> if notifications are enabled) and records flagged senders to your Spam list. It <b>does not delete anything</b>. To actually clean up - delete the confirmed senders - click <b>Run</b> (with AI Cleanup ticked).</span></span>
           <div class="flex gap-2 items-center flex-wrap sm:flex-nowrap min-w-0 basis-full grow">
             <select id="aiReportList" class="field text-sm min-w-0 w-full sm:w-auto sm:flex-1" title="Saved reports for this account (newest first)"></select>
             <button id="btnAiDownload" type="button" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream text-sm whitespace-nowrap">Download CSV</button>
@@ -485,12 +486,12 @@ tailwind.config = { theme: { extend: {
 
     <section class="bg-panel border border-line rounded-xl p-5 space-y-4">
       <div>
-        <div class="text-[11px] uppercase tracking-wider text-muted mb-2">Cleanup action</div>
+        <div class="text-xs font-bold uppercase tracking-wider text-cream mb-2">Cleanup action</div>
         <div class="flex gap-2">
           <button id="btnRun" class="flex-1 bg-brand hover:bg-brand-light text-ink font-bold rounded-lg px-4 py-2.5 transition">▶ Run</button>
           <button id="btnStop" class="hidden px-4 py-2.5 rounded-lg bg-danger text-ink font-bold">■ Stop</button>
         </div>
-        <p class="text-[11px] text-muted mt-1.5">Deletes / moves matching messages in the selected folders. With dry-run on, “Run” only previews.</p>
+        <p class="text-[11px] text-muted mt-1.5">Runs the action chosen in <b>Options</b> on the selected folders: <b>AI Cleanup</b> (heuristic + LLM, then delete the confirmed senders), or <b>delete / move / empty folder</b> for the matching messages. With <b>dry-run</b> on, “Run” only <b>previews</b> - nothing is changed.</p>
       </div>
 
       <div class="border-t border-line"></div>
@@ -628,6 +629,7 @@ tailwind.config = { theme: { extend: {
           <select id="llmPreset" class="field" title="Pick a model preset"></select>
           <input id="llmModel" class="field hidden" value="gpt-4o-mini" placeholder="type any litellm model id">
           <button id="llmModelEdit" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream flex-none" title="Type a custom model id"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+          <button id="llmPresetDel" type="button" class="hidden px-3 rounded-lg border border-line text-danger hover:bg-danger/10 flex-none" title="Remove this saved preset"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
         </div>
       </label>
       <label class="text-xs text-muted col-span-2">API base URL (optional)
@@ -1625,6 +1627,16 @@ function llmPresetList(){
   const m=(typeof META==='object'&&META&&META.models)||{};
   return m[t]||[];
 }
+function llmUserList(){
+  const t=$('llmType')?$('llmType').value:'remote';
+  const m=(typeof META==='object'&&META&&META.models_user)||{};
+  return m[t]||[];
+}
+function updateLlmDelBtn(){
+  const b=$('llmPresetDel'); if(!b) return;
+  const cur=$('llmModel')?$('llmModel').value:'';
+  b.classList.toggle('hidden', !(!llmEditMode && cur && llmUserList().includes(cur)));
+}
 function populateLlmPresets(){
   const sel=$('llmPreset'); if(!sel) return;
   const cur=$('llmModel')?$('llmModel').value:'';
@@ -1633,6 +1645,7 @@ function populateLlmPresets(){
     + list.map(m=>'<option value="'+escapeHtml(m)+'"'+(m===cur?' selected':'')+'>'+escapeHtml(m)+'</option>').join('');
   if(cur && !list.includes(cur)) html+='<option value="'+escapeHtml(cur)+'" selected>'+escapeHtml(cur)+' (custom)</option>';
   sel.innerHTML=html;
+  updateLlmDelBtn();
 }
 const LLM_EDIT_ICON='<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
 const LLM_LIST_ICON='<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>';
@@ -1643,13 +1656,21 @@ function setLlmEdit(on){
   if($('llmModel')) $('llmModel').classList.toggle('hidden', !llmEditMode);
   const b=$('llmModelEdit');
   if(b){ b.innerHTML = llmEditMode?LLM_LIST_ICON:LLM_EDIT_ICON; b.title = llmEditMode?'Back to the preset list':'Type a custom model id'; }
+  updateLlmDelBtn();
   if(llmEditMode && $('llmModel')) $('llmModel').focus();
 }
 async function saveLlmPreset(kind, value){
-  try{ const r=await api('/api/llm-presets',{kind,value}); if(r&&r.models) META.models=r.models; return true; }
+  try{ const r=await api('/api/llm-presets',{kind,value}); if(r){ if(r.models)META.models=r.models; if(r.models_user)META.models_user=r.models_user; } return true; }
   catch(_){ return false; }
 }
-if($('llmPreset')) $('llmPreset').onchange=()=>{ const v=$('llmPreset').value; if(v) $('llmModel').value=v; };
+if($('llmPreset')) $('llmPreset').onchange=()=>{ const v=$('llmPreset').value; if(v) $('llmModel').value=v; updateLlmDelBtn(); };
+if($('llmPresetDel')) $('llmPresetDel').onclick=async()=>{
+  const cur=($('llmModel').value||'').trim(); if(!cur || !llmUserList().includes(cur)) return;
+  const kind=$('llmType').value==='local'?'local':'remote';
+  if(!(await confirmDialog({title:'Remove preset', message:'Remove "'+cur+'" from your saved presets?\n\nThis only removes it from the dropdown - any saved model still keeps its model id.', okText:'Remove', danger:true}))) return;
+  try{ const r=await api('/api/llm-presets',{kind,value:cur,remove:true}); if(r){ if(r.models)META.models=r.models; if(r.models_user)META.models_user=r.models_user; } }catch(_){}
+  populateLlmPresets();
+};
 if($('llmModelEdit')) $('llmModelEdit').onclick=async()=>{
   if(!llmEditMode){ setLlmEdit(true); return; }
   const v=($('llmModel').value||'').trim();

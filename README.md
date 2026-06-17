@@ -622,7 +622,7 @@ Highlights:
   a threshold slider, Generate report / Run, and per-model cost tracking - see
   [AI Cleanup](#ai-cleanup). The **LLM** tab has a **model picker** (presets per
   provider, an **✎ edit** toggle to type any custom litellm id, and the option to
-  save it as your own preset); the **API key is optional** - you can set the
+  save or remove your own presets); the **API key is optional** - you can set the
   provider's env var (`OPENAI_API_KEY`, …) instead. When the `[ai]` extra is
   missing, the AI option is disabled with a banner explaining how to install it.
 - Many provider presets, connect-and-load-folders (with per-folder message
