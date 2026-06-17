@@ -208,9 +208,15 @@ class SpamStoreTests(unittest.TestCase):
                                  {"auto@x.com", "oneclick@x.com"})
                 self.assertEqual(addrs("manual"), {"manual@x.com"})
                 self.assertEqual(addrs("none"), {"none@x.com"})
+                # "done" = already unsubscribed (none yet)
+                self.assertEqual(addrs("done"), set())
+                ss.mark_unsubscribed("a@x.com", "auto@x.com", "email", "sent")
+                self.assertEqual(addrs("done"), {"auto@x.com"})
                 # totals reflect the filter (not just the page)
                 self.assertEqual(
                     ss.list_addresses("a@x.com", unsub="manual")["total"], 1)
+                self.assertEqual(
+                    ss.list_addresses("a@x.com", unsub="done")["total"], 1)
                 # unknown filter behaves like "all"
                 self.assertEqual(len(addrs("bogus")), 4)
 

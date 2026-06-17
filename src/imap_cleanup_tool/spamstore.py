@@ -200,10 +200,12 @@ _UNSUB_AUTO = ("((unsub_mailto IS NOT NULL AND unsub_mailto<>'')"
                " OR (unsub_http IS NOT NULL AND unsub_http<>'' AND unsub_oneclick=1))")
 _UNSUB_ANY = ("((unsub_mailto IS NOT NULL AND unsub_mailto<>'')"
               " OR (unsub_http IS NOT NULL AND unsub_http<>''))")
+_UNSUB_DONE = "(unsub_done_at IS NOT NULL AND unsub_done_at<>'')"
 _UNSUB_FILTERS = {
     "auto": _UNSUB_AUTO,
     "manual": f"({_UNSUB_ANY} AND NOT {_UNSUB_AUTO})",
     "none": f"NOT {_UNSUB_ANY}",
+    "done": _UNSUB_DONE,                  # already unsubscribed (✓ done)
 }
 
 
@@ -214,7 +216,7 @@ def list_addresses(account: str, *, offset: int = 0, limit: int = 25,
 
     Sorting is over the **whole** list (then paginated). ``sort_by`` is one of
     _SORTS; ``sort_dir`` is 'asc' or 'desc'. ``unsub`` filters by unsubscribe
-    capability (all / auto / manual / none).
+    capability (all / auto / manual / none) or ``done`` (already unsubscribed).
     """
     account = (account or "").strip().lower()
     where, params = "account=?", [account]

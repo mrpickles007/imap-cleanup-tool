@@ -792,8 +792,9 @@ tailwind.config = { theme: { extend: {
             <option value="auto">Unsub: auto</option>
             <option value="manual">Unsub: manual</option>
             <option value="none">Unsub: none</option>
+            <option value="done">Unsub: done</option>
           </select>
-          <span class="tip"><span class="ic">i</span><span class="bub">Filter the list by how each sender can be unsubscribed. <b>auto</b> = done for you (mailto via SMTP, or one-click link). <b>manual</b> = only a confirmation page (open each with its <b>link ↗</b>). <b>none</b> = no <code>List-Unsubscribe</code> header. After a bulk Unsubscribe this jumps to <b>manual</b> so you can finish the leftovers by hand.</span></span>
+          <span class="tip"><span class="ic">i</span><span class="bub">Filter the list by how each sender can be unsubscribed. <b>auto</b> = done for you (mailto via SMTP, or one-click link). <b>manual</b> = only a confirmation page (open each with its <b>link ↗</b>). <b>none</b> = no <code>List-Unsubscribe</code> header. <b>done</b> = already unsubscribed (<b>✓ done</b>). After a bulk Unsubscribe this jumps to <b>manual</b> so you can finish the leftovers by hand.</span></span>
         </span>
         <select id="spamPageSize" class="field text-sm" style="width:auto" title="Rows per page"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
       </div>

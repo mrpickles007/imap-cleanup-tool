@@ -990,7 +990,8 @@ SMTP profile*) so you know what to fix. Rather than blasting dozens of browser t
 (pop-up blockers eat them anyway), the list
 then **filters itself to the manual ones** so they are the only rows left - open
 each with its per-row **`link ↗`**. You can reach that view any time with the
-**Unsub filter** at the top of the tab (`all` / `auto` / `manual` / `none`).
+**Unsub filter** at the top of the tab (`all` / `auto` / `manual` / `none` /
+`done` = already unsubscribed).
 
 > ⚠️ This makes **outbound requests** (an email and/or web POST/GET), so it's a
 > deliberate step. Use it for **newsletters** (legitimate senders with a
