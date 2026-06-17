@@ -932,8 +932,11 @@ So the result is **automatic for most, plus open-the-page for the rest**. The
   from here (you can still flag or remove it). Only senders that actually have the
   header can be unsubscribed.
 
-If any selected sender can only be unsubscribed by **email** but you have no active
-SMTP profile, a banner points you to the **Notifications** tab to set one up. After
+If your selection includes senders you already unsubscribed (**`✓ done`**), it first
+asks whether to **re-do** them (e.g. if the first attempt didn't work) or **skip**
+them. If any selected sender can only be unsubscribed by **email** but you have no
+active SMTP profile, a banner points you to the **Notifications** tab to set one up.
+After
 the action you get a summary (*N unsubscribed automatically, M need a manual page,
 K failed*). Rather than blasting dozens of browser tabs (pop-up blockers eat them
 anyway), the list

@@ -311,6 +311,28 @@ def mark_unsubscribed(account: str, address: str, method: str, result: str,
         conn.close()
 
 
+def done_addresses(account: str, addresses: list) -> list:
+    """Of the given addresses, those already unsubscribed (``unsub_done_at`` set)."""
+    account = (account or "").strip().lower()
+    addrs = [a.strip().lower() for a in (addresses or []) if a and a.strip()]
+    if not addrs:
+        return []
+    conn = _connect()
+    try:
+        out = []
+        for i in range(0, len(addrs), 400):
+            chunk = addrs[i:i + 400]
+            ph = ",".join("?" * len(chunk))
+            rows = conn.execute(
+                f"SELECT address FROM spam WHERE account=? AND "
+                f"unsub_done_at IS NOT NULL AND address IN ({ph})",
+                [account] + chunk).fetchall()
+            out.extend(r["address"] for r in rows)
+        return out
+    finally:
+        conn.close()
+
+
 def count_unsub_email(account: str) -> int:
     """Senders whose automatic unsubscribe needs an email (a ``mailto:`` target).
 

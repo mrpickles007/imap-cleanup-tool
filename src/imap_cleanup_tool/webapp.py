@@ -358,6 +358,7 @@ def create_app():
         addresses: list[str] = Field(default_factory=list)
         mode: str = "move"        # spam-flag: "delete" (move 1 + delete rest) | "move"
         folders: list[str] = Field(default_factory=list)   # spam-flag scope
+        skip_done: bool = False   # spam-unsubscribe: skip already-unsubscribed ones
 
     class SpamAddIn(BaseModel):
         sid: str
@@ -1131,6 +1132,14 @@ def create_app():
         from datetime import datetime
         now = datetime.now().astimezone().isoformat(timespec="seconds")
         targets = spamstore.unsub_targets(sess.user, body.addresses)
+        # optionally skip senders we already unsubscribed (the UI asks when the
+        # selection includes some) - leaves the door open to re-do them otherwise
+        skipped = 0
+        if body.skip_done:
+            already = set(spamstore.done_addresses(sess.user, body.addresses))
+            before = len(targets)
+            targets = [t for t in targets if t["address"] not in already]
+            skipped = before - len(targets)
         smtp_ok = notifications.has_active_profile()
         done, manual, failed = [], [], []
         for t in targets:
@@ -1161,11 +1170,23 @@ def create_app():
                 failed.append({"address": addr, "reason": str(exc)})
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 failed.append({"address": addr, "reason": str(exc)})
-        core.logger.info("Unsubscribe: %d auto, %d to open by hand, %d failed.",
-                         len(done), len(manual), len(failed))
+        core.logger.info("Unsubscribe: %d auto, %d to open by hand, %d failed, "
+                         "%d skipped (already done).",
+                         len(done), len(manual), len(failed), skipped)
         return {"unsubscribed": done, "manual": manual, "failed": failed,
-                "requested": len(body.addresses or []),
-                "with_method": len(targets)}
+                "skipped": skipped, "requested": len(body.addresses or []),
+                "with_method": len(targets) + skipped}
+
+    @app.post("/api/spam-unsub-precheck")
+    def spam_unsub_precheck(body: SpamActionIn) -> dict[str, Any]:
+        """How many of the selected senders are already unsubscribed.
+
+        The UI calls this before unsubscribing so it can ask whether to re-do or
+        skip the already-done ones.
+        """
+        sess = _session(body.sid)
+        return {"done": len(spamstore.done_addresses(sess.user, body.addresses)),
+                "selected": len(body.addresses or [])}
 
     @app.post("/api/spam-select-all")
     def spam_select_all(body: SpamActionIn) -> dict[str, Any]:

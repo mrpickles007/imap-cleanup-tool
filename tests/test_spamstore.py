@@ -235,6 +235,24 @@ class SpamStoreTests(unittest.TestCase):
                 self.assertFalse(ss.mark_unsubscribed(
                     "a@x.com", "nope@x.com", "email", "x"))
 
+    def test_done_addresses(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):
+                ss.record_from_report("a@x.com", _report([
+                    _sender("d1@x.com", 9), _sender("d2@x.com", 8),
+                    _sender("nd@x.com", 7)]), "report")
+                ss.mark_unsubscribed("a@x.com", "d1@x.com", "email", "sent")
+                ss.mark_unsubscribed("a@x.com", "d2@x.com", "oneclick", "ok")
+                # only the already-done addresses present in the query set come back
+                self.assertEqual(
+                    set(ss.done_addresses("a@x.com",
+                                          ["D1@x.com", "nd@x.com", "missing@x.com"])),
+                    {"d1@x.com"})
+                self.assertEqual(
+                    set(ss.done_addresses("a@x.com", ["d1@x.com", "d2@x.com"])),
+                    {"d1@x.com", "d2@x.com"})
+                self.assertEqual(ss.done_addresses("a@x.com", []), [])
+
     def test_addresses_by_score_filter(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):

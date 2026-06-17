@@ -1791,13 +1791,31 @@ if($('spamAddBtn')) $('spamAddBtn').onclick=async()=>{
 if($('spamUnsub')) $('spamUnsub').onclick=async()=>{
   const addrs=[...spamState.sel]; if(!addrs.length) return;
   if(!(await confirmDialog({title:'Unsubscribe from newsletters', message:'Unsubscribe from '+addrs.length+' selected sender(s)? It is automatic where possible (mailto via your active SMTP profile, or one-click links); senders that only offer a confirmation page can\'t be automated - afterwards the list filters to those so you can open each by hand. This makes outbound requests - do it for newsletters, not real spam.', okText:'Unsubscribe'}))) return;
+  // if some of the selection were already unsubscribed, let the user re-do or skip them
+  let skipDone=false;
+  try{
+    const pc=await api('/api/spam-unsub-precheck',{sid:SID,addresses:addrs});
+    if(pc.done>0){
+      const choice=await choiceDialog({
+        title:'Some are already unsubscribed',
+        message:pc.done+' of the '+addrs.length+' selected sender(s) are already unsubscribed. Do them again (e.g. if the first attempt didn\'t work), or skip them?',
+        choices:[
+          {key:'skip', label:'Skip already-done ('+pc.done+')'},
+          {key:'all',  label:'Process all (re-do the '+pc.done+')'}
+        ]});
+      if(!choice) return;                 // cancelled
+      skipDone = (choice==='skip');
+    }
+  }catch(_){ /* precheck failed -> just proceed with all */ }
   spamMsg('Unsubscribing '+addrs.length+' sender(s)… this can take a moment.','text-muted');
   try{
-    const r=await api('/api/spam-unsubscribe',{sid:SID,addresses:addrs});
+    const r=await api('/api/spam-unsubscribe',{sid:SID,addresses:addrs,skip_done:skipDone});
     const auto=(r.unsubscribed||[]).length, manual=(r.manual||[]).length, failed=(r.failed||[]).length;
+    const skipped=r.skipped||0;
     const noMethod=Math.max(0,(r.requested||0)-(r.with_method||0));
     let msg='Unsubscribed '+auto+' automatically';
     if(manual) msg+='; '+manual+' need a manual confirmation page';
+    if(skipped) msg+='; '+skipped+' already done (skipped)';
     if(failed) msg+='; '+failed+' failed';
     if(noMethod) msg+='; '+noMethod+' had no unsubscribe info (run a fresh AI report to detect it)';
     spamState.sel.clear();
