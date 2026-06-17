@@ -106,6 +106,9 @@ tailwind.config = { theme: { extend: {
   /* query-builder group shading (dark defaults; light overridden below) */
   .qb-group[data-depth="0"]{background:rgba(11,16,32,.5)}
   .qb-group[data-depth="1"]{background:rgba(29,37,64,.5)}
+  /* custom dropdown rows (e.g. the profile menu): a brand tint highlights cleanly
+     in BOTH themes - avoids the "row turns white" confusion in light mode */
+  .menu-item:hover{background:rgba(24,144,216,.14)}
   /* ---------- Light theme overrides (brand colors unchanged) ---------- */
   html[data-theme="light"] body{background:radial-gradient(1200px 600px at 80% -10%,rgba(24,144,216,.10),transparent),#eef2f8;}
   html[data-theme="light"] .field{background:#ffffff;border-color:#cfd8e6;color:#16213a}
@@ -2232,7 +2235,7 @@ function setProfileLabel(name){
 function renderProfileMenu(){
   const m = $('profileMenu'); m.innerHTML='';
   const item = (name, html)=>{ const b=document.createElement('button'); b.type='button';
-    b.className='w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm text-cream hover:bg-panel';
+    b.className='w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm text-cream menu-item';
     b.innerHTML=html; b.onclick=()=>chooseProfile(name); m.appendChild(b); };
   item('', '<span class="text-muted">- New profile -</span>');
   PROFILES.forEach(p=> item(p.name,
