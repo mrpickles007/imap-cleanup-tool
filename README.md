@@ -918,12 +918,24 @@ allows different mechanisms:
   **can't be automated**; you finish it by hand in the browser.
 
 So the result is **automatic for most, plus open-the-page for the rest**. The
-**Unsub** column shows which is which per sender: **`auto`** (will be done for
-you), a **`link ↗`** (opens the page), **`rescan`** (a `List-Unsubscribe` was seen
-but no usable link was captured yet - flagged by an older version, so run a fresh
-AI report), or blank (no `List-Unsubscribe` at all). After the action you get a
-summary (*N unsubscribed automatically, M need a manual page, K failed*). Rather
-than blasting dozens of browser tabs (pop-up blockers eat them anyway), the list
+**Unsub** column shows the state per sender:
+
+- **`✓ done`** - already unsubscribed; hover for the **method, date and result** of
+  the request (this is recorded per sender once an automatic unsubscribe succeeds).
+- **`auto ✉`** - automatic via a `mailto:` (an email sent from your active SMTP
+  profile). **`auto`** - automatic via a one-click HTTPS request (no SMTP needed).
+- **`link ↗`** - a confirmation page you open by hand.
+- **`rescan`** - a `List-Unsubscribe` was seen but no usable link is stored (the
+  headers were cached in an older format - clear the cache and run a fresh report).
+- **`none`** - no `List-Unsubscribe` at all, so the sender can't be unsubscribed
+  from here (you can still flag or remove it). Only senders that actually have the
+  header can be unsubscribed.
+
+If any selected sender can only be unsubscribed by **email** but you have no active
+SMTP profile, a banner points you to the **Notifications** tab to set one up. After
+the action you get a summary (*N unsubscribed automatically, M need a manual page,
+K failed*). Rather than blasting dozens of browser tabs (pop-up blockers eat them
+anyway), the list
 then **filters itself to the manual ones** so they are the only rows left - open
 each with its per-row **`link ↗`**. You can reach that view any time with the
 **Unsub filter** at the top of the tab (`all` / `auto` / `manual` / `none`).

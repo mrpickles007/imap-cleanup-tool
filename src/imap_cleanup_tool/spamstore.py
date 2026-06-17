@@ -46,11 +46,15 @@ def _connect() -> sqlite3.Connection:
         " unsub_mailto TEXT,"             # List-Unsubscribe mailto: target
         " unsub_http TEXT,"               # List-Unsubscribe https URL
         " unsub_oneclick INTEGER,"        # RFC 8058 one-click POST supported
+        " unsub_done_at TEXT,"            # when we unsubscribed (NULL = not yet)
+        " unsub_done_method TEXT,"        # 'email' | 'oneclick'
+        " unsub_done_result TEXT,"        # human-readable outcome
         " updated_at TEXT,"
         " PRIMARY KEY (account, address))")
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(spam)")}
     for col, typ in (("unsub_mailto", "TEXT"), ("unsub_http", "TEXT"),
-                     ("unsub_oneclick", "INTEGER")):
+                     ("unsub_oneclick", "INTEGER"), ("unsub_done_at", "TEXT"),
+                     ("unsub_done_method", "TEXT"), ("unsub_done_result", "TEXT")):
         if col not in cols:
             conn.execute(f"ALTER TABLE spam ADD COLUMN {col} {typ}")
     return conn
@@ -138,7 +142,11 @@ def _row_dict(r: sqlite3.Row) -> dict:
             "source": r["source"], "updated_at": r["updated_at"],
             # unsubscribe info for the UI: auto badge, or a link to open
             "unsub_auto": auto, "unsub_url": http or None,
-            "unsub_can": bool(mailto or http)}
+            "unsub_can": bool(mailto or http),
+            # outcome of a performed unsubscribe (NULL until we do one)
+            "unsub_done_at": r["unsub_done_at"],
+            "unsub_done_method": r["unsub_done_method"],
+            "unsub_done_result": r["unsub_done_result"]}
 
 
 def unsub_targets(account: str, addresses: list) -> list:
@@ -274,6 +282,31 @@ def count(account: str) -> int:
     try:
         return conn.execute("SELECT COUNT(*) FROM spam WHERE account=?",
                             (account,)).fetchone()[0]
+    finally:
+        conn.close()
+
+
+def mark_unsubscribed(account: str, address: str, method: str, result: str,
+                      at: str | None = None) -> bool:
+    """Record that we unsubscribed ``address`` (method/result/timestamp).
+
+    ``method`` is 'email' or 'oneclick'; ``result`` is a short human-readable
+    outcome. ``at`` defaults to now. Returns True if a row was updated.
+    """
+    account = (account or "").strip().lower()
+    address = (address or "").strip().lower()
+    if not account or not address:
+        return False
+    if at is None:
+        at = datetime.now().astimezone().isoformat(timespec="seconds")
+    conn = _connect()
+    try:
+        cur = conn.execute(
+            "UPDATE spam SET unsub_done_at=?, unsub_done_method=?,"
+            " unsub_done_result=? WHERE account=? AND address=?",
+            (at, method, result, account, address))
+        conn.commit()
+        return cur.rowcount > 0
     finally:
         conn.close()
 

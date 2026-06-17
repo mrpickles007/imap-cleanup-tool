@@ -214,6 +214,27 @@ class SpamStoreTests(unittest.TestCase):
                 # unknown filter behaves like "all"
                 self.assertEqual(len(addrs("bogus")), 4)
 
+    def test_mark_unsubscribed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):
+                s1 = _sender("oc@x.com", 8)
+                s1["unsub_mailto"] = None
+                s1["unsub_http"] = "https://x.com/u"; s1["unsub_oneclick"] = True
+                ss.record_from_report("a@x.com", _report([s1]), "report")
+                item = ss.list_addresses("a@x.com")["items"][0]
+                self.assertIsNone(item["unsub_done_at"])     # not done yet
+                # record an unsubscribe outcome
+                self.assertTrue(ss.mark_unsubscribed(
+                    "a@x.com", "OC@x.com", "oneclick",
+                    "one-click confirmed", "2026-06-17T10:00:00"))
+                item = ss.list_addresses("a@x.com")["items"][0]
+                self.assertEqual(item["unsub_done_at"], "2026-06-17T10:00:00")
+                self.assertEqual(item["unsub_done_method"], "oneclick")
+                self.assertEqual(item["unsub_done_result"], "one-click confirmed")
+                # unknown address updates nothing
+                self.assertFalse(ss.mark_unsubscribed(
+                    "a@x.com", "nope@x.com", "email", "x"))
+
     def test_addresses_by_score_filter(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):

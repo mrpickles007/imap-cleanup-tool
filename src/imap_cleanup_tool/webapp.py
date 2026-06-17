@@ -1128,6 +1128,8 @@ def create_app():
         """
         sess = _session(body.sid)
         from . import unsubscribe as unsub
+        from datetime import datetime
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
         targets = spamstore.unsub_targets(sess.user, body.addresses)
         smtp_ok = notifications.has_active_profile()
         done, manual, failed = [], [], []
@@ -1143,9 +1145,14 @@ def create_app():
                     to, subj, bod = unsub.parse_mailto(t["mailto"])
                     notifications.send_from_active(to, subj, bod)
                     done.append(addr)
+                    spamstore.mark_unsubscribed(sess.user, addr, "email",
+                                                "unsubscribe email sent", now)
                 elif t["http"] and t["oneclick"]:
                     if unsub.http_one_click(t["http"]):
                         done.append(addr)
+                        spamstore.mark_unsubscribed(
+                            sess.user, addr, "oneclick",
+                            "one-click request confirmed (HTTP 2xx)", now)
                     else:                               # POST failed -> open by hand
                         manual.append({"address": addr, "url": t["http"]})
                 elif t["http"]:

@@ -749,7 +749,7 @@ tailwind.config = { theme: { extend: {
           <th class="py-2 px-2 text-center"><span class="spam-sort" data-sort="per_week">Msgs/week<span class="sort-caret"></span></span><span class="tip"><span class="ic">i</span><span class="bub"><b>Send frequency</b>: messages per week, estimated from the span between the oldest and newest <code>Date</code> headers. Frequent senders score higher. Click to sort.</span></span></th>
           <th class="py-2 px-2"><span class="spam-sort" data-sort="signals">Signals<span class="sort-caret"></span></span><span class="tip"><span class="ic">i</span><span class="bub">Boolean flags that feed the score: <b>unsub</b> = has a <code>List-Unsubscribe</code> header; <b>bulk</b> = <code>Precedence: bulk</code>; <b>pattern</b> = a bulk-looking sender name (<code>noreply@</code>, <code>newsletter@</code>, <code>no-reply@</code>…). Sorts by how many signals are set.</span></span></th>
           <th class="py-2 px-2"><span class="spam-sort" data-sort="verdict">LLM verdict<span class="sort-caret"></span></span><span class="tip"><span class="ic">i</span><span class="bub">The model's judgement (only if AI Cleanup ran with a model): <b>delete</b> or <b>keep</b>, with its reason and confidence. Sorts by verdict then confidence. Empty if heuristic-only.</span></span></th>
-          <th class="py-2 px-2 text-center">Unsub<span class="tip"><span class="ic">i</span><span class="bub">How each sender can be unsubscribed (from its <code>List-Unsubscribe</code>): <b class="text-ok">auto ✉</b> = automatic, an email sent from your active SMTP profile; <b class="text-ok">auto</b> = automatic, a one-click HTTPS request (no SMTP needed); <b>link ↗</b> = a confirmation page you open by hand; <b class="text-warn">rescan</b> = header seen but no link stored (old cache - clear the cache and run a fresh AI report); blank = no <code>List-Unsubscribe</code> at all. Use the <b>Unsubscribe</b> button on selected rows, or the <b>Unsub filter</b> above to narrow the list.</span></span></th>
+          <th class="py-2 px-2 text-center">Unsub<span class="tip"><span class="ic">i</span><span class="bub">How each sender can be unsubscribed (from its <code>List-Unsubscribe</code>): <b class="text-ok">✓ done</b> = already unsubscribed (hover for the method, date and result); <b class="text-ok">auto ✉</b> = automatic, an email sent from your active SMTP profile; <b class="text-ok">auto</b> = automatic, a one-click HTTPS request (no SMTP needed); <b>link ↗</b> = a confirmation page you open by hand; <b class="text-warn">rescan</b> = header seen but no link stored (old cache - clear the cache and run a fresh AI report); <b>none</b> = no <code>List-Unsubscribe</code>, so it can't be unsubscribed from here. Use the <b>Unsubscribe</b> button on selected rows, or the <b>Unsub filter</b> above to narrow the list.</span></span></th>
         </tr></thead>
         <tbody id="spamBody"><tr><td colspan="9" class="py-6 text-center text-muted text-xs">No spam addresses yet - run an AI Cleanup report first.</td></tr></tbody>
       </table>
@@ -1710,11 +1710,18 @@ function renderSpam(items){
     const reason = it.verdict_reason? '<div class="text-muted text-[11px]">'+escapeHtml(it.verdict_reason)+'</div>':'';
     const checked=spamState.sel.has(it.address)?'checked':'';
     const sevClass = it.score>=8?'text-danger':(it.score>=6?'text-warn':'text-cream');
-    let unsubCell='<span class="text-muted">-</span>';
-    if(it.unsub_kind==='email') unsubCell='<span class="text-ok text-[11px] font-semibold cursor-help" title="Automatic: an unsubscribe email is sent from your active SMTP profile (Notifications tab).">auto ✉</span>';
+    let unsubCell;
+    if(it.unsub_done_at){
+      const meth = it.unsub_done_method==='email'?'an unsubscribe email':(it.unsub_done_method==='oneclick'?'a one-click request':(it.unsub_done_method||'unsubscribe'));
+      const when = String(it.unsub_done_at).replace('T',' ').slice(0,16);
+      const res = it.unsub_done_result?(': '+it.unsub_done_result):'';
+      unsubCell='<span class="text-ok text-[11px] font-semibold cursor-help" title="Unsubscribed via '+escapeHtml(meth)+' on '+escapeHtml(when)+escapeHtml(res)+'">✓ done</span>';
+    }
+    else if(it.unsub_kind==='email') unsubCell='<span class="text-ok text-[11px] font-semibold cursor-help" title="Automatic: an unsubscribe email is sent from your active SMTP profile (Notifications tab).">auto ✉</span>';
     else if(it.unsub_kind==='oneclick') unsubCell='<span class="text-ok text-[11px] font-semibold cursor-help" title="Automatic: a single one-click HTTPS request (RFC 8058). No SMTP needed.">auto</span>';
     else if(it.unsub_url) unsubCell='<a href="'+escapeHtml(it.unsub_url)+'" target="_blank" rel="noopener" class="text-brand-light text-[11px] hover:underline">link ↗</a>';
     else if(it.list_unsubscribe) unsubCell='<span class="text-warn text-[11px] cursor-help" title="A List-Unsubscribe header was seen but no usable link is stored - the headers were cached in an older format. Clear the local cache (connection card) and run a fresh AI report; it will then show auto / auto ✉ / link ↗.">rescan</span>';
+    else unsubCell='<span class="text-muted text-[11px] cursor-help" title="No List-Unsubscribe header - this sender can\'t be unsubscribed from here (only flagged/removed).">none</span>';
     tr.innerHTML='<td class="py-2 pr-2"><input type="checkbox" data-addr="'+escapeHtml(it.address)+'" '+checked+'></td>'
       +'<td class="py-2 pr-3 break-all">'+escapeHtml(it.address)+'</td>'
       +'<td class="py-2 px-2 text-center font-semibold '+sevClass+'">'+(it.score!=null?it.score:'')+'</td>'
