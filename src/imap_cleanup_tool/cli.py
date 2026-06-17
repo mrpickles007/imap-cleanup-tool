@@ -128,6 +128,10 @@ def _add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--profile", metavar="NAME",
                         help="Load the connection (host/user/password) from a "
                              "saved, non-encrypted profile.")
+    parser.add_argument("--notify-profile", metavar="NAME", default="",
+                        help="Send the notification email from this saved SMTP "
+                             "profile (must be non-encrypted) instead of the active "
+                             "one. Used by scheduled jobs.")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -186,6 +190,7 @@ def _notify_cli(args, folders: list[str], total: int, *, gmail: bool,
                 account, folders, total, dry_run=args.dry_run, gmail=gmail,
                 kind=kind, dest=dest)
         if nt.send_notification(subject, body, when=_NOTIFY_WHEN,
+                                profile=getattr(args, "notify_profile", ""),
                                 attachments=attachments):
             core.logger.info("Notification email sent to the configured "
                              "recipient%s.",

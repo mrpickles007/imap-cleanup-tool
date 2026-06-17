@@ -450,6 +450,7 @@ def create_app():
     class JobIn(Match, Options):
         name: str = "job"
         profile: str = ""                    # connection profile (non-encrypted)
+        notify_profile: str = ""             # SMTP profile for the email (non-encrypted)
         kind: str = "daily"   # once|interval|hourly|daily|weekly|monthly
         time: str = "03:00"   # HH:MM (once/hourly/daily/weekly/monthly)
         date: str = ""        # YYYY-MM-DD (once only)
@@ -1371,6 +1372,16 @@ def create_app():
                                      "use a non-encrypted profile for scheduled "
                                      "jobs.")
         args: list[str] = ["--profile", prof]
+        nprof = (body.notify_profile or "").strip()
+        if nprof:
+            sm = next((p for p in notifications.list_profiles()
+                       if p["name"] == nprof), None)
+            if sm is None:
+                raise HTTPException(400, f"SMTP profile {nprof!r} not found.")
+            if sm["encrypted"]:
+                raise HTTPException(400, "Encrypted SMTP profiles can't send from "
+                                         "scheduled jobs - pick a non-encrypted one.")
+            args += ["--notify-profile", nprof]
         for folder in (body.folders or ["INBOX"]):
             args += ["--folder", folder]
         if body.ai_cleanup:

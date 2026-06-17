@@ -303,7 +303,8 @@ def send_email(cfg: dict, to_addr: str, subject: str, body: str,
 
 
 def send_notification(subject: str, body: str, *, when: str,
-                      secret: str = "", attachments: list | None = None) -> bool:
+                      secret: str = "", profile: str = "",
+                      attachments: list | None = None) -> bool:
     """Send a notification for a run/job if enabled and configured.
 
     ``when`` is 'job' or 'run' - the matching toggle must be on. ``attachments``
@@ -315,9 +316,10 @@ def send_notification(subject: str, body: str, *, when: str,
     """
     s = get_settings()
     enabled = s["notify_jobs"] if when == "job" else s["notify_runs"]
-    if not enabled or not s["active"] or not s["notify_to"]:
+    active = (profile or "").strip() or s["active"]   # per-job profile override
+    if not enabled or not active or not s["notify_to"]:
         return False
-    cfg = load_profile(s["active"], secret)
+    cfg = load_profile(active, secret)
     if cfg["encrypted"] and not secret:
         raise NotifyError("The active SMTP profile is encrypted and cannot send "
                           "unattended - use a non-encrypted profile for jobs.")

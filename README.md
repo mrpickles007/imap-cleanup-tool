@@ -520,6 +520,7 @@ python -m unittest discover -s tests -v
 | `--verbose`, `-v` | Debug logging with per-batch progress. |
 | `--run-job NAME` | Run a saved scheduled job by name (used by the OS scheduler). |
 | `--profile NAME` | Load host/user/password from a saved, non-encrypted profile. |
+| `--notify-profile NAME` | Send the completion email from this saved (non-encrypted) SMTP profile instead of the active one. Used by scheduled jobs. |
 
 Examples:
 
@@ -872,7 +873,10 @@ provide it:
   email is then sent. **Cancel / leave it blank** to run **without** the email -
   the run itself is unaffected.
 - **Scheduled jobs** can **not** use an encrypted profile (a cron has no one to
-  type the passphrase) - use a **non-encrypted** active profile for those.
+  type the passphrase). In the **Scheduling** tab each job has a **Notification
+  SMTP profile** dropdown listing only the **non-encrypted** profiles (or *use
+  active*); if there are none, the job form says so and the job simply runs
+  **without** the email even when notifications are enabled.
 
 The same up-front prompt applies to an **encrypted LLM model** used in an
 interactive AI run: you enter its passphrase in the **AI panel** before running
