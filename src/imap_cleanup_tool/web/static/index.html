@@ -1312,7 +1312,7 @@ async function startJob(path, body, refreshFolders){
   if(!SID){ log('[ERROR] Not connected.'); return; }
   pendingRefreshFolders=!!refreshFolders;
   try{ const d=await api(path, body); curRunId=d.run_id; startPolling(); }
-  catch(e){ log('[ERROR] '+e.message); }
+  catch(e){ log('[ERROR] '+e.message); toast('Error: '+e.message, 'border-danger/50 bg-danger/15 text-danger'); }
 }
 async function refreshFoldersQuiet(){
   if(!SID) return;
@@ -1578,7 +1578,7 @@ $('btnAiReport').onclick=async()=>{ if(!SID){ log('[ERROR] Not connected.'); ret
   const p=aiPayload();
   if($('aiSkipLlm') && $('aiSkipLlm').checked){ p.model=''; log('Generating heuristic-only report (LLM skipped) on: '+p.folders.join(', ')+' …'); }
   else log('Generating AI report on: '+p.folders.join(', ')+' …');
-  await ensureSmtpNotifySecret(); p.notify_secret=smtpNotifySecret;
+  if(!(await ensureSmtpNotifySecret())) return; p.notify_secret=smtpNotifySecret;
   startJob('/api/ai-report', p); };
 async function loadAiReports(){
   const sel=$('aiReportList'); if(!sel) return;
@@ -1777,7 +1777,7 @@ $('costModal').onclick=(e)=>{ if(e.target.id==='costModal') $('costModal').class
 let SMTP_PROFILES=[], SMTP_PROVIDERS_DONE=false, EDITING_SMTP=null;
 let smWasEncrypted=false, llmWasEncrypted=false;   // was the edited profile/model encrypted?
 let NOTIFY_SETTINGS={};                             // saved notification settings (active/notify_runs/…)
-let smtpNotifySecret='', smtpNotifyDeclined=false;  // SMTP passphrase for run emails (memory only)
+let smtpNotifySecret='';  // SMTP passphrase for run emails (memory only; only a verified one is cached)
 function fillSmtpProviders(){
   if(SMTP_PROVIDERS_DONE) return; const sel=$('smProvider'); if(!sel) return;
   (META.smtp_providers||[]).forEach((p,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=p.name; sel.appendChild(o); });
@@ -1809,12 +1809,45 @@ function activeSmtpNeedsSecret(){
   const p = (SMTP_PROFILES||[]).find(x=>x.name===active);
   return !!(p && p.encrypted);
 }
+// 3-choice passphrase dialog -> {action:'cancel'|'skip'|'ok', secret}. errMsg shows an error.
+function smtpPassDialog(errMsg){
+  return new Promise(resolve=>{
+    const ov=document.createElement('div');
+    ov.className='fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4';
+    ov.innerHTML='<div class="bg-panel border border-line rounded-xl p-5 w-full max-w-md">'
+      +'<h3 class="font-display font-semibold text-brand-light mb-2">SMTP passphrase</h3>'
+      +'<p class="text-muted text-sm mb-3">A <b>completion email</b> is set to be sent and your <b>active SMTP profile is encrypted</b>. Enter its passphrase to send the email. <b>Skip email</b> runs the cleanup but sends no email; <b>Cancel run</b> stops everything. The passphrase is kept in memory for this session only.</p>'
+      +'<div class="flex gap-2"><input type="password" class="field" placeholder="SMTP passphrase"><button data-x="eye" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream text-sm">show</button></div>'
+      +'<p data-x="err" class="text-xs text-danger mt-2 '+(errMsg?'':'hidden')+'">'+escapeHtml(errMsg||'')+'</p>'
+      +'<div class="flex flex-wrap justify-end gap-2 mt-4">'
+      +'<button data-x="cancel" class="px-4 py-2 rounded-lg border border-danger/50 text-danger hover:bg-danger/10">Cancel run</button>'
+      +'<button data-x="skip" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Skip email</button>'
+      +'<button data-x="ok" class="px-4 py-2 rounded-lg font-semibold bg-brand text-ink hover:bg-brand-light">OK</button>'
+      +'</div></div>';
+    document.body.appendChild(ov);
+    const inp=ov.querySelector('input'); setTimeout(()=>inp.focus(),50);
+    const eye=ov.querySelector('[data-x=eye]'); eye.onclick=()=>{ inp.type=inp.type==='password'?'text':'password'; eye.textContent=inp.type==='password'?'show':'hide'; };
+    const done=(v)=>{ ov.remove(); resolve(v); };
+    ov.querySelector('[data-x=cancel]').onclick=()=>done({action:'cancel'});
+    ov.querySelector('[data-x=skip]').onclick=()=>done({action:'skip'});
+    ov.querySelector('[data-x=ok]').onclick=()=>done({action:'ok', secret:inp.value});
+    inp.addEventListener('keydown',e=>{ if(e.key==='Enter') done({action:'ok', secret:inp.value}); if(e.key==='Escape') done({action:'cancel'}); });
+  });
+}
+// Returns true to proceed with the run, false to abort it. Only a VERIFIED passphrase
+// is cached; "Skip email" is never cached (you are asked again next run).
 async function ensureSmtpNotifySecret(){
-  if(!activeSmtpNeedsSecret() || smtpNotifySecret || smtpNotifyDeclined) return;
-  const pw = await promptDialog({title:'Notification email passphrase',
-    message:'A completion email is set to be sent, and your active SMTP profile is encrypted. Enter its passphrase so the email can be sent.\n\nKept only in memory for this session. Leave blank / cancel to run without the email.', okText:'OK'});
-  if(pw){ smtpNotifySecret = pw; }
-  else { smtpNotifyDeclined = true; toast('Running without the completion email - you cancelled the SMTP passphrase. (Re-save Notification settings to be asked again.)'); }
+  if(!activeSmtpNeedsSecret() || smtpNotifySecret) return true;
+  let err='';
+  while(true){
+    const r=await smtpPassDialog(err);
+    if(r.action==='cancel') return false;                  // abort the run
+    if(r.action==='skip'){ toast('Running without the completion email (Skip email).'); return true; }
+    const pw=(r.secret||'').trim();
+    if(!pw){ err='Enter the passphrase, or choose Skip email.'; continue; }
+    try{ await api('/api/smtp-verify',{sid:SID, name:NOTIFY_SETTINGS.active, secret:pw}); smtpNotifySecret=pw; return true; }
+    catch(e){ err=e.message||'Wrong passphrase.'; }
+  }
 }
 async function loadSmtp(){
   fillSmtpProviders();
@@ -1890,7 +1923,7 @@ if($('btnSaveSmtp')) $('btnSaveSmtp').onclick=async()=>{
 if($('btnSaveNotify')) $('btnSaveNotify').onclick=async()=>{
   try{ await api('/api/notify-settings',{ active:$('smActive').value, notify_to:$('smTo').value, notify_jobs:$('smNotifyJobs').checked, notify_runs:$('smNotifyRuns').checked });
     NOTIFY_SETTINGS={active:$('smActive').value, notify_to:$('smTo').value, notify_jobs:$('smNotifyJobs').checked, notify_runs:$('smNotifyRuns').checked};
-    smtpNotifySecret=''; smtpNotifyDeclined=false;   // settings changed -> re-ask if needed
+    smtpNotifySecret='';   // settings changed -> re-ask if needed
     $('smNotifyMsg').textContent='Settings saved.'; $('smNotifyMsg').className='text-[11px] mt-2 text-ok'; }
   catch(e){ $('smNotifyMsg').textContent='Error: '+e.message; $('smNotifyMsg').className='text-[11px] mt-2 text-danger'; }
 };
@@ -2153,7 +2186,7 @@ function prefillSelfExclude(){
   if(!lines.some(l=>l.toLowerCase()===addr.toLowerCase())){ lines.unshift(addr); box.value=lines.join('\n'); }
   selfExcludeAddr=addr;
 }
-$('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setStatus(false,'disconnected'); setConnectedUI(false); removeSelfExclude(); loadAiReports(); refreshLoadSpam(); refreshCacheInfo(); Object.keys(unlockedSecrets).forEach(k=>delete unlockedSecrets[k]); smtpNotifySecret=''; smtpNotifyDeclined=false; log('Disconnected.'); };
+$('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setStatus(false,'disconnected'); setConnectedUI(false); removeSelfExclude(); loadAiReports(); refreshLoadSpam(); refreshCacheInfo(); Object.keys(unlockedSecrets).forEach(k=>delete unlockedSecrets[k]); smtpNotifySecret=''; log('Disconnected.'); };
 $('btnValidate').onclick=async()=>{ try{ const d=await api('/api/validate-rule',{tree:toTree(ROOT)}); $('ruleOut').textContent='OK → SEARCH '+d.search; $('ruleOut').className='text-xs text-ok ml-2'; }catch(e){ $('ruleOut').textContent=e.message; $('ruleOut').className='text-xs text-danger ml-2'; } };
 $('btnStop').onclick=async()=>{ if(SID&&curRunId){ $('btnStop').disabled=true; $('btnStop').textContent='Stopping…'; try{ await api(`/api/stop/${SID}/${curRunId}`); log('Stop requested - finishing the current batch, then stopping…'); }catch(e){} } };
 $('btnSenders').onclick=async()=>{ if(!(await ensureFolderChosen())) return; log('Listing senders in: '+(selectedFolders.join(', ')||'INBOX')+' …'); startJob('/api/senders',{sid:SID,folders:selectedFolders.length?selectedFolders:['INBOX'],batch_size:parseInt($('batch').value)||500}); };
@@ -2185,7 +2218,7 @@ $('btnRun').onclick=async ()=>{
     if(!$('aiModel').value){ log('[ERROR] Choose a model in the AI panel (configure one in the LLM tab).'); return; }
     const ap=aiPayload();
     if(!ap.dry_run && !(await confirmDialog({title:'AI Cleanup - not a dry-run', message:'The AI will judge the flagged senders and DELETE the confirmed ones in:\n'+ap.folders.join(', ')+'\n\nContinue?', okText:'Run AI cleanup', danger:true}))) return;
-    await ensureSmtpNotifySecret(); ap.notify_secret=smtpNotifySecret;
+    if(!(await ensureSmtpNotifySecret())) return; ap.notify_secret=smtpNotifySecret;
     log((ap.dry_run?'[DRY-RUN] ':'')+'AI Cleanup on: '+ap.folders.join(', ')+' …'); startJob('/api/ai-run', ap, !ap.dry_run); return;
   }
   if(!(await ensureFolderChosen())) return;
@@ -2202,7 +2235,7 @@ $('btnRun').onclick=async ()=>{
     else { what='Flag matched messages as deleted in';
       note='\n\nNote: without Expunge, messages are only flagged \\Deleted (hidden but recoverable) - they are NOT permanently removed. Enable Expunge to delete for good.'; }
     if(!(await confirmDialog({title:'This is not a dry-run', message:'About to '+what+':\n'+p.folders.join(', ')+note+'\n\nContinue?', okText:'Run for real', danger:true}))) return; }
-  await ensureSmtpNotifySecret(); p.notify_secret=smtpNotifySecret;
+  if(!(await ensureSmtpNotifySecret())) return; p.notify_secret=smtpNotifySecret;
   log((p.dry_run?'[DRY-RUN] ':'')+'Starting on: '+p.folders.join(', ')); startJob('/api/run',p, !p.dry_run);
 };
 async function confirmJobOverwrite(){

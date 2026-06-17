@@ -676,6 +676,15 @@ def create_app():
             raise HTTPException(400, str(exc)) from exc
         return {"sent": s["notify_to"]}
 
+    @app.post("/api/smtp-verify")
+    def smtp_verify(body: SmtpActionIn) -> dict[str, Any]:
+        """Check an SMTP profile's passphrase (decrypt-test only, sends nothing)."""
+        try:
+            notifications.load_profile(body.name, body.secret)
+        except notifications.NotifyError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return {"ok": True}
+
     @app.post("/api/notify-settings")
     def save_notify_settings(body: NotifySettingsIn) -> dict[str, Any]:
         notifications.set_settings(

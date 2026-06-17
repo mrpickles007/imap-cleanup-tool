@@ -869,18 +869,22 @@ provide it:
   passphrase **at send time**.
 - **Interactive runs** - **Run**, **AI Cleanup**, and **Generate report** - with
   *notifications for interactive runs* enabled ask for the passphrase **up front,
-  before the run starts** (kept in memory for that session only); the completion
-  email is then sent. **Cancel / leave it blank** to run **without** the email -
-  the run itself is unaffected.
+  before the run starts**, with three choices: **OK** (the passphrase is
+  **required** and **verified** - a wrong or empty one shows an error and asks
+  again), **Skip email** (run the cleanup but send **no** email - you're asked
+  again on the next run, it is never remembered), or **Cancel run** (stop). Only a
+  **verified** passphrase is cached, in memory for that session only.
 - **Scheduled jobs** can **not** use an encrypted profile (a cron has no one to
   type the passphrase). In the **Scheduling** tab each job has a **Notification
   SMTP profile** dropdown listing only the **non-encrypted** profiles (or *use
   active*); if there are none, the job form says so and the job simply runs
   **without** the email even when notifications are enabled.
 
-The same up-front prompt applies to an **encrypted LLM model** used in an
-interactive AI run: you enter its passphrase in the **AI panel** before running
-(scheduled AI jobs likewise need a non-encrypted model).
+For an **encrypted LLM model** used in an interactive AI run, you enter its
+passphrase in the **AI panel** before running (the *Password used to encrypt model*
+field, with a show toggle). A **missing or wrong** model passphrase **fails the run
+with a clear error** (shown as a banner and in the log). Scheduled AI jobs likewise
+need a **non-encrypted** model.
 
 ---
 
