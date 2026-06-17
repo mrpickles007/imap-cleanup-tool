@@ -1007,6 +1007,14 @@ function promptDialog(opts){
     inp.addEventListener('keydown',e=>{ if(e.key==='Enter') done(inp.value); if(e.key==='Escape') done(null); });
   });
 }
+/* Lightweight top-center banner that auto-dismisses (and is click-to-dismiss). */
+function toast(msg, cls){
+  const t=document.createElement('div');
+  t.className='fixed top-4 left-1/2 -translate-x-1/2 z-[70] max-w-[90vw] rounded-lg border px-4 py-2 text-sm shadow-xl cursor-pointer '+(cls||'border-warn/50 bg-warn/15 text-warn');
+  t.textContent=msg;
+  const kill=()=>{ t.style.transition='opacity .4s'; t.style.opacity='0'; setTimeout(()=>t.remove(),400); };
+  t.onclick=kill; document.body.appendChild(t); setTimeout(kill, 6000);
+}
 /* Multi-choice dialog -> resolves to a choice.key, or null on cancel. */
 function choiceDialog(opts){
   opts = opts || {};
@@ -1778,7 +1786,8 @@ async function ensureSmtpNotifySecret(){
   if(!activeSmtpNeedsSecret() || smtpNotifySecret || smtpNotifyDeclined) return;
   const pw = await promptDialog({title:'Notification email passphrase',
     message:'A completion email is set to be sent, and your active SMTP profile is encrypted. Enter its passphrase so the email can be sent.\n\nKept only in memory for this session. Leave blank / cancel to run without the email.', okText:'OK'});
-  if(pw) smtpNotifySecret = pw; else smtpNotifyDeclined = true;
+  if(pw){ smtpNotifySecret = pw; }
+  else { smtpNotifyDeclined = true; toast('Running without the completion email - you cancelled the SMTP passphrase. (Re-save Notification settings to be asked again.)'); }
 }
 async function loadSmtp(){
   fillSmtpProviders();
