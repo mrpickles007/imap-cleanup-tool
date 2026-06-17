@@ -729,9 +729,7 @@ tailwind.config = { theme: { extend: {
       <label class="flex items-center gap-1.5 text-xs text-muted"><input id="spamSelectAll" type="checkbox"> Select all (this page)</label>
       <button id="spamSelectAllAcct" type="button" class="text-xs text-brand-light hover:underline">select all <span id="spamTotalCount"></span></button>
       <span class="flex-1"></span>
-      <button id="spamFlag" class="px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-light text-ink font-semibold text-sm flex items-center gap-1.5" disabled>Flag senders as spam
-        <span class="tip"><span class="ic" style="border-color:rgba(0,0,0,.35);color:rgba(0,0,0,.6)">i</span><span class="bub">Reports the selected senders to the mail server (moves their mail to the Junk/Spam folder) so it routes their <b>future</b> mail to spam. A popup lets you either move one message and <b>delete</b> the rest (like Run), or just <b>move</b> all their mail to Spam. It scans the folders selected in the Cleanup tab.</span></span>
-      </button>
+      <button id="spamFlag" class="px-3 py-1.5 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm" disabled>Flag senders as spam</button>
       <button id="spamUnsub" class="px-3 py-1.5 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm flex items-center gap-1.5" disabled>Unsubscribe
         <span class="tip"><span class="ic">i</span><span class="bub">Uses each selected sender's <code>List-Unsubscribe</code> header. <b>Automatic</b> when it's a <code>mailto:</code> (sent from your active SMTP profile) or a one-click HTTPS link (RFC 8058). When the only option is a plain link that opens a confirmation page, it <b>can't be automated</b> - those are opened in your browser to finish by hand. It makes outbound requests; do it for <b>newsletters</b>, not actual spam (unsubscribing from real spam just confirms your address).</span></span>
       </button>
@@ -748,7 +746,7 @@ tailwind.config = { theme: { extend: {
           <th class="py-2 px-2 text-center"><span class="spam-sort" data-sort="per_week">Msgs/week<span class="sort-caret"></span></span><span class="tip"><span class="ic">i</span><span class="bub"><b>Send frequency</b>: messages per week, estimated from the span between the oldest and newest <code>Date</code> headers. Frequent senders score higher. Click to sort.</span></span></th>
           <th class="py-2 px-2"><span class="spam-sort" data-sort="signals">Signals<span class="sort-caret"></span></span><span class="tip"><span class="ic">i</span><span class="bub">Boolean flags that feed the score: <b>unsub</b> = has a <code>List-Unsubscribe</code> header; <b>bulk</b> = <code>Precedence: bulk</code>; <b>pattern</b> = a bulk-looking sender name (<code>noreply@</code>, <code>newsletter@</code>, <code>no-reply@</code>…). Sorts by how many signals are set.</span></span></th>
           <th class="py-2 px-2"><span class="spam-sort" data-sort="verdict">LLM verdict<span class="sort-caret"></span></span><span class="tip"><span class="ic">i</span><span class="bub">The model's judgement (only if AI Cleanup ran with a model): <b>delete</b> or <b>keep</b>, with its reason and confidence. Sorts by verdict then confidence. Empty if heuristic-only.</span></span></th>
-          <th class="py-2 px-2 text-center">Unsub<span class="tip"><span class="ic">i</span><span class="bub"><b>auto</b> = can be unsubscribed automatically (mailto via SMTP, or one-click link). A <b>link ↗</b> = opens a confirmation page to finish by hand. Blank = no <code>List-Unsubscribe</code> (run a fresh AI report to detect it). Use the <b>Unsubscribe</b> button on the selected rows.</span></span></th>
+          <th class="py-2 px-2 text-center">Unsub<span class="tip"><span class="ic">i</span><span class="bub"><b>auto</b> = can be unsubscribed automatically (mailto via SMTP, or one-click link). A <b>link ↗</b> = opens a confirmation page to finish by hand. <b>rescan</b> = the sender has a <code>List-Unsubscribe</code> header but no usable link was captured yet (flagged by an older version - run a fresh AI report). Blank = no <code>List-Unsubscribe</code> at all. Use the <b>Unsubscribe</b> button on the selected rows, or the <b>Unsub filter</b> above to narrow the list.</span></span></th>
         </tr></thead>
         <tbody id="spamBody"><tr><td colspan="9" class="py-6 text-center text-muted text-xs">No spam addresses yet - run an AI Cleanup report first.</td></tr></tbody>
       </table>
@@ -1703,6 +1701,7 @@ function renderSpam(items){
     let unsubCell='<span class="text-muted">-</span>';
     if(it.unsub_auto) unsubCell='<span class="text-ok text-[11px] font-semibold">auto</span>';
     else if(it.unsub_url) unsubCell='<a href="'+escapeHtml(it.unsub_url)+'" target="_blank" rel="noopener" class="text-brand-light text-[11px] hover:underline">link ↗</a>';
+    else if(it.list_unsubscribe) unsubCell='<span class="text-warn text-[11px] cursor-help" title="This sender has a List-Unsubscribe header, but no usable link was captured (it was flagged by an older version). Run a fresh AI report to detect it.">rescan</span>';
     tr.innerHTML='<td class="py-2 pr-2"><input type="checkbox" data-addr="'+escapeHtml(it.address)+'" '+checked+'></td>'
       +'<td class="py-2 pr-3 break-all">'+escapeHtml(it.address)+'</td>'
       +'<td class="py-2 px-2 text-center font-semibold '+sevClass+'">'+(it.score!=null?it.score:'')+'</td>'

@@ -83,6 +83,7 @@ features are optional extras (see [Install](#install)).
 - [Scheduling](#scheduling)
 - [Email notifications](#email-notifications)
 - [Spam addresses](#spam-addresses)
+- [Bulk unsubscribe from newsletters](#bulk-unsubscribe-from-newsletters)
 - [Gmail notes](#gmail-notes)
 
 ---
@@ -884,10 +885,23 @@ reason + confidence) when a model was used.
 - **Unsubscribe (newsletters)** - select senders and click **Unsubscribe** to use
   their `List-Unsubscribe` header. See [how it works](#bulk-unsubscribe-from-newsletters) below.
 
-### Bulk unsubscribe from newsletters
+### Load saved spam into a Target list
 
-Many bulk senders include a `List-Unsubscribe` header. The **Spam addresses** tab
-reads it (captured during an AI report) and lets you **unsubscribe from the
+The spam list doubles as a reusable **blocklist**. In the **Cleanup** tab, when
+saved spam addresses exist for the connected account, a **Load saved Spam
+addresses** box appears under the Target list. Pick a **score** condition
+(`is` / `<=` / `>=` / `<` / `>`) and a threshold (default 6, step 0.1) and click
+**Load** - every matching sender is appended to the target list (duplicates
+skipped). From there you delete or move them with the normal tools (dry-run, move,
+expunge...). This closes the loop: **AI finds the junk -> you act on it precisely.**
+
+---
+
+## Bulk unsubscribe from newsletters
+
+One of the most useful things you can do from the **Spam addresses** tab: stop the
+newsletters at the source. Many bulk senders include a `List-Unsubscribe` header;
+the tool captures it during an AI report and lets you **unsubscribe from the
 selected senders in one go** - using the same row checkboxes / *select all* as the
 other bulk actions. It is **not** a magic "100% one-click", because the standard
 allows different mechanisms:
@@ -901,29 +915,20 @@ allows different mechanisms:
 
 So the result is **automatic for most, plus open-the-page for the rest**. The
 **Unsub** column shows which is which per sender: **`auto`** (will be done for
-you) or a **`link ↗`** (opens the page); blank means no `List-Unsubscribe` was
-seen (run a fresh AI report to detect it). After the action you get a summary
-(*N unsubscribed automatically, M need a manual page, K failed*). Rather than
-blasting dozens of browser tabs (pop-up blockers eat them anyway), the list then
-**filters itself to the manual ones** so they are the only rows left - open each
-with its per-row **`link ↗`**. You can reach that view any time with the **Unsub
-filter** at the top of the tab (`all` / `auto` / `manual` / `none`).
+you), a **`link ↗`** (opens the page), **`rescan`** (a `List-Unsubscribe` was seen
+but no usable link was captured yet - flagged by an older version, so run a fresh
+AI report), or blank (no `List-Unsubscribe` at all). After the action you get a
+summary (*N unsubscribed automatically, M need a manual page, K failed*). Rather
+than blasting dozens of browser tabs (pop-up blockers eat them anyway), the list
+then **filters itself to the manual ones** so they are the only rows left - open
+each with its per-row **`link ↗`**. You can reach that view any time with the
+**Unsub filter** at the top of the tab (`all` / `auto` / `manual` / `none`).
 
 > ⚠️ This makes **outbound requests** (an email and/or web POST/GET), so it's a
 > deliberate step. Use it for **newsletters** (legitimate senders with a
 > `List-Unsubscribe`), **not** for real spam - unsubscribing from actual spam just
 > confirms your address is live. `mailto:` unsubscribes need an **active SMTP
 > profile** configured in the Notifications tab.
-
-### Load saved spam into a Target list
-
-The spam list doubles as a reusable **blocklist**. In the **Cleanup** tab, when
-saved spam addresses exist for the connected account, a **Load saved Spam
-addresses** box appears under the Target list. Pick a **score** condition
-(`is` / `<=` / `>=` / `<` / `>`) and a threshold (default 6, step 0.1) and click
-**Load** - every matching sender is appended to the target list (duplicates
-skipped). From there you delete or move them with the normal tools (dry-run, move,
-expunge...). This closes the loop: **AI finds the junk -> you act on it precisely.**
 
 ---
 
