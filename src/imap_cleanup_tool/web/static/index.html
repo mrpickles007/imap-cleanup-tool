@@ -1013,13 +1013,18 @@ function promptDialog(opts){
     inp.addEventListener('keydown',e=>{ if(e.key==='Enter') done(inp.value); if(e.key==='Escape') done(null); });
   });
 }
-/* Lightweight top-center banner that auto-dismisses (and is click-to-dismiss). */
+/* Top-center banners that stack vertically, auto-dismiss, and are click-to-dismiss. */
 function toast(msg, cls){
+  let wrap=document.getElementById('toastWrap');
+  if(!wrap){ wrap=document.createElement('div'); wrap.id='toastWrap';
+    wrap.className='fixed top-4 left-1/2 -translate-x-1/2 z-[70] flex flex-col items-center gap-2 max-w-[90vw]';
+    document.body.appendChild(wrap); }
   const t=document.createElement('div');
-  t.className='fixed top-4 left-1/2 -translate-x-1/2 z-[70] max-w-[90vw] rounded-lg border px-4 py-2 text-sm shadow-xl cursor-pointer '+(cls||'border-warn/50 bg-warn/15 text-warn');
+  t.className='rounded-lg border px-4 py-2 text-sm shadow-xl cursor-pointer '+(cls||'border-warn/50 bg-warn/15 text-warn');
   t.textContent=msg;
-  const kill=()=>{ t.style.transition='opacity .4s'; t.style.opacity='0'; setTimeout(()=>t.remove(),400); };
-  t.onclick=kill; document.body.appendChild(t); setTimeout(kill, 6000);
+  const kill=()=>{ t.style.transition='opacity .4s'; t.style.opacity='0';
+    setTimeout(()=>{ t.remove(); if(wrap && !wrap.children.length) wrap.remove(); },400); };
+  t.onclick=kill; wrap.appendChild(t); setTimeout(kill, 6000);
 }
 /* Multi-choice dialog -> resolves to a choice.key, or null on cancel. */
 function choiceDialog(opts){
