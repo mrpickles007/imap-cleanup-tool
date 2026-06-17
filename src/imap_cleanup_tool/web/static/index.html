@@ -396,8 +396,7 @@ tailwind.config = { theme: { extend: {
           <span class="tip"><span class="ic">i</span><span class="bub">Saves LLM tokens: flagged senders that are <b>already in your Spam addresses</b> list (from earlier reports/runs) are accepted as spam <b>without asking the model again</b>, so fewer addresses are sent to the LLM. Edge case: an important email from a sender already on the list would be treated as spam - rare, and avoided by running with this <b>unchecked</b> (then every flagged sender is re-evaluated by the LLM).</span></span>
         </label>
         <div class="flex gap-2 pt-1 flex-wrap items-center">
-          <button id="btnAiReport" type="button" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-brand hover:bg-brand-light text-ink font-semibold text-sm">Generate report</button>
-          <span class="tip"><span class="ic">i</span><span class="bub">Builds the report <b>only</b>: it scores senders, asks the model, <b>saves the CSV</b> (and <b>emails it</b> if notifications are enabled) and records flagged senders to your Spam list. It <b>does not delete anything</b>. To actually clean up - delete the confirmed senders - click <b>Run</b> (with AI Cleanup ticked).</span></span>
+          <button id="btnAiReport" type="button" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-brand hover:bg-brand-light text-ink font-semibold text-sm inline-flex items-center justify-center gap-1.5">Generate report<span class="tip"><span class="ic" style="border-color:rgba(0,0,0,.35);background:rgba(0,0,0,.18);color:rgba(0,0,0,.7)">i</span><span class="bub">Builds the report <b>only</b>: it scores senders, asks the model, <b>saves the CSV</b> (and <b>emails it</b> if notifications are enabled) and records flagged senders to your Spam list. It <b>does not delete anything</b>. To actually clean up - delete the confirmed senders - click <b>Run</b> (with AI Cleanup ticked).</span></span></button>
           <div class="flex gap-2 items-center flex-wrap sm:flex-nowrap min-w-0 basis-full grow">
             <select id="aiReportList" class="field text-sm min-w-0 w-full sm:w-auto sm:flex-1" title="Saved reports for this account (newest first)"></select>
             <button id="btnAiDownload" type="button" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream text-sm whitespace-nowrap">Download CSV</button>
@@ -1669,6 +1668,10 @@ if($('llmPresetDel')) $('llmPresetDel').onclick=async()=>{
   const kind=$('llmType').value==='local'?'local':'remote';
   if(!(await confirmDialog({title:'Remove preset', message:'Remove "'+cur+'" from your saved presets?\n\nThis only removes it from the dropdown - any saved model still keeps its model id.', okText:'Remove', danger:true}))) return;
   try{ const r=await api('/api/llm-presets',{kind,value:cur,remove:true}); if(r){ if(r.models)META.models=r.models; if(r.models_user)META.models_user=r.models_user; } }catch(_){}
+  // the removed preset was the selected model - reset to a default so it doesn't
+  // linger as a "(custom)" ghost (it's gone, as the user expects)
+  const list=llmPresetList();
+  $('llmModel').value = list[0] || (kind==='local'?'ollama/llama3':'gpt-4o-mini');
   populateLlmPresets();
 };
 if($('llmModelEdit')) $('llmModelEdit').onclick=async()=>{
