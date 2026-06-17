@@ -621,8 +621,8 @@ tailwind.config = { theme: { extend: {
       </label>
       <label class="text-xs text-muted col-span-2">Model string
         <span class="tip"><span class="ic">i</span><span class="bub">A <b>litellm</b> model id. <b>Pick a preset</b> for the selected Type, or type <b>any custom</b> id - the list is a shortlist, not a limit. Examples: <code>gpt-4o-mini</code>, <code>claude-3-5-sonnet-latest</code>, <code>gemini/gemini-2.0-flash</code>, <code>openrouter/...</code>, <code>ollama/llama3</code>. Local models use <code>ollama/&lt;name&gt;</code> with the Ollama API base below.</span></span>
-        <input id="llmModel" class="field mt-1" list="llmPresets" value="gpt-4o-mini" placeholder="pick a preset or type any litellm model id">
-        <datalist id="llmPresets"></datalist>
+        <select id="llmPreset" class="field mt-1" title="Pick a known model - it fills the box below, which you can still edit"></select>
+        <input id="llmModel" class="field mt-2" value="gpt-4o-mini" placeholder="or type any custom litellm model id">
       </label>
       <label class="text-xs text-muted col-span-2">API base URL (optional)
         <span class="tip"><span class="ic">i</span><span class="bub">Custom endpoint. For local <b>Ollama</b> usually <code>http://localhost:11434</code>. Leave empty for the provider default.</span></span>
@@ -1035,6 +1035,7 @@ async function loadMeta(){
   const sel=$('provider'); sel.innerHTML='';
   (META.providers||[]).forEach((p,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=p.name;sel.appendChild(o);});
   applyProviderTips();
+  if(typeof populateLlmPresets==='function') populateLlmPresets();
   applyAiAvailability();
   buildRoot();
 }
@@ -1590,7 +1591,7 @@ function editLLMModel(m){
   EDITING_MODEL=m.name;
   $('llmName').value=m.name; $('llmName').readOnly=true; $('llmName').classList.add('opacity-60');
   $('llmModel').value=m.model; $('llmApiBase').value=m.api_base||'';
-  $('llmType').value=m.model.startsWith('ollama/')?'local':'remote';
+  $('llmType').value=m.model.startsWith('ollama/')?'local':'remote'; populateLlmPresets();
   $('llmTrack').checked=!!m.track_costs; $('llmCostRow').classList.toggle('hidden',!m.track_costs);
   $('llmCostIn').value=m.cost_input||0; $('llmCostOut').value=m.cost_output||0;
   $('llmEncrypt').checked=false; $('llmSecretRow').classList.add('hidden'); $('llmSecret').value=''; $('llmSecret2').value='';
@@ -1603,48 +1604,35 @@ function editLLMModel(m){
 function resetLLMForm(){
   EDITING_MODEL=null;
   $('llmName').value=''; $('llmName').readOnly=false; $('llmName').classList.remove('opacity-60');
-  $('llmModel').value='gpt-4o-mini'; $('llmApiBase').value=''; $('llmType').value='remote';
+  $('llmModel').value='gpt-4o-mini'; $('llmApiBase').value=''; $('llmType').value='remote'; populateLlmPresets();
   $('llmKey').value=''; $('llmKey').placeholder='sk-...'; $('llmEncrypt').checked=false; $('llmSecretRow').classList.add('hidden'); $('llmSecret').value=''; $('llmSecret2').value='';
   $('llmSecret').type='password'; $('llmSecret2').type='password'; if($('llmSecretEye'))$('llmSecretEye').textContent='show'; syncLlmEncryptEnabled(); updateLlmSaveBtn();
   $('llmTrack').checked=false; $('llmCostRow').classList.add('hidden'); $('llmCostIn').value=0; $('llmCostOut').value=0;
   $('btnSaveLLM').textContent='Save model'; $('btnCancelLLM').classList.add('hidden');
 }
 if($('btnCancelLLM')) $('btnCancelLLM').onclick=()=>{ resetLLMForm(); $('llmMsg').textContent=''; };
-const LLM_PRESETS={
-  // remote ids validated against the litellm package (model map); the field is
-  // still free text, so any other litellm id works too.
-  remote:[
-    'gpt-4o-mini','gpt-4o','gpt-4.1','gpt-4.1-mini','gpt-4.1-nano','gpt-5','gpt-5-mini','o3-mini','o1','gpt-4-turbo','gpt-3.5-turbo',
-    'claude-sonnet-4-5','claude-sonnet-4-20250514','claude-opus-4-5','claude-haiku-4-5','claude-3-7-sonnet-20250219','claude-3-haiku-20240307',
-    'gemini/gemini-2.5-pro','gemini/gemini-2.5-flash','gemini/gemini-2.0-flash','gemini/gemini-2.0-flash-lite','gemini/gemini-1.5-flash',
-    'mistral/mistral-large-latest','mistral/mistral-medium-latest','mistral/mistral-small-latest','mistral/codestral-latest','mistral/open-mistral-nemo',
-    'command-r-plus','command-r','command-a-03-2025',
-    'groq/llama-3.3-70b-versatile','groq/llama-3.1-8b-instant','groq/qwen/qwen3-32b','groq/openai/gpt-oss-20b','groq/openai/gpt-oss-120b',
-    'deepseek/deepseek-chat','deepseek/deepseek-reasoner','deepseek/deepseek-r1',
-    'xai/grok-4-latest','xai/grok-3-latest','xai/grok-3-mini','xai/grok-2-latest',
-    'openrouter/anthropic/claude-3.5-sonnet',
-    'perplexity/sonar','perplexity/sonar-pro','perplexity/sonar-reasoning'
-  ],
-  local:[
-    'ollama/llama3','ollama/llama3.1','ollama/llama3.2','ollama/llama3.3',
-    'ollama/mistral','ollama/mistral-nemo','ollama/mixtral',
-    'ollama/qwen2.5','ollama/qwen2.5-coder','ollama/gemma2','ollama/gemma3',
-    'ollama/phi3','ollama/phi4','ollama/deepseek-r1','ollama/deepseek-coder-v2',
-    'ollama/codellama','ollama/tinyllama','ollama/llava'
-  ]
-};
-function populateLlmPresets(){
-  const dl=$('llmPresets'); if(!dl) return;
+// Model presets come from assets/llm_models.json (served via /api/meta as META.models).
+// The Model-string box stays free text, so the dropdown is a shortcut, not a limit.
+function llmPresetList(){
   const t=$('llmType')?$('llmType').value:'remote';
-  dl.innerHTML=(LLM_PRESETS[t]||[]).map(m=>'<option value="'+m+'"></option>').join('');
+  const m=(typeof META==='object'&&META&&META.models)||{};
+  return m[t]||[];
 }
+function populateLlmPresets(){
+  const sel=$('llmPreset'); if(!sel) return;
+  const cur=$('llmModel')?$('llmModel').value:'';
+  const list=llmPresetList();
+  sel.innerHTML='<option value="">— pick a preset, or type a custom id below —</option>'
+    + list.map(m=>'<option value="'+m+'"'+(m===cur?' selected':'')+'>'+m+'</option>').join('');
+}
+if($('llmPreset')) $('llmPreset').onchange=()=>{ const v=$('llmPreset').value; if(v) $('llmModel').value=v; };
+if($('llmModel')) $('llmModel').addEventListener('input', ()=>{ const sel=$('llmPreset'); if(sel) sel.value = llmPresetList().includes($('llmModel').value) ? $('llmModel').value : ''; });
 if($('llmType')) $('llmType').onchange=()=>{
   const local=$('llmType').value==='local';
   if(local){ if(!$('llmModel').value.startsWith('ollama/')) $('llmModel').value='ollama/llama3'; if(!$('llmApiBase').value) $('llmApiBase').value='http://localhost:11434'; }
   else if($('llmModel').value.startsWith('ollama/')) $('llmModel').value='gpt-4o-mini';
   populateLlmPresets();
 };
-populateLlmPresets();
 if($('llmKeyToggle')) $('llmKeyToggle').onclick=()=>{ const k=$('llmKey'); k.type=k.type==='password'?'text':'password'; $('llmKeyToggle').textContent=k.type==='password'?'show':'hide'; };
 if($('llmEncrypt')) $('llmEncrypt').onchange=()=>{ $('llmSecretRow').classList.toggle('hidden', !$('llmEncrypt').checked); if($('llmEncrypt').checked) evalLlmPw(); updateLlmSaveBtn(); };
 if($('llmSecretEye')) $('llmSecretEye').onclick=()=>{ const t=$('llmSecret').type==='password'?'text':'password'; $('llmSecret').type=t; $('llmSecret2').type=t; $('llmSecretEye').textContent=t==='password'?'show':'hide'; };

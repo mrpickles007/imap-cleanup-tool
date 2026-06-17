@@ -40,7 +40,9 @@ from .targets import parse_targets_text
 
 STATIC_DIR = Path(__file__).parent / "web" / "static"
 ASSETS_DIR = Path(__file__).parent / "assets"
-PROVIDERS_FILE = Path(__file__).parent / "web" / "providers.json"
+# Extensible config presets live as JSON next to the assets (IMAP + SMTP providers
+# and the LLM model picker list).
+PROVIDERS_FILE = ASSETS_DIR / "providers.json"
 
 # Fallback if providers.json is missing/corrupt.
 PROVIDER_PRESETS = [
@@ -51,7 +53,8 @@ PROVIDER_PRESETS = [
 ]
 
 
-SMTP_PROVIDERS_FILE = Path(__file__).parent / "web" / "smtp_providers.json"
+SMTP_PROVIDERS_FILE = ASSETS_DIR / "smtp_providers.json"
+MODELS_FILE = ASSETS_DIR / "llm_models.json"
 
 
 def _load_providers() -> list:
@@ -80,6 +83,19 @@ def _load_smtp_providers() -> list:
     except (OSError, ValueError):
         pass
     return [{"name": "Custom", "host": "", "port": 587, "security": "starttls"}]
+
+
+def _load_llm_models() -> dict:
+    """Load the LLM model presets (``{"remote": [...], "local": [...]}``) used by
+    the model-string picker. Free text is still allowed, so this is a shortlist."""
+    try:
+        data = json.loads(MODELS_FILE.read_text(encoding="utf-8"))
+        if isinstance(data, dict) and (data.get("remote") or data.get("local")):
+            return {"remote": list(data.get("remote") or []),
+                    "local": list(data.get("local") or [])}
+    except (OSError, ValueError):
+        pass
+    return {"remote": ["gpt-4o-mini", "gpt-4o"], "local": ["ollama/llama3"]}
 
 
 def _safe_job_name(name: str) -> str:
@@ -451,6 +467,7 @@ def create_app():
             "version": __version__,
             "providers": _load_providers(),
             "smtp_providers": _load_smtp_providers(),
+            "models": _load_llm_models(),
             "fields": list(FIELD_OPERATORS),
             "operators": FIELD_OPERATORS,
             "gmail_store_cap": core.GMAIL_STORE_CAP,
