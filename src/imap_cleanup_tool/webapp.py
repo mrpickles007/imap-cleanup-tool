@@ -787,6 +787,7 @@ def create_app():
         folders = body.folders or ["INBOX"]
 
         def work(rs: RunState) -> None:
+            cache = _session_cache(sess)   # used by --scan-mode full
             total = 0
             for folder in folders:
                 total += core.process_folder(
@@ -795,7 +796,7 @@ def create_app():
                     dry_run=True, count_only=True,
                     include_subdomains=body.include_subdomains,
                     batch_size=body.batch_size, scan_mode=body.scan_mode,
-                    should_stop=rs.stop.is_set)
+                    should_stop=rs.stop.is_set, cache=cache, account=sess.user)
             core.logger.info("=> %d matching message(s) across %d folder(s).",
                              total, len(folders))
             rs.result = {"matched": total}

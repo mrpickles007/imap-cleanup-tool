@@ -823,7 +823,10 @@ tailwind.config = { theme: { extend: {
   <div class="bg-panel border border-line rounded-xl p-5 w-full max-w-sm">
     <h3 class="font-display font-semibold text-brand-light mb-2">Unlock profile</h3>
     <p id="unlockMsg" class="text-xs text-muted mb-3"></p>
-    <input id="unlockSecret" type="password" class="field" placeholder="Profile password">
+    <div class="flex gap-2">
+      <input id="unlockSecret" type="password" class="field" placeholder="Profile password">
+      <button id="unlockSecretEye" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream text-sm">show</button>
+    </div>
     <p id="unlockErr" class="hidden text-[11px] text-danger mt-1"></p>
     <div class="flex gap-2 justify-end mt-4">
       <button id="unlockCancel" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Cancel</button>
@@ -2102,7 +2105,7 @@ async function chooseProfile(name){
 $('profileBtn').onclick=(e)=>{ e.stopPropagation(); $('profileMenu').classList.toggle('hidden'); };
 document.addEventListener('click', (e)=>{ if(!$('profileDD').contains(e.target)) $('profileMenu').classList.add('hidden'); });
 let unlockName=null;
-function openUnlock(name){ unlockName=name; $('unlockSecret').value=''; $('unlockErr').classList.add('hidden');
+function openUnlock(name){ unlockName=name; $('unlockSecret').value=''; $('unlockSecret').type='password'; if($('unlockSecretEye')) $('unlockSecretEye').textContent='show'; $('unlockErr').classList.add('hidden');
   $('unlockMsg').textContent='Profile "'+name+'" is encrypted. Enter its password to load it.';
   $('unlockModal').classList.remove('hidden'); setTimeout(()=>$('unlockSecret').focus(),50); }
 function closeUnlock(){ $('unlockModal').classList.add('hidden'); }
@@ -2114,6 +2117,7 @@ $('unlockConfirm').onclick=async ()=>{
   catch(e){ $('unlockErr').textContent=e.message; $('unlockErr').classList.remove('hidden'); }
 };
 $('unlockSecret').addEventListener('keydown', e=>{ if(e.key==='Enter') $('unlockConfirm').click(); });
+if($('unlockSecretEye')) $('unlockSecretEye').onclick=()=>{ const t=$('unlockSecret').type==='password'?'text':'password'; $('unlockSecret').type=t; $('unlockSecretEye').textContent=t==='password'?'show':'hide'; };
 function checkPwCriteria(pw, pw2, listSel){
   const c={ len:pw.length>=8, lower:/[a-z]/.test(pw), upper:/[A-Z]/.test(pw),
             num:/[0-9]/.test(pw), sym:/[^A-Za-z0-9]/.test(pw),
