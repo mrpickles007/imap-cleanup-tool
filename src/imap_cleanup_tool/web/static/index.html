@@ -393,18 +393,6 @@ tailwind.config = { theme: { extend: {
         </div>
       </div>
 
-      <label class="text-xs text-muted flex items-center">Scan mode
-        <span class="tip"><span class="ic">i</span><span class="bub">
-          <b>"search"</b> (default) - fast server-side IMAP SEARCH. It is a substring match on the From header, so it <b>already matches subdomains</b> (a target <code>annoying.com</code> also catches <code>x@mail.annoying.com</code>).<br><br>
-          <b>"full"</b> - downloads each header and matches the <b>exact domain</b> locally (stricter). Enable “Include subdomains” to also catch subdomains in this mode.
-        </span></span>
-      </label>
-      <select id="scanMode" class="field mt-1 mb-2">
-        <option value="search">"search" - fast, also matches subdomains</option>
-        <option value="full">"full" - strict, exact domain (local)</option>
-      </select>
-      <p id="scanNote" class="hidden text-[11px] text-muted mb-3">Disabled because you’re using a <b>Rule</b>: rule matching is always a fast server-side SEARCH (subdomains already included). Scan mode applies only to <b>Target lists</b>.</p>
-
       <label class="flex items-center justify-between text-sm py-1.5">
         <span class="flex items-center">Expunge (permanent)
           <span class="tip"><span class="ic">i</span><span class="bub" style="border-color:#ff5d73">⚠️ Permanently removes flagged messages. Without it, messages are only flagged <code>\\Deleted</code> (hidden but recoverable until expunged). Applies to both manual runs and AI Cleanup.</span></span>
@@ -419,6 +407,18 @@ tailwind.config = { theme: { extend: {
         </p>
         <p class="text-[11px] text-muted mt-0.5">Below options apply to a <b>Target list / Rule</b> run only - <b>AI Cleanup</b> ignores them.</p>
       </div>
+
+      <label class="text-xs text-muted flex items-center mt-1">Scan mode
+        <span class="tip"><span class="ic">i</span><span class="bub">
+          <b>"search"</b> (default) - fast server-side IMAP SEARCH. It is a substring match on the From header, so it <b>already matches subdomains</b> (a target <code>annoying.com</code> also catches <code>x@mail.annoying.com</code>).<br><br>
+          <b>"full"</b> - downloads each header and matches the <b>exact domain</b> locally (stricter). Enable “Include subdomains” to also catch subdomains in this mode.
+        </span></span>
+      </label>
+      <select id="scanMode" class="field mt-1 mb-2">
+        <option value="search">"search" - fast, also matches subdomains</option>
+        <option value="full">"full" - strict, exact domain (local)</option>
+      </select>
+      <p id="scanNote" class="hidden text-[11px] text-muted mb-3"><b>AI Cleanup</b> and <b>Rule</b> matching both always use a fast server-side SEARCH (subdomains already included), so Scan mode is disabled - it applies only to <b>Target lists</b>.</p>
 
       <label class="flex items-center justify-between text-sm py-1.5" id="rowSub">
         <span class="flex items-center">Include subdomains
@@ -1072,8 +1072,8 @@ function refreshConditional(){
   // Move, so it does NOT dim the match - only Empty folder does.
   const matchOff = empty;
   const off = empty || ai;                  // these actions are N/A under AI
-  $('scanMode').disabled=rule || matchOff;
-  $('scanNote').classList.toggle('hidden', !rule);
+  $('scanMode').disabled=rule || matchOff || ai;   // AI Cleanup always scans server-side
+  $('scanNote').classList.toggle('hidden', !(rule || ai));
   const full=$('scanMode').value==='full';
   $('subdomains').disabled = rule || !full || matchOff; if(rule || !full || matchOff) $('subdomains').checked=false;
   const gmail=gmailHost();
@@ -1091,7 +1091,10 @@ function refreshConditional(){
   $('paneTargets').classList.toggle('dim',matchOff); $('paneRule').classList.toggle('dim',matchOff);
   // Under AI Cleanup, Run does the AI flow (report + LLM + delete); Count is N/A.
   $('btnRun').title = ai ? 'AI Cleanup: heuristic + LLM, then delete the confirmed senders (dry-run simulates)' : '';
+  // These are manual-only operations - AI Cleanup decides per sender, so hide them away.
   $('btnCount').disabled = ai;
+  if($('btnSenders')) $('btnSenders').disabled = ai;
+  if($('btnSaveSenders')) $('btnSaveSenders').disabled = ai;
   updateAiSecret();
 }
 
@@ -1207,6 +1210,7 @@ function setBusy(busy){
   if(busy){ $('btnStop').disabled=false; $('btnStop').textContent='■ Stop'; }
   $('btnStop').classList.toggle('hidden',!busy);
   $('btnRun').textContent= busy?'Working…':'▶ Run';
+  if(!busy && SID) refreshConditional();   // restore AI-driven disabled states
 }
 function pollDelay(){ return document.hidden ? 3000 : 1300; }
 let gmailTrashSeen=false;
@@ -1840,7 +1844,7 @@ if($('spamAddBtn')) $('spamAddBtn').onclick=async()=>{
 };
 if($('spamUnsub')) $('spamUnsub').onclick=async()=>{
   const addrs=[...spamState.sel]; if(!addrs.length) return;
-  if(!(await confirmDialog({title:'Unsubscribe from newsletters', message:'Unsubscribe from '+addrs.length+' selected sender(s)? It is automatic where possible (mailto via your active SMTP profile, or one-click links); senders that only offer a confirmation page can\'t be automated - afterwards the list filters to those so you can open each by hand. This makes outbound requests - do it for newsletters, not real spam.', okText:'Unsubscribe'}))) return;
+  if(!(await confirmDialog({title:'Unsubscribe from newsletters', message:'Unsubscribe from '+addrs.length+' selected sender(s)?\n\nAutomatic where possible (email or one-click). The rest open a confirmation page you finish by hand.\n\nThis sends outbound requests - use it for newsletters, not real spam.', okText:'Unsubscribe'}))) return;
   // if some of the selection were already unsubscribed, let the user re-do or skip them
   let skipDone=false;
   try{
