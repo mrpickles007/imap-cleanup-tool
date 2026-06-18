@@ -289,12 +289,13 @@ tailwind.config = { theme: { extend: {
 
     <!-- Manual Cleanup (visually on the RIGHT via order-2) -->
     <section id="secMatch" class="order-2 bg-panel border border-line rounded-xl p-5">
-      <h2 class="font-display font-semibold text-brand-light mb-3 flex items-center gap-2">Manual Cleanup <span class="manual-only-chip hidden inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-brand/70 bg-brand/15 text-brand-light backdrop-blur-sm">manual only</span></h2>
+      <h2 class="font-display font-semibold text-brand-light mb-3">Manual Cleanup</h2>
       <div class="text-xs font-bold uppercase tracking-wider text-cream mb-2">What to match</div>
       <div class="flex gap-4 mb-3 text-sm">
         <label class="flex items-center gap-2"><input type="radio" name="mode" value="targets" checked> Target list</label>
         <label class="flex items-center gap-2"><input type="radio" name="mode" value="rule"> Rule (query builder)</label>
       </div>
+      <p id="aiMatchNote" class="hidden text-[11px] text-ok border border-ok/40 bg-ok/10 rounded-lg px-2.5 py-1.5 mb-3">✓ <b>Works with AI Cleanup too:</b> the <b>Target list / Rule</b> selection and the <b>Load from file</b> / <b>Save to file</b> / <b>Clear all</b> buttons and the <b>Load saved Spam addresses</b> flag still apply - AI takes them into account in its search. <b>Leave it empty</b> to have AI analyze the <b>whole selected folder(s)</b>.</p>
       <div id="paneTargets">
         <div class="flex items-center text-xs text-muted mb-1">Senders / domains, one per line
           <span class="tip"><span class="ic">i</span><span class="bub">
@@ -343,6 +344,7 @@ tailwind.config = { theme: { extend: {
         <p class="text-[11px] text-muted mt-2">Rules match <b>server-side</b> (substring), so a domain also matches its subdomains and partials - and <code>*@</code> is not special here. For an <b>exact</b> domain with no subdomains, use a <b>Target list</b> with <code>*@domain.com</code> and scan mode <b>"full"</b>.</p>
       </div>
       <div class="mt-4 pt-3 border-t border-line flex items-center gap-3 flex-wrap">
+        <span class="manual-only-chip hidden inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-brand/70 bg-brand/15 text-brand-light backdrop-blur-sm">manual only</span>
         <button id="btnCount" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>Count matching emails</button>
         <span class="text-[11px] text-muted">Counts how many emails match the current filter in the selected folders - makes no changes.</span>
       </div>
@@ -1056,6 +1058,8 @@ function toast(msg, cls){
     setTimeout(()=>{ t.remove(); if(wrap && !wrap.children.length) wrap.remove(); },400); };
   t.onclick=kill; wrap.appendChild(t); setTimeout(kill, 6000);
 }
+/* Error helper: show a red banner (stacked, never overlapping) + log it. */
+function toastErr(msg){ toast(msg, 'border-danger/50 bg-danger/15 text-danger'); log('[ERROR] '+msg); }
 /* Multi-choice dialog -> resolves to a choice.key, or null on cancel. */
 function choiceDialog(opts){
   opts = opts || {};
@@ -1198,6 +1202,8 @@ function refreshConditional(){
   if($('btnImportMessages')) $('btnImportMessages').disabled = ai;
   // "manual only" chips on the groups disabled under AI Cleanup
   document.querySelectorAll('.manual-only-chip').forEach(c=>c.classList.toggle('hidden', !ai));
+  // Green note: under AI the match (targets/rule + load/save/clear) is still used
+  if($('aiMatchNote')) $('aiMatchNote').classList.toggle('hidden', !ai);
   if($('btnSenders')) $('btnSenders').disabled = ai;
   if($('btnSaveSenders')) $('btnSaveSenders').disabled = ai;
   if($('sendersName')) $('sendersName').disabled = ai;
@@ -1365,7 +1371,7 @@ async function showTrashNotice(){
 }
 let pendingRefreshFolders=false;
 async function startJob(path, body, refreshFolders){
-  if(!SID){ log('[ERROR] Not connected.'); return; }
+  if(!SID){ toastErr('Not connected.'); return; }
   pendingRefreshFolders=!!refreshFolders;
   try{ const d=await api(path, body); curRunId=d.run_id; startPolling(); }
   catch(e){ log('[ERROR] '+e.message); toast('Error: '+e.message, 'border-danger/50 bg-danger/15 text-danger'); }
@@ -1639,7 +1645,7 @@ if($('aiSecretEye')) $('aiSecretEye').onclick=()=>{ const i=$('aiSecret'); i.typ
 // the cache. When OFF, an existing cache is simply left untouched (it self-heals
 // when re-enabled - only missing UIDs are fetched), so there is nothing to delete
 // here. Use the explicit "Clear cache" button to wipe it on purpose.
-$('btnAiReport').onclick=async()=>{ if(!SID){ log('[ERROR] Not connected.'); return; } if(!(await ensureFolderChosen())) return;
+$('btnAiReport').onclick=async()=>{ if(!SID){ toastErr('Not connected.'); return; } if(!(await ensureFolderChosen())) return;
   const p=aiPayload();
   // No LLM configured and Skip LLM not explicitly ticked -> confirm heuristic-only.
   if((typeof LLM_MODELS!=='undefined'?LLM_MODELS:[]).length===0 && !($('aiSkipLlm') && $('aiSkipLlm').checked)){
@@ -1752,11 +1758,15 @@ function updateLlmDelBtn(){
 }
 function populateLlmPresets(){
   const sel=$('llmPreset'); if(!sel) return;
-  const cur=$('llmModel')?$('llmModel').value:'';
-  const list=llmPresetList();
-  let html='<option value="">— choose a model —</option>'
-    + list.map(m=>'<option value="'+escapeHtml(m)+'"'+(m===cur?' selected':'')+'>'+escapeHtml(m)+'</option>').join('');
-  if(cur && !list.includes(cur)) html+='<option value="'+escapeHtml(cur)+'" selected>'+escapeHtml(cur)+' (custom)</option>';
+  const cur=$('llmModel')?($('llmModel').value||''):'';
+  const all=llmPresetList();
+  const user=llmUserList().slice().sort((a,b)=>a.localeCompare(b));   // custom first, alphabetical
+  const bundled=all.filter(m=>user.indexOf(m)===-1);
+  const opt=(val,label,isSel)=>'<option value="'+escapeHtml(val)+'"'+(isSel?' selected':'')+'>'+escapeHtml(label)+'</option>';
+  let html='<option value="">— choose a model —</option>';
+  html+=user.map(m=>opt(m, m+' (Custom)', m===cur)).join('');         // saved custom presets, tagged
+  html+=bundled.map(m=>opt(m, m, m===cur)).join('');                  // bundled presets, plain id
+  if(cur && all.indexOf(cur)===-1) html+=opt(cur, cur+' (Custom)', true);  // typed / "just use it"
   sel.innerHTML=html;
   updateLlmDelBtn();
 }
@@ -1776,6 +1786,19 @@ async function saveLlmPreset(kind, value){
   try{ const r=await api('/api/llm-presets',{kind,value}); if(r){ if(r.models)META.models=r.models; if(r.models_user)META.models_user=r.models_user; } return true; }
   catch(_){ return false; }
 }
+// Same popup whether you leave edit mode OR save the model: offer Save-preset vs
+// "Just use it" (use the typed model string for THIS model only; it lingers as a
+// "(Custom)" entry in the dropdown for the session, but is not a saved preset).
+async function offerSavePreset(value){
+  const v=(value||'').trim();
+  if(!v || llmPresetList().includes(v)) return;   // empty or already a preset -> nothing to offer
+  const kind=$('llmType').value==='local'?'local':'remote';
+  if(await confirmDialog({title:'Save as a preset?',
+      message:'Save "'+v+'" as a reusable model preset, so it stays in your dropdown for any model?\n\nChoose "Just use it" to use this model id for the CURRENT model only - it shows as "(Custom)" in the dropdown while selected (kept for this session) but is NOT added to your saved presets.',
+      okText:'Save preset', cancelText:'Just use it'})){
+    await saveLlmPreset(kind, v);
+  }
+}
 if($('llmPreset')) $('llmPreset').onchange=()=>{ const v=$('llmPreset').value; if(v) $('llmModel').value=v; updateLlmDelBtn(); };
 if($('llmPresetDel')) $('llmPresetDel').onclick=async()=>{
   const cur=($('llmModel').value||'').trim(); if(!cur || !llmUserList().includes(cur)) return;
@@ -1790,13 +1813,7 @@ if($('llmPresetDel')) $('llmPresetDel').onclick=async()=>{
 };
 if($('llmModelEdit')) $('llmModelEdit').onclick=async()=>{
   if(!llmEditMode){ setLlmEdit(true); return; }
-  const v=($('llmModel').value||'').trim();
-  if(v && !llmPresetList().includes(v)){
-    const kind=$('llmType').value==='local'?'local':'remote';
-    if(await confirmDialog({title:'Save as a preset?', message:'Add "'+v+'" to your '+kind+' model presets so it stays in the dropdown?\n\nChoose "Just use it" to keep it only for this model.', okText:'Save preset', cancelText:'Just use it'})){
-      await saveLlmPreset(kind, v);
-    }
-  }
+  await offerSavePreset(($('llmModel').value||'').trim());
   populateLlmPresets();
   setLlmEdit(false);
 };
@@ -1821,12 +1838,8 @@ if($('btnSaveLLM')) $('btnSaveLLM').onclick=async()=>{
     if(editing && llmWasEncrypted && keyTyped && !$('llmEncrypt').checked){
       if(!(await confirmDialog({title:'Save without encryption?', message:'This model\'s API key was encrypted. Saving a new key with Encrypt off will store it in plain text - no longer encrypted.\n\nContinue?', okText:'Save unencrypted', cancelText:'Cancel', danger:true}))) return;
     }
-    // if the model string is a custom id typed in the edit box, offer to keep it as a preset
-    const mv=($('llmModel').value||'').trim();
-    if(llmEditMode && mv && !llmPresetList().includes(mv)){
-      const kind=$('llmType').value==='local'?'local':'remote';
-      if(await confirmDialog({title:'Save as a preset?', message:'Add "'+mv+'" to your '+kind+' model presets so it stays in the dropdown?', okText:'Save preset', cancelText:'Not now'})) await saveLlmPreset(kind, mv);
-    }
+    // offer to keep a custom model id as a reusable preset (same popup as the edit toggle)
+    await offerSavePreset(($('llmModel').value||'').trim());
     await api('/api/llm-models',{ name:$('llmName').value, model:$('llmModel').value, api_key:$('llmKey').value, api_base:$('llmApiBase').value, encrypt:$('llmEncrypt').checked, secret:$('llmSecret').value, track_costs:$('llmTrack').checked, cost_input:parseFloat($('llmCostIn').value)||0, cost_output:parseFloat($('llmCostOut').value)||0, update_key });
     const wasEditing=editing; resetLLMForm();
     $('llmMsg').textContent=wasEditing?'Updated.':'Saved.'; $('llmMsg').className='text-[11px] mt-2 text-ok'; loadLLMModels();
@@ -2218,7 +2231,7 @@ $('btnSelectAll').onclick=()=>{ const names=new Set(knownFolders.map(f=>f.name))
 $('btnDeselectAll').onclick=()=>{ selectedFolders=[]; renderFolders(); };
 
 $('btnConnect').onclick=async()=>{
-  if(!$('host').value.trim() || !$('user').value.trim()){ setStatus(false,'failed'); log('[ERROR] Please enter at least Host and User before connecting.'); return; }
+  if(!$('host').value.trim() || !$('user').value.trim()){ setStatus(false,'failed'); toastErr('Please enter at least Host and User before connecting.'); return; }
   if(!$('password').value){ if(!(await confirmDialog({title:'No password', message:'No password entered - try connecting anyway?', okText:'Connect'}))) return; }
   try{ setStatus(false,'connecting…'); $('btnConnect').disabled=true; log('Connecting to '+$('host').value+' …');
     const d=await api('/api/connect',connParams()); SID=d.sid; localStorage.setItem('icw_sid',SID);
@@ -2269,7 +2282,7 @@ function defaultSendersName(){ return 'senders_'+humanStamp()+'.csv'; }
 let lastAutoSendersName = defaultSendersName();
 $('sendersName').value = lastAutoSendersName;
 $('btnSaveSenders').onclick=async()=>{
-  if(!SID){ log('[ERROR] Not connected.'); return; }
+  if(!SID){ toastErr('Not connected.'); return; }
   let name=$('sendersName').value.trim();
   if(!name || name===lastAutoSendersName){ name=defaultSendersName(); lastAutoSendersName=name; $('sendersName').value=name; }
   if(!/\.csv$/i.test(name)) name+='.csv';
@@ -2287,7 +2300,7 @@ async function ensureFolderChosen(){
 }
 $('btnRun').onclick=async ()=>{
   if($('aiCleanup').checked){
-    if(!SID){ log('[ERROR] Not connected.'); return; }
+    if(!SID){ toastErr('Not connected.'); return; }
     if(!(await ensureFolderChosen())) return;
     if(!$('aiModel').value){ log('[ERROR] Choose a model in the AI panel (configure one in the LLM tab).'); return; }
     const ap=aiPayload();
@@ -2362,7 +2375,7 @@ async function refreshCacheInfo(){
   }catch(_){ /* leave as-is */ }
 }
 if($('btnClearCache')) $('btnClearCache').onclick=async()=>{
-  if(!SID){ log('[ERROR] Not connected.'); return; }
+  if(!SID){ toastErr('Not connected.'); return; }
   if(!(await confirmDialog({title:'Clear local cache', message:'Delete this account\'s cached message headers? The next report will fetch them again (a cold run can take a few minutes on a slow server).', okText:'Clear cache', danger:true}))) return;
   try{ await api('/api/header-cache/'+SID, null, 'DELETE'); log('Local header cache cleared.'); refreshCacheInfo(); }
   catch(e){ log('[ERROR] '+e.message); }
@@ -2383,7 +2396,7 @@ if($('loadSpamChk')) $('loadSpamChk').onchange=()=>{ $('loadSpamFilter').classLi
 // overwrites the previously-loaded spam set) while keeping manual lines intact.
 let loadedSpamAddrs=[];
 if($('btnLoadSpam')) $('btnLoadSpam').onclick=async()=>{
-  if(!SID){ log('[ERROR] Not connected.'); return; }
+  if(!SID){ toastErr('Not connected.'); return; }
   const op=$('loadSpamOp').value, score=parseFloat($('loadSpamScore').value);
   if(isNaN(score)){ log('[ERROR] Enter a score number.'); return; }
   try{
@@ -2405,7 +2418,7 @@ if($('btnLoadSpam')) $('btnLoadSpam').onclick=async()=>{
   }catch(e){ log('[ERROR] '+e.message); }
 };
 $('btnRefreshFolders').onclick=async()=>{
-  if(!SID){ log('[ERROR] Not connected.'); return; }
+  if(!SID){ toastErr('Not connected.'); return; }
   try{ const d=await api('/api/refresh-folders',{sid:SID}); knownFolders=d.folders||[]; renderFolders();
     setStatus(true,'connected · '+knownFolders.length+' folders'); log('Folders refreshed ('+knownFolders.length+').');
   }catch(e){ log('[ERROR] '+e.message); }
@@ -2436,7 +2449,7 @@ $('logModal').onclick=(e)=>{ if(e.target.id==='logModal'){ $('logModal').classLi
 $('logDownload').onclick=()=>{ if(LOG_JOB) download(LOG_JOB+'.log', $('logBody').textContent); };
 
 $('btnCount').onclick=async()=>{
-  if(!SID){ log('[ERROR] Not connected.'); return; }
+  if(!SID){ toastErr('Not connected.'); return; }
   if(!(await ensureFolderChosen())) return;
   const p=Object.assign({sid:SID}, matchPayload(), {folders:selectedFolders.length?selectedFolders:['INBOX'], scan_mode:$('scanMode').value, include_subdomains:$('subdomains').checked, batch_size:parseInt($('batch').value)||500});
   log('Counting matching emails in: '+p.folders.join(', ')+' …');
@@ -2460,16 +2473,24 @@ async function downloadExport(){
   }catch(e){ log('[ERROR] export download: '+e.message); }
 }
 $('btnExportMessages').onclick=async()=>{
-  if(!SID){ log('[ERROR] Not connected.'); return; }
+  if(!SID){ toastErr('Not connected.'); return; }
   if(!(await ensureFolderChosen())) return;
   const p=Object.assign({sid:SID}, matchPayload(), {folders:selectedFolders.length?selectedFolders:['INBOX'], scan_mode:$('scanMode').value, include_subdomains:$('subdomains').checked, batch_size:parseInt($('batch').value)||500});
   log('Exporting messages from: '+p.folders.join(', ')+' … (downloads when done)');
   pendingExportDownload=true;
   startJob('/api/export-messages', p);
 };
-$('btnImportMessages').onclick=()=>{
-  if(!SID){ log('[ERROR] Not connected.'); return; }
-  if(selectedFolders.length!==1){ toast('Import needs exactly ONE selected folder (the destination).','border-warn/50 bg-warn/15 text-warn'); log('[INFO] Select exactly one folder to import into.'); return; }
+$('btnImportMessages').onclick=async()=>{
+  if(!SID){ toastErr('Not connected.'); return; }
+  if(selectedFolders.length!==1){
+    await confirmDialog({title:'Select one folder to import into',
+      message:(selectedFolders.length>1
+        ? 'You have '+selectedFolders.length+' folders selected. Import goes into a SINGLE destination folder, so select exactly one folder first.'
+        : 'No folder selected. Import needs exactly one destination folder - select one first.'),
+      okText:'OK', cancelText:''});
+    log('[INFO] Import needs exactly one selected folder (the destination).');
+    return;
+  }
   $('importFileMsg').value=''; $('importFileMsg').click();
 };
 $('importFileMsg').onchange=async(e)=>{
