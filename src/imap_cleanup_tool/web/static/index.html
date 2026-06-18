@@ -292,11 +292,11 @@ tailwind.config = { theme: { extend: {
       <h2 class="font-display font-semibold text-brand-light mb-3">Manual Cleanup</h2>
       <div id="matchSection">
       <div class="text-xs font-bold uppercase tracking-wider text-cream mb-2">What to match</div>
-      <div class="flex gap-4 mb-2 text-sm">
+      <p class="text-[11px] text-muted mb-2">Choose which messages to act on: paste senders / domains as a <b>Target list</b>, or build a <b>Rule</b> with the query builder. This selects the messages for <b>Count</b>, <b>Run</b> and <b>Export</b> - and, with <b>AI Cleanup</b>, the senders the AI analyzes.</p>
+      <div class="flex gap-4 mb-3 text-sm">
         <label class="flex items-center gap-2"><input type="radio" name="mode" value="targets" checked> Target list</label>
         <label class="flex items-center gap-2"><input type="radio" name="mode" value="rule"> Rule (query builder)</label>
       </div>
-      <p class="text-[11px] text-muted mt-1 mb-3">Choose which messages to act on: paste senders / domains as a <b>Target list</b>, or build a <b>Rule</b> with the query builder. This selects the messages for <b>Count</b>, <b>Run</b> and <b>Export</b> - and, with <b>AI Cleanup</b>, the senders the AI analyzes.</p>
       <p id="aiMatchNote" class="hidden text-[11px] text-ok border border-ok/40 bg-ok/10 rounded-lg px-2.5 py-1.5 mb-3">✓ <b>Works with AI Cleanup too:</b> the <b>Target list / Rule</b> selection and the <b>Load from file</b> / <b>Save to file</b> / <b>Clear all</b> buttons and the <b>Load saved Spam addresses</b> flag still apply - AI takes them into account in its search. <b>Leave it empty</b> to have AI analyze the <b>whole selected folder(s)</b>.</p>
       <div id="paneTargets">
         <div class="flex items-center text-xs text-muted mb-1">Senders / domains, one per line
