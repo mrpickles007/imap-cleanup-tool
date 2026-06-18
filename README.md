@@ -640,6 +640,11 @@ Highlights:
   help) or a **visual nested query builder** (field ▸ operator ▸ value, AND/OR
   groups).
 - **Count matching emails** before deleting; **dry-run** is on by default.
+- **Export / import messages**: download the matching messages (full content, headers
+  + body) - or the **whole selected folder(s)** when no filter is set - as a single
+  `.mbox` file (read-only, never marks mail read); and **import** a `.mbox` (or single
+  `.eml`) back into the **one** folder you have selected. Both follow the same
+  Target list / Rule filter as Count.
 - **Move** matches to another folder instead of deleting (pick the destination
   from a dropdown of your folders, or create a new one inline) - or **every**
   message if you leave the filter empty; plus

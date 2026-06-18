@@ -344,18 +344,17 @@ tailwind.config = { theme: { extend: {
         <p class="text-[11px] text-muted mt-2">Rules match <b>server-side</b> (substring), so a domain also matches its subdomains and partials - and <code>*@</code> is not special here. For an <b>exact</b> domain with no subdomains, use a <b>Target list</b> with <code>*@domain.com</code> and scan mode <b>"full"</b>.</p>
       </div>
       <div class="mt-4 pt-3 border-t border-line">
-        <div class="manual-only-chip hidden flex items-center gap-2 mb-2">
+        <div class="manual-only-chip hidden flex items-center gap-2 mb-3">
           <span class="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-brand/70 bg-brand/15 text-brand-light backdrop-blur-sm">manual only</span>
           <span class="text-[11px] text-muted">applies to <b>all the actions below</b> (Count, export/import, scan mode, move, empty) - they ignore AI Cleanup.</span>
         </div>
-        <div class="flex items-center gap-3 flex-wrap">
-          <button id="btnCount" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>Count matching emails</button>
-          <span class="text-[11px] text-muted">Counts how many emails match the current filter in the selected folders - makes no changes.</span>
-        </div>
+        <p class="text-[11px] text-muted mt-2 mb-1.5">Counts how many emails match the current filter in the selected folders - makes no changes.</p>
+        <button id="btnCount" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>Count matching emails</button>
       </div>
 
       <!-- Export / import the matching messages (full content) -->
-      <div class="mt-3 flex items-center gap-2 flex-wrap">
+      <p class="text-[11px] text-muted mt-3 mb-1.5">These also follow your filter: <b>Export</b> downloads the matching messages - or the <b>whole selected folder(s)</b> if no filter is set; <b>Import</b> appends into the <b>single</b> selected folder (one only, not more).</p>
+      <div class="flex items-center gap-2 flex-wrap">
         <button id="btnExportMessages" type="button" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2" title="Download the matching messages (full content) as a .mbox file"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7"/><polyline points="22 7 12 13 2 7"/><path d="M19 15v6"/><path d="m16 18 3 3 3-3"/></svg>Export messages</button>
         <button id="btnImportMessages" type="button" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2" title="Import messages from a .mbox / .eml file into the selected folder"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7"/><polyline points="22 7 12 13 2 7"/><path d="M19 21v-6"/><path d="m16 18 3-3 3 3"/></svg>Import messages</button>
         <input id="importFileMsg" type="file" accept=".mbox,.eml,message/rfc822" class="hidden">
