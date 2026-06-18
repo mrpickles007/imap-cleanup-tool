@@ -453,6 +453,7 @@ tailwind.config = { theme: { extend: {
         </label>
         <details class="text-xs text-muted">
           <summary class="cursor-pointer hover:text-cream">Advanced: scoring weights (calibrated)</summary>
+          <p class="text-[11px] text-muted mt-2 mb-1">These weights drive the <b>heuristic</b> spam score (the local analysis that runs before any LLM). You can change them, but they were <b>calibrated through testing</b> - it is recommended to <b>leave the default values</b> unless you know what you are tuning.</p>
           <div class="grid grid-cols-2 gap-2 mt-2">
             <label class="block">List-Unsubscribe<input id="wUnsub" type="number" step="0.5" min="0" value="3.5" class="field mt-1"></label>
             <label class="block">Unread ratio<input id="wUnread" type="number" step="0.5" min="0" value="3" class="field mt-1"></label>
