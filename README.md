@@ -1010,8 +1010,14 @@ each with its per-row **`link ↗`**. You can reach that view any time with the
 2. Enable IMAP in Gmail settings.
 3. Host is `imap.gmail.com`. Folder names are special: `[Gmail]/Trash`,
    `[Gmail]/All Mail`, `[Gmail]/Spam` (localised, e.g. `[Gmail]/Cestino`).
-4. Use `--gmail-trash`: a plain delete in `INBOX` only removes the label, not
-   the message. Target `[Gmail]/All Mail` to catch archived mail too.
+4. Use `--gmail-trash`: a plain delete in `INBOX` does **not** delete - it only
+   removes the `INBOX` label, so Gmail **archives the message to All Mail** (it's
+   still there, recoverable). To actually delete, move it to Trash (`--gmail-trash`
+   / the web UI's *Gmail: move to Trash*) and then empty the Trash. Target
+   `[Gmail]/All Mail` to catch archived mail too.
+   - **Expunge is disabled on Gmail** in the web UI (it has no effect there): Gmail
+     **auto-expunges** deleted messages on its own, and expunging from a folder only
+     archives to All Mail. The web UI also warns when you pick a plain delete on Gmail.
 5. **Trash is not permanent deletion.** On Gmail, deleting (including AI Cleanup)
    moves mail to `[Gmail]/Trash`; it stays there until the Trash is emptied. The
    web UI shows a reminder after any run that trashed mail and offers to select

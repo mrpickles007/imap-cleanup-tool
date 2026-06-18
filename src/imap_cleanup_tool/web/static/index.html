@@ -419,7 +419,7 @@ tailwind.config = { theme: { extend: {
         </span>
         <input id="expunge" type="checkbox">
       </label>
-      <p id="expungeNote" class="hidden text-[11px] text-muted -mt-1 mb-1">With “Gmail: move to Trash” this has no effect - messages just go to Trash. To delete for good, then select <code>[Gmail]/Trash</code> and use <b>Empty folder</b>.</p>
+      <p id="expungeNote" class="hidden text-[11px] text-muted -mt-1 mb-1"><b>Disabled on Gmail</b> (no effect here): Gmail <b>auto-expunges</b> deleted messages itself. With “Gmail: move to Trash” they go to the Trash - then select <code>[Gmail]/Trash</code> and use <b>Empty folder</b> to remove them for good.</p>
 
       <div class="border-t border-line mt-2 pt-3 pb-1">
         <p class="text-sm font-bold uppercase tracking-wider text-cream flex items-center">Manual-mode options
@@ -453,6 +453,7 @@ tailwind.config = { theme: { extend: {
         </span>
         <input id="gmailTrash" type="checkbox" disabled>
       </label>
+      <p id="gmailDeleteNote" class="hidden text-[11px] text-warn -mt-1 mb-1">⚠️ On Gmail, deleting <b>without</b> “move to Trash” does <b>not</b> delete: it only removes the INBOX label, so the message is <b>archived to All Mail</b> (still there, recoverable). To actually delete, tick <b>“Gmail: move to Trash”</b>, then select <code>[Gmail]/Trash</code> and run <b>Empty folder</b>.</p>
 
       <label class="flex items-center justify-between text-sm py-1.5" id="rowMove">
         <span class="flex items-center">Move matched to another folder
@@ -1148,10 +1149,15 @@ function refreshConditional(){
   $('gmailTrash').disabled = !gmail || move || off; if(!gmail||move||off)$('gmailTrash').checked=false;
   const gtrash=$('gmailTrash').checked;
   // Expunge stays available under AI Cleanup (so AI deletions can be permanent),
-  // except on Gmail where AI always uses Trash, making expunge moot.
-  const expungeOff = empty || move || (ai && gmail);
-  $('expunge').disabled = gtrash || expungeOff; if(gtrash||expungeOff)$('expunge').checked=false;
-  $('expungeNote').classList.toggle('hidden', !gtrash);
+  // but is pointless on Gmail: Gmail auto-expunges on its own, and removing a
+  // message from a folder there only archives it to All Mail. So disable it on Gmail.
+  const expungeOff = empty || move || gmail;
+  $('expunge').disabled = expungeOff; if(expungeOff)$('expunge').checked=false;
+  // Explain *why* it's disabled - only on Gmail (and not when move/empty take over).
+  $('expungeNote').classList.toggle('hidden', !(gmail && !move && !empty));
+  // Plain delete on Gmail (no Trash) just archives to All Mail - warn the user.
+  // (AI Cleanup on Gmail always uses Trash, so it's never the archive-only case.)
+  $('gmailDeleteNote').classList.toggle('hidden', !(gmail && !gtrash && !move && !empty && !ai));
   $('paneTargets').classList.toggle('dim',matchOff); $('paneRule').classList.toggle('dim',matchOff);
   // Under AI Cleanup, Run does the AI flow (report + LLM + delete); Count is N/A.
   $('btnRun').title = ai ? 'AI Cleanup: heuristic + LLM, then delete the confirmed senders (dry-run simulates)' : '';
