@@ -511,12 +511,15 @@ tailwind.config = { theme: { extend: {
       <p id="expungeNote" class="hidden text-[11px] text-warn -mt-1 mb-1">⚠️ <b>Disabled on Gmail</b> (no effect here): Gmail <b>auto-expunges</b> deleted messages itself. With “Gmail: move to Trash” they go to the Trash - then, <b>after the run</b>, select <code>[Gmail]/Trash</code> and use <b>Empty folder</b> to remove them for good.</p>
       <p id="expungeEnabledNote" class="hidden text-[11px] text-muted -mt-1 mb-1">Removes the flagged messages <b>permanently</b>. Without it they are only flagged <code>\\Deleted</code> - <b>not every server</b> drops those on its own, so they can linger until expunged. Applies to manual runs and AI Cleanup.</p>
 
-      <label class="flex items-center justify-between text-sm py-1.5">
-        <span class="flex items-center text-cream font-semibold">Dry-run (preview only)
-          <span class="tip"><span class="ic">i</span><span class="bub">Reports what <b>would</b> happen and changes nothing. Keep it on for your first run.</span></span>
-        </span>
-        <input id="dryRun" type="checkbox" checked>
-      </label>
+      <div id="dryRunBox" class="rounded-lg border px-3 py-2 mt-1">
+        <label class="flex items-center justify-between text-sm cursor-pointer">
+          <span id="dryRunLabel" class="flex items-center font-semibold">Dry-run (preview only)
+            <span class="tip"><span class="ic">i</span><span class="bub">Reports what <b>would</b> happen and changes nothing. Keep it on for your first run.</span></span>
+          </span>
+          <input id="dryRun" type="checkbox" checked>
+        </label>
+        <p id="dryRunNote" class="text-[11px] mt-1"></p>
+      </div>
 
       <label class="text-xs text-muted block mt-2 flex items-center">Batch size
         <span class="tip"><span class="ic">i</span><span class="bub">Messages per IMAP request. It applies to <b>every bulk operation here</b>: <b>List senders</b> and <b>Count</b> (header fetch), <b>Delete</b> (flag \Deleted), <b>Expunge</b> (permanent removal, done in batches), <b>Move</b> to another folder, <b>Empty folder</b>, and <b>Gmail: move to Trash</b>. It also drives <b>AI Cleanup</b> - the sender header fetch (capped at <b>50</b> there for visible progress) and deleting the confirmed senders. Higher = fewer round-trips but heavier requests. Default <b>500</b>. On <b>Gmail</b>, delete/trash STORE is auto-capped at <b>200</b> (Gmail rejects larger commands). <i>The Spam tab's "Flag senders as spam" uses a fixed internal batch, independent of this.</i></span></span>
@@ -1172,6 +1175,18 @@ function placeMatchSection(ai){
     if(sec.parentElement!==sm) sm.insertBefore(sec, cg);
   }
 }
+// Dry-run is the safety switch: highlight it green when ON (preview only) and
+// warning when OFF (real run that deletes/moves per the criteria).
+function updateDryRun(){
+  const box=$('dryRunBox'); if(!box) return;
+  const on=$('dryRun').checked;
+  box.className='rounded-lg border px-3 py-2 mt-1 '+(on?'border-ok/50 bg-ok/10':'border-warn/60 bg-warn/15');
+  $('dryRunLabel').className='flex items-center font-semibold '+(on?'text-ok':'text-warn');
+  $('dryRunNote').className='text-[11px] mt-1 '+(on?'text-ok':'text-warn');
+  $('dryRunNote').innerHTML = on
+    ? '✓ <b>Preview only</b> - the tool just <b>simulates</b> and changes nothing. To run for real, <b>turn this off</b>.'
+    : '⚠️ <b>Real run</b> - everything is <b>executed for real</b> and will <b>delete / move</b> the emails matching your selected criteria.';
+}
 function refreshConditional(){
   const rule=document.querySelector('input[name=mode]:checked').value==='rule';
   const aiOk = !(typeof META==='object' && META && META.ai_available===false);
@@ -1231,6 +1246,7 @@ function refreshConditional(){
   placeMatchSection(ai);   // move the whole What-to-match block into the AI card under AI
   // Gmail: some folders (Drafts) need more than one delete/empty pass - note it in the Run card
   if($('gmailDraftsNote')) $('gmailDraftsNote').classList.toggle('hidden', !gmail);
+  updateDryRun();
   if($('btnSenders')) $('btnSenders').disabled = ai;
   if($('btnSaveSenders')) $('btnSaveSenders').disabled = ai;
   if($('sendersName')) $('sendersName').disabled = ai;
@@ -1649,6 +1665,7 @@ $('moveDestNew').oninput=updateJobSummary;
 
 /* ---------- AI cleanup (heuristic report) ---------- */
 $('aiCleanup').onchange=refreshConditional;
+if($('dryRun')) $('dryRun').onchange=updateDryRun;
 if($('modeToggle')) $('modeToggle').onclick=()=>{ if($('aiCleanup').disabled) return; $('aiCleanup').checked=!$('aiCleanup').checked; refreshConditional(); };
 $('aiThreshold').oninput=()=>{ $('thrVal').textContent=parseFloat($('aiThreshold').value).toFixed(1); };
 $('aiModel').onchange=updateAiSecret;
