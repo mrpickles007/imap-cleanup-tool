@@ -248,27 +248,56 @@ def list_senders(conn: imaplib.IMAP4_SSL, folder: str,
                  should_stop: StopCheck | None = None,
                  account: str = "",
                  save_path: str | None = None,
-                 cache=None) -> dict[str, int]:
-    """Log unique senders in a folder with counts; optionally save to CSV."""
+                 cache=None, *,
+                 addresses: set[str] | None = None,
+                 domains: set[str] | None = None,
+                 exact_domains: set[str] | None = None,
+                 search_argument: str | None = None,
+                 include_subdomains: bool = False,
+                 scan_mode: str = "search") -> dict[str, int]:
+    """Log unique senders in a folder with counts; optionally save to CSV.
+
+    When a **filter** is set (Target list / Rule) only the matching messages are
+    counted, the same way Count/Run match; with no filter every sender is listed.
+    """
     status, _ = conn.select(_quote_mailbox(folder), readonly=True)
     if status != "OK":
         logger.error("Cannot open folder %r.", folder)
         return {}
     uidvalidity = _read_uidvalidity(conn) if cache is not None else ""
-    status, data = conn.uid("SEARCH", None, "ALL")
-    if status != "OK" or not data or not data[0]:
-        logger.info("Folder %r is empty.", folder)
+    has_criteria = bool(search_argument or addresses or domains or exact_domains)
+    # Pick the UIDs to inspect: the matching subset when a filter is set, else all.
+    # In "full" scan mode we still fetch all headers and filter while counting.
+    full_filter = False
+    if search_argument:
+        uids = sorted(search_rule(conn, search_argument), key=int)
+    elif has_criteria and scan_mode == "search":
+        uids = sorted(search_targets(conn, addresses or set(), domains or set(),
+                                     exact_domains or set(), should_stop), key=int)
+    else:
+        status, data = conn.uid("SEARCH", None, "ALL")
+        if status != "OK" or not data or not data[0]:
+            logger.info("Folder %r is empty.", folder)
+            return {}
+        uids = data[0].split()
+        full_filter = has_criteria       # full mode + filter -> filter while counting
+    if not uids:
+        logger.info("No matching senders in %r.", folder)
         return {}
 
-    all_uids = data[0].split()
-    logger.info("Folder %r: inspecting %d message(s).", folder, len(all_uids))
-    headers = fetch_from_headers(conn, all_uids, batch_size, should_stop,
+    logger.info("Folder %r: inspecting %d message(s).", folder, len(uids))
+    headers = fetch_from_headers(conn, uids, batch_size, should_stop,
                                  cache=cache, account=account, folder=folder,
                                  uidvalidity=uidvalidity)
 
     counts: dict[str, int] = {}
     for value in headers.values():
-        sender = extract_sender_email(value) or "(no sender)"
+        addr = extract_sender_email(value)
+        if full_filter and not sender_matches(
+                addr, addresses or set(), domains or set(),
+                exact_domains or set(), include_subdomains):
+            continue
+        sender = addr or "(no sender)"
         counts[sender] = counts.get(sender, 0) + 1
 
     ranked = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)

@@ -276,11 +276,11 @@ tailwind.config = { theme: { extend: {
 
     <!-- Mode toggle: AI Cleanup (left) <-> Manual Cleanup (right); AI by default -->
     <div class="flex items-center justify-center gap-4 py-1">
-      <span id="modeLabelAi" class="text-sm font-semibold flex items-center">✨ AI Cleanup</span>
+      <span id="modeLabelAi" class="text-base font-semibold flex items-center">✨ AI Cleanup</span>
       <button id="modeToggle" type="button" role="switch" aria-checked="true" title="Switch between AI Cleanup and Manual Cleanup" class="relative w-16 h-8 rounded-full border border-brand/60 bg-panel2 transition-colors flex-none disabled:opacity-50">
         <span id="modeKnob" class="absolute top-1 left-1 w-6 h-6 rounded-full bg-brand transition-transform"></span>
       </button>
-      <span id="modeLabelManual" class="text-sm font-semibold flex items-center">Manual Cleanup</span>
+      <span id="modeLabelManual" class="text-base font-semibold flex items-center">Manual Cleanup</span>
       <input id="aiCleanup" type="checkbox" class="hidden" checked>
     </div>
 
@@ -289,7 +289,7 @@ tailwind.config = { theme: { extend: {
 
     <!-- Manual Cleanup (visually on the RIGHT via order-2) -->
     <section id="secMatch" class="order-2 bg-panel border border-line rounded-xl p-5">
-      <h2 class="font-display font-semibold text-brand-light mb-3">Manual Cleanup</h2>
+      <h2 class="font-display font-semibold text-brand-light mb-3 flex items-center gap-2">Manual Cleanup <span class="manual-only-chip hidden inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-brand/70 bg-brand/15 text-brand-light backdrop-blur-sm">manual only</span></h2>
       <div class="text-xs font-bold uppercase tracking-wider text-cream mb-2">What to match</div>
       <div class="flex gap-4 mb-3 text-sm">
         <label class="flex items-center gap-2"><input type="radio" name="mode" value="targets" checked> Target list</label>
@@ -500,7 +500,7 @@ tailwind.config = { theme: { extend: {
         </span>
         <input id="expunge" type="checkbox">
       </label>
-      <p id="expungeNote" class="hidden text-[11px] text-muted -mt-1 mb-1"><b>Disabled on Gmail</b> (no effect here): Gmail <b>auto-expunges</b> deleted messages itself. With “Gmail: move to Trash” they go to the Trash - then, <b>after the run</b>, select <code>[Gmail]/Trash</code> and use <b>Empty folder</b> to remove them for good.</p>
+      <p id="expungeNote" class="hidden text-[11px] text-warn -mt-1 mb-1">⚠️ <b>Disabled on Gmail</b> (no effect here): Gmail <b>auto-expunges</b> deleted messages itself. With “Gmail: move to Trash” they go to the Trash - then, <b>after the run</b>, select <code>[Gmail]/Trash</code> and use <b>Empty folder</b> to remove them for good.</p>
       <p id="expungeEnabledNote" class="hidden text-[11px] text-muted -mt-1 mb-1">Removes the flagged messages <b>permanently</b>. Without it they are only flagged <code>\\Deleted</code> - <b>not every server</b> drops those on its own, so they can linger until expunged. Applies to manual runs and AI Cleanup.</p>
 
       <label class="flex items-center justify-between text-sm py-1.5">
@@ -525,9 +525,9 @@ tailwind.config = { theme: { extend: {
     <div class="border-t border-line"></div>
 
     <div>
-      <div class="text-[11px] uppercase tracking-wider text-muted mb-2">List senders</div>
+      <div class="text-[11px] uppercase tracking-wider text-muted mb-2 flex items-center gap-2">List senders <span class="manual-only-chip hidden inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-brand/70 bg-brand/15 text-brand-light backdrop-blur-sm">manual only</span></div>
       <button id="btnSenders" class="w-full border border-line text-cream hover:border-brand rounded-lg px-4 py-2 transition">List senders</button>
-      <p class="text-[11px] text-muted mt-1.5">Shows the senders in the selected folders ranked by how many emails each sent - use it to decide what to target.</p>
+      <p class="text-[11px] text-muted mt-1.5">Shows the senders in the selected folders, <b>following the selected filters (Target list / Rule)</b> when one is set, ranked by how many emails each sent - use it to decide what to target.</p>
       <div class="flex gap-2 mt-2">
         <input id="sendersName" class="field" placeholder="senders_….csv">
         <button id="btnSaveSenders" class="px-4 py-2 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm flex items-center gap-2 whitespace-nowrap"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Save CSV</button>
@@ -1159,8 +1159,8 @@ function refreshConditional(){
     $('modeToggle').disabled = $('aiCleanup').disabled;
     $('modeToggle').setAttribute('aria-checked', ai?'true':'false');
     $('modeKnob').style.transform = ai ? 'translateX(0)' : 'translateX(32px)';
-    $('modeLabelAi').className = 'text-sm font-semibold flex items-center '+(ai?'text-brand-light':'text-muted');
-    $('modeLabelManual').className = 'text-sm font-semibold flex items-center '+(ai?'text-muted':'text-brand-light');
+    $('modeLabelAi').className = 'text-base font-semibold flex items-center '+(ai?'text-brand-light':'text-muted');
+    $('modeLabelManual').className = 'text-base font-semibold flex items-center '+(ai?'text-muted':'text-brand-light');
   }
   // AI Cleanup uses the match (filter, or whole folder when empty) exactly like
   // Move, so it does NOT dim the match - only Empty folder does.
@@ -1196,6 +1196,8 @@ function refreshConditional(){
   $('btnCount').disabled = ai;
   if($('btnExportMessages')) $('btnExportMessages').disabled = ai;
   if($('btnImportMessages')) $('btnImportMessages').disabled = ai;
+  // "manual only" chips on the groups disabled under AI Cleanup
+  document.querySelectorAll('.manual-only-chip').forEach(c=>c.classList.toggle('hidden', !ai));
   if($('btnSenders')) $('btnSenders').disabled = ai;
   if($('btnSaveSenders')) $('btnSaveSenders').disabled = ai;
   if($('sendersName')) $('sendersName').disabled = ai;
@@ -1639,6 +1641,12 @@ if($('aiSecretEye')) $('aiSecretEye').onclick=()=>{ const i=$('aiSecret'); i.typ
 // here. Use the explicit "Clear cache" button to wipe it on purpose.
 $('btnAiReport').onclick=async()=>{ if(!SID){ log('[ERROR] Not connected.'); return; } if(!(await ensureFolderChosen())) return;
   const p=aiPayload();
+  // No LLM configured and Skip LLM not explicitly ticked -> confirm heuristic-only.
+  if((typeof LLM_MODELS!=='undefined'?LLM_MODELS:[]).length===0 && !($('aiSkipLlm') && $('aiSkipLlm').checked)){
+    const ch=await choiceDialog({title:'No LLM configured', message:'No LLM model is configured, so the report will use the local HEURISTIC engine only (spam score, no AI verdicts). It is free and private, but less precise.\n\nProceed heuristic-only, or open the LLM tab to configure a model?', choices:[{key:'go', label:'Proceed (heuristic only)'},{key:'llm', label:'Open LLM tab'}]});
+    if(!ch){ log('Report cancelled.'); return; }
+    if(ch==='llm'){ switchTab('llm'); return; }
+  }
   if(!(await ensureSmtpNotifySecret())){ log('Run cancelled.'); return; } p.notify_secret=smtpNotifySecret;
   if($('aiSkipLlm') && $('aiSkipLlm').checked){ p.model=''; log('Generating heuristic-only report (LLM skipped) on: '+p.folders.join(', ')+' …'); }
   else log('Generating AI report on: '+p.folders.join(', ')+' …');
@@ -2255,7 +2263,7 @@ function prefillSelfExclude(){
 $('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setStatus(false,'disconnected'); setConnectedUI(false); removeSelfExclude(); loadAiReports(); refreshLoadSpam(); refreshCacheInfo(); Object.keys(unlockedSecrets).forEach(k=>delete unlockedSecrets[k]); smtpNotifySecret=''; log('Disconnected.'); };
 $('btnValidate').onclick=async()=>{ try{ const d=await api('/api/validate-rule',{tree:toTree(ROOT)}); $('ruleOut').textContent='OK → SEARCH '+d.search; $('ruleOut').className='text-xs text-ok ml-2'; }catch(e){ $('ruleOut').textContent=e.message; $('ruleOut').className='text-xs text-danger ml-2'; } };
 $('btnStop').onclick=async()=>{ if(SID&&curRunId){ $('btnStop').disabled=true; $('btnStop').textContent='Stopping…'; try{ await api(`/api/stop/${SID}/${curRunId}`); log('Stop requested - finishing the current batch, then stopping…'); }catch(e){} } };
-$('btnSenders').onclick=async()=>{ if(!(await ensureFolderChosen())) return; log('Listing senders in: '+(selectedFolders.join(', ')||'INBOX')+' …'); startJob('/api/senders',{sid:SID,folders:selectedFolders.length?selectedFolders:['INBOX'],batch_size:parseInt($('batch').value)||500}); };
+$('btnSenders').onclick=async()=>{ if(!(await ensureFolderChosen())) return; const p=Object.assign({sid:SID, folders:selectedFolders.length?selectedFolders:['INBOX'], batch_size:parseInt($('batch').value)||500, scan_mode:$('scanMode').value, include_subdomains:$('subdomains').checked}, matchPayload()); log('Listing senders in: '+p.folders.join(', ')+' …'); startJob('/api/senders', p); };
 function humanStamp(){ const d=new Date(), p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}`; }
 function defaultSendersName(){ return 'senders_'+humanStamp()+'.csv'; }
 let lastAutoSendersName = defaultSendersName();

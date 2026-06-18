@@ -418,11 +418,13 @@ def create_app():
         op: str = "ge"            # is | le | ge | lt | gt
         score: float = 6.0
 
-    class SendersIn(BaseModel):
+    class SendersIn(Match):
         sid: str
         folders: list[str] = Field(default_factory=lambda: ["INBOX"])
         batch_size: int = core.UID_CHUNK_SIZE
         save_path: str | None = None
+        scan_mode: str = "search"
+        include_subdomains: bool = False
 
     class RuleIn(BaseModel):
         tree: dict
@@ -773,19 +775,25 @@ def create_app():
             raise HTTPException(409, "An operation is already running.")
         folders = body.folders or ["INBOX"]
         save_path = (body.save_path or "").strip() or None
+        addresses, domains, exact_domains, search_argument = _resolve_match(body)
 
         def work(rs: RunState) -> None:
             # list_senders logs each sender (count | address) into the session
             # log, which the client streams. We also keep a structured copy in
             # the run result (server-side only, not sent on every poll) so it can
-            # be exported as CSV on demand via /api/senders.csv.
+            # be exported as CSV on demand via /api/senders.csv. When a filter is
+            # set it only lists senders among the matching messages.
             ranked: list[dict[str, Any]] = []
             cache = _session_cache(sess)
             for folder in folders:
                 counts = core.list_senders(
                     sess.conn, folder, body.batch_size,
                     should_stop=rs.stop.is_set, account=sess.user,
-                    save_path=save_path, cache=cache)
+                    save_path=save_path, cache=cache,
+                    addresses=addresses, domains=domains,
+                    exact_domains=exact_domains, search_argument=search_argument,
+                    include_subdomains=body.include_subdomains,
+                    scan_mode=body.scan_mode)
                 for sender, count in sorted(counts.items(),
                                             key=lambda kv: kv[1], reverse=True):
                     ranked.append({"folder": folder, "sender": sender,

@@ -63,7 +63,8 @@ features are optional extras (see [Install](#install)).
   report attached as CSV.
 - **Gmail mode**: moves matches to Trash (the only way to truly delete on Gmail).
 - **Empty a whole folder** (e.g. Trash) without scanning.
-- **List senders** with counts and export them to CSV (with timestamp).
+- **List senders** with counts (honoring the **Target list / Rule** filter when one
+  is set) and export them to CSV (with timestamp).
 - **Stop** button / cooperative cancellation for long runs.
 - **Scheduler**: save jobs (including AI jobs) and **install** them into the
   system scheduler (Windows Task Scheduler / cron) - once, hourly, daily, weekly,

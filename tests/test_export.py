@@ -87,5 +87,45 @@ class MatchedUidsTests(unittest.TestCase):
         self.assertTrue(sel and sel[0][2] is True)   # readonly=True
 
 
+_FROM = {b"1": b"From: a@x.com\r\n\r\n",
+         b"2": b"From: b@y.com\r\n\r\n",
+         b"3": b"From: a@x.com\r\n\r\n"}
+
+
+class SendersFake:
+    """Fake conn for list_senders: SEARCH ALL = 3 msgs; a filter SEARCH = uid 1."""
+
+    def select(self, name, readonly=False):
+        return ("OK", [b"3"])
+
+    def uid(self, *args):
+        if args[0] == "SEARCH":
+            return ("OK", [b"1 2 3"]) if args[2] == "ALL" else ("OK", [b"1"])
+        if args[0] == "FETCH":
+            data = []
+            for u in args[1].split(b","):
+                if u in _FROM:
+                    data.append((u + b" (UID " + u + b" {0}", _FROM[u]))
+                    data.append(b")")
+            return ("OK", data)
+        return ("OK", [b""])
+
+
+class ListSendersFilterTests(unittest.TestCase):
+    def test_no_filter_counts_all(self):
+        counts = core.list_senders(SendersFake(), "INBOX")
+        self.assertEqual(counts, {"a@x.com": 2, "b@y.com": 1})
+
+    def test_rule_restricts_to_matching(self):
+        counts = core.list_senders(SendersFake(), "INBOX",
+                                   search_argument="FROM a@x.com")
+        self.assertEqual(counts, {"a@x.com": 1})   # only uid 1 (the rule's match)
+
+    def test_full_mode_filters_while_counting(self):
+        counts = core.list_senders(SendersFake(), "INBOX",
+                                   addresses={"a@x.com"}, scan_mode="full")
+        self.assertEqual(counts, {"a@x.com": 2})   # b@y.com filtered out
+
+
 if __name__ == "__main__":
     unittest.main()
