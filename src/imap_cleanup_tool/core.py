@@ -958,7 +958,13 @@ def _apply_exclude(conn: imaplib.IMAP4_SSL, uids, exclude, should_stop=None):
         return uids
     logger.info("Excluding messages from: %s", ", ".join(sorted(ex)))
     drop = search_targets(conn, ex, set(), should_stop=should_stop)
-    return [u for u in uids if u not in drop] if drop else uids
+    if not drop:
+        logger.info("=> excluded 0 message(s) (none matched the exclude list).")
+        return uids
+    kept = [u for u in uids if u not in drop]
+    logger.info("=> excluded %d message(s) (%d -> %d).",
+                len(uids) - len(kept), len(uids), len(kept))
+    return kept
 
 
 def matched_uids(conn: imaplib.IMAP4_SSL, folder: str, *,
