@@ -47,7 +47,7 @@ PROVIDERS_FILE = ASSETS_DIR / "providers.json"
 # Fallback if providers.json is missing/corrupt.
 PROVIDER_PRESETS = [
     {"name": "Custom", "host": "", "port": 993},
-    {"name": "Gmail", "host": "imap.gmail.com", "port": 993},
+    {"name": "Gmail", "host": "imap.gmail.com", "port": 993, "gmail": True},
     {"name": "Outlook / Office 365", "host": "outlook.office365.com", "port": 993},
     {"name": "iCloud Mail", "host": "imap.mail.me.com", "port": 993},
 ]
@@ -66,6 +66,23 @@ def _load_providers() -> list:
     except (OSError, ValueError):
         pass
     return PROVIDER_PRESETS
+
+
+def _is_gmail(host: str) -> bool:
+    """True if ``host`` is Gmail.
+
+    The gmail-flagged provider in providers.json is the single source of truth
+    for the Gmail host (change it there if Gmail ever moves), matched exactly;
+    the ``gmail``/``googlemail`` substrings are kept as a safety fallback so this
+    never regresses.
+    """
+    h = (host or "").lower()
+    if not h:
+        return False
+    if "gmail" in h or "googlemail" in h:
+        return True
+    gp = next((p for p in _load_providers() if p.get("gmail")), None)
+    return bool(gp) and h == (gp.get("host") or "").lower()
 
 
 def _ai_extra_available() -> bool:
@@ -1113,7 +1130,7 @@ def create_app():
         folders = body.folders or ["INBOX"]
         exclude = set((body.exclude or "").splitlines())   # box-only (see ai-report)
         model_cfg = _load_ai_model(body)
-        gmail = "gmail" in (sess.host or "").lower()
+        gmail = _is_gmail(sess.host)
         scope = _ai_scope(body)        # resolve here so 400s reach the client
 
         def work(rs: RunState) -> None:
@@ -1357,7 +1374,7 @@ def create_app():
         if not addrs:
             raise HTTPException(400, "No addresses selected.")
         delete = body.mode == "delete"
-        gmail = "gmail" in (sess.host or "").lower()
+        gmail = _is_gmail(sess.host)
         # Scope = the folders selected in the Cleanup tab (same as a run).
         folders = body.folders or ["INBOX"]
         moved = deleted = 0

@@ -1,6 +1,6 @@
 [
   { "name": "Custom",                 "host": "",                        "port": 993 },
-  { "name": "Gmail",                  "host": "imap.gmail.com",          "port": 993,
+  { "name": "Gmail",                  "host": "imap.gmail.com",          "port": 993, "gmail": true,
     "pass_tip": "Gmail needs an <b>App Password</b> (Google Account → Security → 2-Step Verification → App passwords), not your normal password. Also enable IMAP in Gmail → Settings → Forwarding and POP/IMAP." },
   { "name": "Outlook / Office 365",   "host": "outlook.office365.com",   "port": 993,
     "pass_tip": "If your account uses 2-step verification, create an <b>app password</b> (account.microsoft.com → Security) and use it here." },

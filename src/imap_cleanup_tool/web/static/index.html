@@ -1154,7 +1154,10 @@ function applyProviderTips(){
   set('userTip', p.user_tip);
   set('passTip', p.pass_tip);
 }
-function gmailHost(){ return $('host').value.trim()==='imap.gmail.com'; }
+// The gmail-flagged provider (providers.json) is the single source of truth for
+// the Gmail host - so changing it there updates detection everywhere.
+function gmailProvider(){ return (META.providers||[]).find(p=>p.gmail) || null; }
+function gmailHost(){ const h=($('host').value||'').trim().toLowerCase(); if(!h) return false; const gp=gmailProvider(); return (gp && h===(gp.host||'').toLowerCase()) || h.includes('gmail') || h.includes('googlemail'); }
 // Visual only: under AI Cleanup the whole "What to match" block lives inside the
 // AI card (between Check-spam and Generate report); under Manual it sits back in
 // the Manual Cleanup card. Same DOM node is moved - no content/handlers lost.
@@ -1638,7 +1641,7 @@ if($('btnMenu')) $('btnMenu').onclick=openDrawer;
 if($('drawerClose')) $('drawerClose').onclick=closeDrawer;
 if($('drawerBackdrop')) $('drawerBackdrop').onclick=closeDrawer;
 if($('btnTour2')) $('btnTour2').onclick=()=>{ closeDrawer(); if($('btnTour')) $('btnTour').click(); };
-$('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider').value)||0]; if(p){ if(p.host)$('host').value=p.host; if(p.port)$('port').value=p.port; if(p.host==='imap.gmail.com'){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} } applyProviderTips(); refreshConditional(); };
+$('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider').value)||0]; if(p){ if(p.host)$('host').value=p.host; if(p.port)$('port').value=p.port; if(p.gmail){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} } applyProviderTips(); refreshConditional(); };
 $('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional; $('gmailTrash').onchange=refreshConditional;
 $('moveMode').onchange=()=>{ refreshConditional(); populateMoveDest(); updateJobSummary(); };
 $('moveDest').onchange=()=>{ const nr=$('moveNewRow'); if(nr) nr.classList.toggle('hidden',$('moveDest').value!=='__new__'); updateJobSummary(); };
@@ -2740,6 +2743,16 @@ if($('saveSecret')) $('saveSecret').addEventListener('input', ()=>saveErr(''));
 $('saveConfirm').onclick=async ()=>{
   saveErr('');
   const name=$('saveName').value.trim(); if(!name){ $('saveName').focus(); return; }
+  // Safeguard: a custom profile must not reuse a built-in provider's IMAP host -
+  // pick that provider from the dropdown so the provider preset stays the single
+  // source of truth (e.g. for Gmail handling).
+  const eh=$('host').value.trim().toLowerCase();
+  const prov=(META.providers||[]).find(p=>p.host && p.host.toLowerCase()===eh);
+  const selProv=(META.providers||[])[parseInt($('provider').value)]||null;
+  if(prov && !(selProv && (selProv.host||'').toLowerCase()===eh)){
+    saveErr('"'+$('host').value.trim()+'" is the IMAP host of the "'+prov.name+'" provider. Pick "'+prov.name+'" from the Provider dropdown instead of saving it as a custom host.');
+    return;
+  }
   const existing=PROFILES.find(p=>p.name===name);
   const wasEnc=!!(existing&&existing.encrypted), reuse=unlockedSecrets[name]||'';
   const encrypt=$('saveEncrypt').checked;
