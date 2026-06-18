@@ -1175,24 +1175,28 @@ def append_messages(conn: imaplib.IMAP4_SSL, folder: str, messages,
     if dedup_search:
         conn.select(target, readonly=True)        # so SEARCH HEADER targets it
     seen: set[str] = set()
-    for raw in messages:
+    total = len(messages)
+    step = max(25, total // 20)                   # ~20 progress lines, min every 25
+    for i, raw in enumerate(messages, start=1):
         _check_stop(should_stop)
         mid = _message_id(raw)
         if mid and (mid in skip or mid in seen
                     or (dedup_search and _msgid_in_folder(conn, mid))):
             skipped += 1
-            continue
-        if mid:
-            seen.add(mid)
-        try:
-            status, _ = conn.append(target, "", None, raw)
-        except (imaplib.IMAP4.error, OSError) as exc:
-            logger.warning("APPEND failed for one message: %s", exc)
-            continue
-        if status == "OK":
-            appended += 1
         else:
-            logger.warning("APPEND rejected one message.")
+            if mid:
+                seen.add(mid)
+            try:
+                status, _ = conn.append(target, "", None, raw)
+                if status == "OK":
+                    appended += 1
+                else:
+                    logger.warning("APPEND rejected one message.")
+            except (imaplib.IMAP4.error, OSError) as exc:
+                logger.warning("APPEND failed for one message: %s", exc)
+        if i % step == 0 or i == total:
+            logger.info("  ... %d/%d (imported %d, skipped %d)",
+                        i, total, appended, skipped)
     return appended, skipped
 
 

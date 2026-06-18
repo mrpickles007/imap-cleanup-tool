@@ -1433,7 +1433,7 @@ async function pollLog(){
       refreshLoadSpam(); // a finished AI run may have added spam addresses
       refreshCacheInfo(); // ... and may have grown the header cache
       // Deletion changes folder counts - refresh the folder list (unified flow).
-      if(pendingRefreshFolders && d.status==='done'){ pendingRefreshFolders=false; refreshFoldersQuiet(); }
+      if(pendingRefreshFolders && (d.status==='done' || d.status==='stopped')){ pendingRefreshFolders=false; refreshFoldersQuiet(); }
       if(gmailTrashSeen && d.status==='done'){ gmailTrashSeen=false; showTrashNotice(); }
       if(pendingExportDownload){ pendingExportDownload=false; if(d.status==='done') downloadExport(); }
     }
