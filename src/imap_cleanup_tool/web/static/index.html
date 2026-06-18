@@ -348,9 +348,9 @@ tailwind.config = { theme: { extend: {
       </div>
       <div class="mt-3">
         <label class="text-xs text-muted flex items-center mb-1">Exclude addresses (one per line)
-          <span class="tip"><span class="ic">i</span><span class="bub">Senders to <b>skip</b> from this match - applies to <b>Count</b>, <b>Run</b>, <b>Export</b> and <b>List senders</b>. Your own mailbox address is <b>pre-filled on connect</b> (remove it to include your own mail too). One address per line. Does <b>not</b> apply to <b>Empty folder</b>, which deletes everything.</span></span>
+          <span class="tip"><span class="ic">i</span><span class="bub">Senders to <b>skip</b>. With <b>AI Cleanup</b> they are left out of the analysis; in <b>manual</b> mode they are excluded from <b>Count</b>, <b>Run</b>, <b>Export</b> and <b>List senders</b> (not <b>Empty folder</b>, which deletes everything). Your own mailbox address is <b>pre-filled on connect</b> - remove it to include your own mail too. One address per line.</span></span>
         </label>
-        <textarea id="manualExclude" rows="2" class="field console" placeholder="me@example.com&#10;boss@work.com"></textarea>
+        <textarea id="aiExclude" rows="2" class="field console" placeholder="me@example.com&#10;boss@work.com"></textarea>
       </div>
       </div><!-- /matchSection -->
 
@@ -457,10 +457,6 @@ tailwind.config = { theme: { extend: {
         <label class="text-xs text-muted block">Sample emails per flagged sender
           <span class="tip"><span class="ic">i</span><span class="bub">How many example subjects per flagged sender go into the report (and to the LLM). Default 5.</span></span>
           <input id="aiSample" type="number" min="1" max="50" value="5" class="field mt-1">
-        </label>
-        <label class="text-xs text-muted block">Exclude addresses (one per line)
-          <span class="tip"><span class="ic">i</span><span class="bub">Senders to skip entirely. Your own mailbox address is <b>pre-filled here on connect</b> so self-sent mail is skipped - <b>remove it</b> if you want your own address included too. Add one address per line.</span></span>
-          <textarea id="aiExclude" rows="2" class="field console mt-1" placeholder="boss@work.com&#10;statements@mybank.com"></textarea>
         </label>
         <details class="text-xs text-muted">
           <summary class="cursor-pointer hover:text-cream">Advanced: scoring weights (calibrated)</summary>
@@ -1368,7 +1364,7 @@ function toTree(n){ return n.kind==='cond' ? {type:'condition',field:n.field,ope
 function matchPayload(){
   const mode=document.querySelector('input[name=mode]:checked').value;
   return { match_mode:mode, targets_text:$('targets').value, rule_tree: mode==='rule'?toTree(ROOT):null,
-    exclude_text: $('manualExclude') ? $('manualExclude').value : '' };
+    exclude_text: $('aiExclude') ? $('aiExclude').value : '' };
 }
 function optionsPayload(){
   return { folders:selectedFolders.length?selectedFolders:['INBOX'], scan_mode:$('scanMode').value,
@@ -2336,7 +2332,7 @@ function selfExcludeAddress(){
 }
 function removeSelfExclude(){
   if(!selfExcludeAddr) return;
-  ['aiExclude','manualExclude'].forEach(id=>{ const box=$(id); if(!box) return;
+  ['aiExclude'].forEach(id=>{ const box=$(id); if(!box) return;
     box.value=box.value.split('\n').map(s=>s.trim()).filter(Boolean)
       .filter(l=>l.toLowerCase()!==selfExcludeAddr.toLowerCase()).join('\n');
   });
@@ -2345,7 +2341,7 @@ function removeSelfExclude(){
 function prefillSelfExclude(){
   removeSelfExclude();                                  // drop the previous account's entry
   const addr=selfExcludeAddress(); if(!addr) return;
-  ['aiExclude','manualExclude'].forEach(id=>{ const box=$(id); if(!box) return;
+  ['aiExclude'].forEach(id=>{ const box=$(id); if(!box) return;
     const lines=box.value.split('\n').map(s=>s.trim()).filter(Boolean);
     if(!lines.some(l=>l.toLowerCase()===addr.toLowerCase())){ lines.unshift(addr); box.value=lines.join('\n'); }
   });
@@ -2536,18 +2532,26 @@ $('btnCount').onclick=async()=>{
 
 // --- Export / import full messages (.mbox) ---
 let pendingExportDownload=false;
+// Count messages in an mbox/eml text: each mbox message starts with a "From "
+// line; a single .eml (no separator) counts as one.
+function countMboxMessages(text){
+  if(!text || !text.trim()) return 0;
+  const m=text.match(/(^|\n)From .*\r?\n/g);
+  return m ? m.length : 1;
+}
 async function downloadExport(){
   try{
     const r=await fetch('/api/export-messages.mbox/'+SID);
     if(!r.ok){ const j=await r.json().catch(()=>({})); throw new Error(errText(j,r.status)); }
     const blob=await r.blob();
+    const n=countMboxMessages(await blob.text());
     const cd=r.headers.get('Content-Disposition')||'';
     const m=cd.match(/filename=([^;]+)/);
     const name=(m?m[1].trim():('messages_'+humanStamp()+'.mbox'));
     const url=URL.createObjectURL(blob), a=document.createElement('a');
     a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
-    log('Messages exported to '+name+'.');
+    log('Exported '+n+' message'+(n===1?'':'s')+' to '+name+'.');
   }catch(e){ log('[ERROR] export download: '+e.message); }
 }
 $('btnExportMessages').onclick=async()=>{
@@ -2574,8 +2578,9 @@ $('btnImportMessages').onclick=async()=>{
 $('importFileMsg').onchange=async(e)=>{
   const f=e.target.files && e.target.files[0]; if(!f) return;
   const dest=selectedFolders[0];
-  if(!(await confirmDialog({title:'Import messages', message:'Import "'+f.name+'" ('+Math.round(f.size/1024)+' KB) into folder "'+dest+'"?\n\nEach message is appended to that folder on the server.', okText:'Import'}))) return;
-  log('Importing "'+f.name+'" into '+dest+' …');
+  let count=0; try{ count=countMboxMessages(await f.text()); }catch(_){}
+  if(!(await confirmDialog({title:'Import messages', message:'Import "'+f.name+'" ('+count+' message'+(count===1?'':'s')+', '+Math.round(f.size/1024)+' KB) into folder "'+dest+'"?\n\nEach message is appended to that folder on the server.', okText:'Import'}))) return;
+  log('Importing '+count+' message(s) from "'+f.name+'" into '+dest+' …');
   try{
     const buf=await f.arrayBuffer();
     const r=await fetch('/api/import-messages/'+SID+'?folder='+encodeURIComponent(dest), {method:'POST', headers:{'Content-Type':'application/octet-stream'}, body:buf});
