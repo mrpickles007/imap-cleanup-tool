@@ -511,7 +511,7 @@ tailwind.config = { theme: { extend: {
       <p id="expungeNote" class="hidden text-[11px] text-warn -mt-1 mb-1">⚠️ <b>Disabled on Gmail</b> (no effect here): Gmail <b>auto-expunges</b> deleted messages itself. With “Gmail: move to Trash” they go to the Trash - then, <b>after the run</b>, select <code>[Gmail]/Trash</code> and use <b>Empty folder</b> to remove them for good.</p>
       <p id="expungeEnabledNote" class="hidden text-[11px] text-muted -mt-1 mb-1">Removes the flagged messages <b>permanently</b>. Without it they are only flagged <code>\\Deleted</code> - <b>not every server</b> drops those on its own, so they can linger until expunged. Applies to manual runs and AI Cleanup.</p>
 
-      <div id="dryRunBox" class="rounded-lg border px-3 py-2 mt-1">
+      <div id="dryRunBox" class="rounded-lg border -mx-2 px-2 py-2.5 my-3">
         <label class="flex items-center justify-between text-sm cursor-pointer">
           <span id="dryRunLabel" class="flex items-center font-semibold">Dry-run (preview only)
             <span class="tip"><span class="ic">i</span><span class="bub">Reports what <b>would</b> happen and changes nothing. Keep it on for your first run.</span></span>
@@ -990,7 +990,16 @@ const LOG_CAP = 2000;           // keep at most this many lines in the DOM
 
 function renderLog(){ const e=$('log'); e.textContent=logLines.join('\n'); e.scrollTop=e.scrollHeight; }
 function persistLog(){ try{ localStorage.setItem('icw_log', JSON.stringify(logLines)); localStorage.setItem('icw_logcursor', String(logCursor)); }catch(_){} }
-function pushLines(arr){ if(!arr||!arr.length) return; for(const l of arr) logLines.push(l); if(logLines.length>LOG_CAP) logLines=logLines.slice(-LOG_CAP); renderLog(); persistLog(); }
+let _lastErrToast='';
+function pushLines(arr){ if(!arr||!arr.length) return;
+  for(const l of arr){ logLines.push(l);
+    // every [ERROR]/[NETWORK ERROR] line (client OR server-streamed) also pops a
+    // red toast - stacked, never overlapping; skip consecutive duplicates.
+    const m=String(l).match(/\[(?:ERROR|NETWORK ERROR)\]\s*(.*)$/);
+    if(m){ const t=(m[1]||'').trim()||'Error'; if(t!==_lastErrToast){ _lastErrToast=t; toast(t, 'border-danger/50 bg-danger/15 text-danger'); } }
+    else { _lastErrToast=''; }
+  }
+  if(logLines.length>LOG_CAP) logLines=logLines.slice(-LOG_CAP); renderLog(); persistLog(); }
 function log(line){ pushLines(['['+new Date().toLocaleTimeString()+'] '+line]); }
 function restoreLog(){ try{ const s=JSON.parse(localStorage.getItem('icw_log')||'[]'); if(Array.isArray(s)){ logLines=s.slice(-LOG_CAP); renderLog(); } }catch(_){} }
 function setStatus(ok, text){
@@ -1069,7 +1078,7 @@ function toast(msg, cls){
   t.onclick=kill; wrap.appendChild(t); setTimeout(kill, 6000);
 }
 /* Error helper: show a red banner (stacked, never overlapping) + log it. */
-function toastErr(msg){ toast(msg, 'border-danger/50 bg-danger/15 text-danger'); log('[ERROR] '+msg); }
+function toastErr(msg){ log('[ERROR] '+msg); }   // log -> pushLines pops the red toast
 /* Multi-choice dialog -> resolves to a choice.key, or null on cancel. */
 function choiceDialog(opts){
   opts = opts || {};
@@ -1180,7 +1189,7 @@ function placeMatchSection(ai){
 function updateDryRun(){
   const box=$('dryRunBox'); if(!box) return;
   const on=$('dryRun').checked;
-  box.className='rounded-lg border px-3 py-2 mt-1 '+(on?'border-ok/50 bg-ok/10':'border-warn/60 bg-warn/15');
+  box.className='rounded-lg border -mx-2 px-2 py-2.5 my-3 '+(on?'border-ok/50 bg-ok/10':'border-warn/60 bg-warn/15');
   $('dryRunLabel').className='flex items-center font-semibold '+(on?'text-ok':'text-warn');
   $('dryRunNote').className='text-[11px] mt-1 '+(on?'text-ok':'text-warn');
   $('dryRunNote').innerHTML = on
@@ -2793,7 +2802,7 @@ $('saveConfirm').onclick=async ()=>{
     } else if(!(await confirmDialog({title:'Overwrite profile', message:'A profile named "'+name+'" already exists. Overwrite it?', okText:'Overwrite', danger:true}))) return;
   }
   try{
-    await api('/api/profiles', {name, host:$('host').value.trim(), port:parseInt($('port').value)||993, user:$('user').value.trim(), password:$('password').value, timeout:parseInt($('timeout').value)||120, encrypt, secret, local_cache:$('localCache')?$('localCache').checked:false});
+    await api('/api/profiles', {name, host:$('host').value.trim(), port:parseInt($('port').value)||993, user:$('user').value.trim(), password:$('password').value, timeout:parseInt($('timeout').value)||120, encrypt, secret, local_cache:$('localCache')?$('localCache').checked:false, provider:(selProv&&selProv.name)||''});
     if(encrypt && secret) unlockedSecrets[name]=secret;   // remember -> seamless future re-saves
     else delete unlockedSecrets[name];
     $('saveModal').classList.add('hidden'); await loadProfiles(name);

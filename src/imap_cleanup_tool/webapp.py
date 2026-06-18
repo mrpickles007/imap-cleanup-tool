@@ -462,6 +462,7 @@ def create_app():
         encrypt: bool = False
         secret: str = ""
         local_cache: bool = False
+        provider: str = ""        # provider preset the host came from (for the safeguard)
 
     class ProfileLoadIn(BaseModel):
         name: str
@@ -639,6 +640,21 @@ def create_app():
 
     @app.post("/api/profiles")
     def save_profile(body: ProfileSaveIn) -> dict[str, Any]:
+        # Safeguard: a custom profile must not reuse a built-in provider's IMAP
+        # host - the host must belong to the selected provider preset, so the
+        # provider stays the single source of truth (e.g. for Gmail handling).
+        host = (body.host or "").strip()
+        provs = _load_providers()
+        match = next((p for p in provs
+                      if host and (p.get("host") or "").lower() == host.lower()), None)
+        if match:
+            sel = next((p for p in provs
+                        if p.get("name") == (body.provider or "").strip()), None)
+            if not (sel and (sel.get("host") or "").lower() == host.lower()):
+                raise HTTPException(
+                    400, f'"{host}" is the IMAP host of the "{match["name"]}" '
+                    "provider - select it from the Provider dropdown instead of "
+                    "saving it as a custom host.")
         try:
             name = profiles.save_profile(
                 body.name, body.host, body.port, body.user, body.password,

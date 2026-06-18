@@ -88,6 +88,27 @@ class WebApiTests(unittest.TestCase):
                 self.assertEqual(
                     self.client.get("/api/profiles").json()["profiles"], [])
 
+    def test_profile_save_provider_safeguard(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(profiles, "config_dir",
+                                   return_value=Path(tmp)):
+                # a built-in provider host without the matching provider -> 400
+                bad = self.client.post("/api/profiles", json={
+                    "name": "x", "host": "imap.gmail.com", "user": "u",
+                    "provider": "Custom"})
+                self.assertEqual(bad.status_code, 400)
+                # same host with the Gmail provider selected -> allowed
+                ok = self.client.post("/api/profiles", json={
+                    "name": "g", "host": "imap.gmail.com", "user": "u",
+                    "provider": "Gmail"})
+                self.assertEqual(ok.status_code, 200)
+                # a truly custom host -> allowed
+                cust = self.client.post("/api/profiles", json={
+                    "name": "c", "host": "imap.mycompany.local", "user": "u"})
+                self.assertEqual(cust.status_code, 200)
+                self.client.delete("/api/profiles/g")
+                self.client.delete("/api/profiles/c")
+
     def test_job_requires_profile(self):
         r = self.client.post("/api/jobs", json={
             "name": "x", "match_mode": "rule", "rule_tree": _RULE})
@@ -102,7 +123,7 @@ class WebApiTests(unittest.TestCase):
                 # scheduled jobs connect via a non-encrypted profile
                 self.client.post("/api/profiles", json={
                     "name": "prof1", "host": "imap.gmail.com",
-                    "user": "u", "password": "pw"})
+                    "user": "u", "password": "pw", "provider": "Gmail"})
                 save = self.client.post("/api/jobs", json={
                     "name": "t1", "profile": "prof1",
                     "match_mode": "rule", "rule_tree": _RULE,
@@ -135,7 +156,7 @@ class WebApiTests(unittest.TestCase):
                                    return_value=Path(tmp)):
                 self.client.post("/api/profiles", json={
                     "name": "pf", "host": "imap.gmail.com",
-                    "user": "u", "password": "pw"})
+                    "user": "u", "password": "pw", "provider": "Gmail"})
                 r = self.client.post("/api/jobs", json={
                     "name": "mv", "profile": "pf", "match_mode": "rule",
                     "rule_tree": _RULE, "move": True, "dest_folder": "Archive",
