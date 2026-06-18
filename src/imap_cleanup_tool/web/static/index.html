@@ -343,10 +343,15 @@ tailwind.config = { theme: { extend: {
         <span id="ruleOut" class="text-xs text-muted ml-2"></span>
         <p class="text-[11px] text-muted mt-2">Rules match <b>server-side</b> (substring), so a domain also matches its subdomains and partials - and <code>*@</code> is not special here. For an <b>exact</b> domain with no subdomains, use a <b>Target list</b> with <code>*@domain.com</code> and scan mode <b>"full"</b>.</p>
       </div>
-      <div class="mt-4 pt-3 border-t border-line flex items-center gap-3 flex-wrap">
-        <span class="manual-only-chip hidden inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-brand/70 bg-brand/15 text-brand-light backdrop-blur-sm">manual only</span>
-        <button id="btnCount" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>Count matching emails</button>
-        <span class="text-[11px] text-muted">Counts how many emails match the current filter in the selected folders - makes no changes.</span>
+      <div class="mt-4 pt-3 border-t border-line">
+        <div class="manual-only-chip hidden flex items-center gap-2 mb-2">
+          <span class="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-brand/70 bg-brand/15 text-brand-light backdrop-blur-sm">manual only</span>
+          <span class="text-[11px] text-muted">applies to <b>all the actions below</b> (Count, export/import, scan mode, move, empty) - they ignore AI Cleanup.</span>
+        </div>
+        <div class="flex items-center gap-3 flex-wrap">
+          <button id="btnCount" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>Count matching emails</button>
+          <span class="text-[11px] text-muted">Counts how many emails match the current filter in the selected folders - makes no changes.</span>
+        </div>
       </div>
 
       <!-- Export / import the matching messages (full content) -->

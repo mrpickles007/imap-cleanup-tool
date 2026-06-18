@@ -476,10 +476,17 @@ def create_app():
         sess.touch()
         return sess
 
-    def _resolve_match(match: "Match"):
-        """Return (addresses, domains, exact_domains, search_argument)."""
+    def _resolve_match(match: "Match", allow_empty: bool = False):
+        """Return (addresses, domains, exact_domains, search_argument).
+
+        With ``allow_empty`` an empty filter is **not** an error - it yields no
+        criteria (callers like Export / List senders then act on the whole
+        folder), instead of raising.
+        """
         if match.match_mode == "rule":
             if not match.rule_tree:
+                if allow_empty:
+                    return set(), set(), set(), None
                 raise HTTPException(400, "No rule provided.")
             try:
                 arg = compile_search(node_from_dict(match.rule_tree))
@@ -490,6 +497,8 @@ def create_app():
             addresses, domains, exact_domains = parse_targets_text(
                 match.targets_text)
         except ValueError as exc:
+            if allow_empty:
+                return set(), set(), set(), None
             raise HTTPException(400, str(exc)) from exc
         return addresses, domains, exact_domains, None
 
@@ -775,7 +784,8 @@ def create_app():
             raise HTTPException(409, "An operation is already running.")
         folders = body.folders or ["INBOX"]
         save_path = (body.save_path or "").strip() or None
-        addresses, domains, exact_domains, search_argument = _resolve_match(body)
+        addresses, domains, exact_domains, search_argument = _resolve_match(
+            body, allow_empty=True)        # empty filter = list every sender
 
         def work(rs: RunState) -> None:
             # list_senders logs each sender (count | address) into the session
@@ -900,7 +910,8 @@ def create_app():
         sess = _session(body.sid)
         if sess.run and sess.run.status == "running":
             raise HTTPException(409, "An operation is already running.")
-        addresses, domains, exact_domains, search_argument = _resolve_match(body)
+        addresses, domains, exact_domains, search_argument = _resolve_match(
+            body, allow_empty=True)        # empty filter = export the whole folder
         folders = body.folders or ["INBOX"]
 
         def work(rs: RunState) -> None:
