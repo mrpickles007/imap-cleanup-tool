@@ -187,10 +187,9 @@ tailwind.config = { theme: { extend: {
 <main class="max-w-[1600px] mx-auto px-4 sm:px-6 py-6">
 
 <!-- ============================ CLEANUP TAB ============================ -->
-<div id="tab-cleanup" class="grid grid-cols-1 lg:grid-cols-5 gap-5">
+<div id="tab-cleanup" class="space-y-5">
 
-  <div class="lg:col-span-3 space-y-5">
-    <!-- Connection -->
+    <!-- ROW 1: Connection (the Folders list lives inside this card) -->
     <section id="secConnection" class="bg-panel border border-line rounded-xl p-5">
       <h2 class="font-display font-semibold text-brand-light mb-4">Connection</h2>
       <div class="grid grid-cols-2 gap-3">
@@ -249,10 +248,8 @@ tailwind.config = { theme: { extend: {
           <button id="btnDisconnect" class="px-4 py-2 rounded-lg bg-danger text-ink font-semibold hover:brightness-110">Disconnect</button>
         </div>
       </div>
-    </section>
-
-    <!-- Folders -->
-    <section id="secFolders" class="bg-panel border border-line rounded-xl p-5">
+      <!-- Folders list (inside the Connection card, after the buttons) -->
+      <div id="secFolders" class="mt-5 pt-5 border-t border-line">
       <div class="flex items-center justify-between mb-3">
         <h2 class="font-display font-semibold text-brand-light flex items-center">Folders
           <span class="tip"><span class="ic">i</span><span class="bub">Pick the folders to scan. Gmail uses special names like <code>[Gmail]/All Mail</code>, <code>[Gmail]/Trash</code> (may be localized). Connect first to load the list.</span></span>
@@ -274,11 +271,16 @@ tailwind.config = { theme: { extend: {
       </div>
       <p class="text-[11px] text-muted mt-2"><b>Add to scan</b> just includes a folder in the list above (creates nothing). <b>Create on server</b> actually creates a new folder - a <b>label</b> on Gmail - on your mailbox (e.g. to use as a move destination).</p>
       <p class="text-[11px] text-muted mt-1">⚠️ Every action - <b>Run</b>, <b>List senders</b>, <b>Empty folder</b>, <b>Move</b> - applies to the <b>selected</b> folders above. On a folder row, <b>🗑</b> deletes it on the server (system folders like Trash/Sent are protected and have no 🗑), while <b>×</b> only removes it from this list.</p>
+      </div>
     </section>
 
-    <!-- Match -->
+    <!-- ROW 2: Manual Cleanup (left) + AI Cleanup (right), 50-50 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+    <!-- Manual Cleanup -->
     <section id="secMatch" class="bg-panel border border-line rounded-xl p-5">
-      <h2 class="font-display font-semibold text-brand-light mb-3">What to match</h2>
+      <h2 class="font-display font-semibold text-brand-light mb-3">Manual Cleanup</h2>
+      <div class="text-xs font-bold uppercase tracking-wider text-cream mb-2">What to match</div>
       <div class="flex gap-4 mb-3 text-sm">
         <label class="flex items-center gap-2"><input type="radio" name="mode" value="targets" checked> Target list</label>
         <label class="flex items-center gap-2"><input type="radio" name="mode" value="rule"> Rule (query builder)</label>
@@ -334,15 +336,70 @@ tailwind.config = { theme: { extend: {
         <button id="btnCount" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>Count matching emails</button>
         <span class="text-[11px] text-muted">Counts how many emails match the current filter in the selected folders - makes no changes.</span>
       </div>
+
+      <!-- Manual-mode options (after Count) -->
+      <div class="border-t border-line mt-4 pt-3 pb-1">
+        <p class="text-sm font-bold uppercase tracking-wider text-cream flex items-center">Manual-mode options
+          <span class="tip"><span class="ic">i</span><span class="bub">These shape a <b>Target list / Rule</b> run. <b>AI Cleanup</b> decides what to delete on its own and <b>ignores</b> all of them (it always scans server-side, never moves/empties, and handles Gmail Trash automatically). <b>Expunge</b> (in the Run section below) is the exception - it applies to AI Cleanup too.</span></span>
+        </p>
+        <p class="text-[11px] text-muted mt-0.5">Below options apply to a <b>Target list / Rule</b> run only - <b>AI Cleanup</b> ignores them.</p>
+      </div>
+
+      <label class="text-xs text-muted flex items-center mt-1">Scan mode
+        <span class="tip"><span class="ic">i</span><span class="bub">
+          <b>"search"</b> (default) - fast server-side IMAP SEARCH. It is a substring match on the From header, so it <b>already matches subdomains</b> (a target <code>annoying.com</code> also catches <code>x@mail.annoying.com</code>).<br><br>
+          <b>"full"</b> - downloads each header and matches the <b>exact domain</b> locally (stricter). Enable “Include subdomains” to also catch subdomains in this mode.
+        </span></span>
+      </label>
+      <select id="scanMode" class="field mt-1 mb-2">
+        <option value="search">"search" - fast, also matches subdomains</option>
+        <option value="full">"full" - strict, exact domain (local)</option>
+      </select>
+      <p id="scanNote" class="hidden text-[11px] text-muted mb-3"><b>AI Cleanup</b> and <b>Rule</b> matching both always use a fast server-side SEARCH (subdomains already included), so Scan mode is disabled - it applies only to <b>Target lists</b>.</p>
+
+      <label class="flex items-center justify-between text-sm py-1.5" id="rowSub">
+        <span class="flex items-center">Include subdomains
+          <span class="tip"><span class="ic">i</span><span class="bub">Affects <b>"full"</b> mode only. It expands <b>bare-form</b> domains (e.g. <code>annoying.com</code> → also <code>mail.annoying.com</code>). The <code>*@domain</code> form is always exact and is never expanded. In <b>"search"</b> mode subdomains match anyway (substring).</span></span>
+        </span>
+        <input id="subdomains" type="checkbox" disabled>
+      </label>
+
+      <label class="flex items-center justify-between text-sm py-1.5" id="rowGmail">
+        <span class="flex items-center">Gmail: move to Trash
+          <span class="tip"><span class="ic">i</span><span class="bub">Only for <b>Gmail</b>. A plain delete in INBOX just removes a label; this applies the <code>\\Trash</code> label so the message is really trashed. Auto-enabled when the host is <code>imap.gmail.com</code>.<br><br>⚠️ This does <b>not</b> free space on its own: messages sit in Trash for ~30 days. To remove them now, afterwards select the <code>[Gmail]/Trash</code> folder in the list and run <b>Empty folder</b> (carefully!).</span></span>
+        </span>
+        <input id="gmailTrash" type="checkbox" disabled>
+      </label>
+      <p id="gmailDeleteNote" class="hidden text-[11px] text-warn -mt-1 mb-1">⚠️ On Gmail, deleting <b>without</b> “move to Trash” does <b>not</b> delete: it only removes the INBOX label, so the message is <b>archived to All Mail</b> (still there, recoverable). To actually delete, tick <b>“Gmail: move to Trash”</b> and run; then, <b>after the run (a separate step)</b>, select <code>[Gmail]/Trash</code> and run <b>Empty folder</b>.</p>
+
+      <label class="flex items-center justify-between text-sm py-1.5" id="rowMove">
+        <span class="flex items-center">Move matched to another folder
+          <span class="tip"><span class="ic">i</span><span class="bub">Instead of deleting, <b>move</b> the matched messages to the destination below. On <b>Gmail</b> this relabels them (removes the source label, adds the destination). Mutually exclusive with delete / Gmail-trash / expunge.</span></span>
+        </span>
+        <input id="moveMode" type="checkbox">
+      </label>
+      <div id="moveDestRow" class="hidden pb-1.5">
+        <select id="moveDest" class="field"></select>
+        <div id="moveNewRow" class="hidden flex gap-2 mt-2">
+          <input id="moveDestNew" class="field" placeholder="new folder / label name">
+          <button id="btnCreateDest" type="button" class="px-3 rounded-lg border border-brand text-brand-light hover:bg-brand hover:text-ink whitespace-nowrap" title="Create this folder/label on the server">⊕ Create</button>
+        </div>
+        <p class="text-[11px] text-muted mt-1">Pick an <b>existing</b> folder, or choose <b>➕ Create new…</b> to make one (a label on Gmail). <b>Tip:</b> leave the Target list / Rule empty to move <b>every</b> message in the selected folders.</p>
+      </div>
+
+      <label class="flex items-center justify-between text-sm py-1.5">
+        <span class="flex items-center text-danger">Empty folder (delete ALL)
+          <span class="tip"><span class="ic">i</span><span class="bub" style="border-color:#ff5d73">⚠️ Deletes <b>every</b> message in the folders you ticked in the <b>Folders</b> section above, <b>ignoring</b> the target list / rule. It does <b>not</b> touch other folders - only the selected ones.</span></span>
+        </span>
+        <input id="emptyFolder" type="checkbox">
+      </label>
+      <p id="emptyNote" class="hidden text-[11px] text-warn -mt-1 mb-1">⚠️ Will delete <b>all</b> messages in the <b>selected</b> folders (the ones ticked under <b>Folders</b>), not just matches.</p>
     </section>
-  </div>
 
-  <div class="lg:col-span-2 space-y-5">
-    <section id="secOptions" class="bg-panel border border-line rounded-xl p-5">
-      <h2 class="font-display font-semibold text-brand-light mb-3">Options</h2>
-
-      <label id="rowAI" class="flex items-center justify-between text-base py-3 px-2 -mx-2 mb-3 rounded-lg cursor-pointer" style="background:rgba(24,144,216,.10);border:1px solid rgba(24,144,216,.4)">
-        <span class="flex items-center font-semibold text-brand-light">✨ AI Cleanup
+    <!-- AI Cleanup (expanded card, same style as Manual Cleanup) -->
+    <section id="secAi" class="bg-panel border border-line rounded-xl p-5">
+      <label class="flex items-center justify-between cursor-pointer mb-3">
+        <span class="font-display font-semibold text-brand-light flex items-center">✨ AI Cleanup
           <span class="tip"><span class="ic">i</span><span class="bub">Scores every sender with a <b>heuristic spam score</b> (List-Unsubscribe, unread ratio, send frequency, sender pattern, bulk), then - with a configured model - asks an LLM to judge the senders above your threshold. <b>Generate report</b> only analyzes; later, <b>Run</b> will also delete the confirmed ones. Selecting this disables the other actions and the match list (it looks at all senders).</span></span>
         </span>
         <input id="aiCleanup" type="checkbox">
@@ -352,7 +409,7 @@ tailwind.config = { theme: { extend: {
         <code class="block mt-1 text-cream">pip install "imap-cleanup-tool[ai]"</code>
         then restart the web UI.
       </div>
-      <div id="aiPanel" class="hidden mb-3 rounded-lg border border-line bg-ink/40 p-3 space-y-2">
+      <div id="aiPanel" class="space-y-2">
         <label class="text-xs text-muted block">Model
           <span class="tip"><span class="ic">i</span><span class="bub">The LLM that judges the flagged senders. Configure models in the <b>LLM</b> tab. The local heuristic report works even without a model.</span></span>
           <select id="aiModel" class="field mt-1"></select>
@@ -412,73 +469,26 @@ tailwind.config = { theme: { extend: {
           </div>
         </div>
       </div>
+    </section>
+  </div>
+  <!-- /ROW 2 (Manual Cleanup | AI Cleanup) -->
 
+  <!-- ROW 3: Run + run options + List senders -->
+  <section id="secRun" class="bg-panel border border-line rounded-xl p-5 space-y-4">
+    <div>
+      <div class="text-xs font-bold uppercase tracking-wider text-cream mb-2">Cleanup action</div>
+
+      <!-- Run options: Expunge + Dry-run both apply to the Run -->
+      <p id="expungeNote" class="hidden text-[11px] text-muted mb-1"><b>Disabled on Gmail</b> (no effect here): Gmail <b>auto-expunges</b> deleted messages itself. With “Gmail: move to Trash” they go to the Trash - then, <b>after the run</b>, select <code>[Gmail]/Trash</code> and use <b>Empty folder</b> to remove them for good.</p>
       <label class="flex items-center justify-between text-sm py-1.5">
-        <span class="flex items-center">Expunge (permanent)
+        <span class="flex items-center">Expunge (remove permanently)
           <span class="tip"><span class="ic">i</span><span class="bub" style="border-color:#ff5d73">⚠️ Permanently removes flagged messages. Without it, messages are only flagged <code>\\Deleted</code> (hidden but recoverable until expunged). Applies to both manual runs and AI Cleanup.</span></span>
         </span>
         <input id="expunge" type="checkbox">
       </label>
-      <p id="expungeNote" class="hidden text-[11px] text-muted -mt-1 mb-1"><b>Disabled on Gmail</b> (no effect here): Gmail <b>auto-expunges</b> deleted messages itself. With “Gmail: move to Trash” they go to the Trash - then select <code>[Gmail]/Trash</code> and use <b>Empty folder</b> to remove them for good.</p>
-
-      <div class="border-t border-line mt-2 pt-3 pb-1">
-        <p class="text-sm font-bold uppercase tracking-wider text-cream flex items-center">Manual-mode options
-          <span class="tip"><span class="ic">i</span><span class="bub">These shape a <b>Target list / Rule</b> run. <b>AI Cleanup</b> decides what to delete on its own and <b>ignores</b> all of them (it always scans server-side, never moves/empties, and handles Gmail Trash automatically). <b>Expunge</b> above is the exception - it applies to AI Cleanup too.</span></span>
-        </p>
-        <p class="text-[11px] text-muted mt-0.5">Below options apply to a <b>Target list / Rule</b> run only - <b>AI Cleanup</b> ignores them.</p>
-      </div>
-
-      <label class="text-xs text-muted flex items-center mt-1">Scan mode
-        <span class="tip"><span class="ic">i</span><span class="bub">
-          <b>"search"</b> (default) - fast server-side IMAP SEARCH. It is a substring match on the From header, so it <b>already matches subdomains</b> (a target <code>annoying.com</code> also catches <code>x@mail.annoying.com</code>).<br><br>
-          <b>"full"</b> - downloads each header and matches the <b>exact domain</b> locally (stricter). Enable “Include subdomains” to also catch subdomains in this mode.
-        </span></span>
-      </label>
-      <select id="scanMode" class="field mt-1 mb-2">
-        <option value="search">"search" - fast, also matches subdomains</option>
-        <option value="full">"full" - strict, exact domain (local)</option>
-      </select>
-      <p id="scanNote" class="hidden text-[11px] text-muted mb-3"><b>AI Cleanup</b> and <b>Rule</b> matching both always use a fast server-side SEARCH (subdomains already included), so Scan mode is disabled - it applies only to <b>Target lists</b>.</p>
-
-      <label class="flex items-center justify-between text-sm py-1.5" id="rowSub">
-        <span class="flex items-center">Include subdomains
-          <span class="tip"><span class="ic">i</span><span class="bub">Affects <b>"full"</b> mode only. It expands <b>bare-form</b> domains (e.g. <code>annoying.com</code> → also <code>mail.annoying.com</code>). The <code>*@domain</code> form is always exact and is never expanded. In <b>"search"</b> mode subdomains match anyway (substring).</span></span>
-        </span>
-        <input id="subdomains" type="checkbox" disabled>
-      </label>
-
-      <label class="flex items-center justify-between text-sm py-1.5" id="rowGmail">
-        <span class="flex items-center">Gmail: move to Trash
-          <span class="tip"><span class="ic">i</span><span class="bub">Only for <b>Gmail</b>. A plain delete in INBOX just removes a label; this applies the <code>\\Trash</code> label so the message is really trashed. Auto-enabled when the host is <code>imap.gmail.com</code>.<br><br>⚠️ This does <b>not</b> free space on its own: messages sit in Trash for ~30 days. To remove them now, afterwards select the <code>[Gmail]/Trash</code> folder in the list and run <b>Empty folder</b> (carefully!).</span></span>
-        </span>
-        <input id="gmailTrash" type="checkbox" disabled>
-      </label>
-      <p id="gmailDeleteNote" class="hidden text-[11px] text-warn -mt-1 mb-1">⚠️ On Gmail, deleting <b>without</b> “move to Trash” does <b>not</b> delete: it only removes the INBOX label, so the message is <b>archived to All Mail</b> (still there, recoverable). To actually delete, tick <b>“Gmail: move to Trash”</b>, then select <code>[Gmail]/Trash</code> and run <b>Empty folder</b>.</p>
-
-      <label class="flex items-center justify-between text-sm py-1.5" id="rowMove">
-        <span class="flex items-center">Move matched to another folder
-          <span class="tip"><span class="ic">i</span><span class="bub">Instead of deleting, <b>move</b> the matched messages to the destination below. On <b>Gmail</b> this relabels them (removes the source label, adds the destination). Mutually exclusive with delete / Gmail-trash / expunge.</span></span>
-        </span>
-        <input id="moveMode" type="checkbox">
-      </label>
-      <div id="moveDestRow" class="hidden pb-1.5">
-        <select id="moveDest" class="field"></select>
-        <div id="moveNewRow" class="hidden flex gap-2 mt-2">
-          <input id="moveDestNew" class="field" placeholder="new folder / label name">
-          <button id="btnCreateDest" type="button" class="px-3 rounded-lg border border-brand text-brand-light hover:bg-brand hover:text-ink whitespace-nowrap" title="Create this folder/label on the server">⊕ Create</button>
-        </div>
-        <p class="text-[11px] text-muted mt-1">Pick an <b>existing</b> folder, or choose <b>➕ Create new…</b> to make one (a label on Gmail). <b>Tip:</b> leave the Target list / Rule empty to move <b>every</b> message in the selected folders.</p>
-      </div>
+      <p id="expungeEnabledNote" class="hidden text-[11px] text-muted -mt-1 mb-1">Removes the flagged messages <b>permanently</b>. Without it they are only flagged <code>\\Deleted</code> - <b>not every server</b> drops those on its own, so they can linger until expunged. Applies to manual runs and AI Cleanup.</p>
 
       <label class="flex items-center justify-between text-sm py-1.5">
-        <span class="flex items-center text-danger">Empty folder (delete ALL)
-          <span class="tip"><span class="ic">i</span><span class="bub" style="border-color:#ff5d73">⚠️ Deletes <b>every</b> message in the folders you ticked in the <b>Folders</b> section above, <b>ignoring</b> the target list / rule. It does <b>not</b> touch other folders - only the selected ones.</span></span>
-        </span>
-        <input id="emptyFolder" type="checkbox">
-      </label>
-      <p id="emptyNote" class="hidden text-[11px] text-warn -mt-1 mb-1">⚠️ Will delete <b>all</b> messages in the <b>selected</b> folders (the ones ticked under <b>Folders</b>), not just matches.</p>
-
-      <label class="flex items-center justify-between text-sm py-1.5 border-t border-line mt-2 pt-3">
         <span class="flex items-center text-cream font-semibold">Dry-run (preview only)
           <span class="tip"><span class="ic">i</span><span class="bub">Reports what <b>would</b> happen and changes nothing. Keep it on for your first run.</span></span>
         </span>
@@ -488,35 +498,31 @@ tailwind.config = { theme: { extend: {
       <label class="text-xs text-muted block mt-2 flex items-center">Batch size
         <span class="tip"><span class="ic">i</span><span class="bub">Messages per IMAP request. It applies to <b>every bulk operation here</b>: <b>List senders</b> and <b>Count</b> (header fetch), <b>Delete</b> (flag \Deleted), <b>Expunge</b> (permanent removal, done in batches), <b>Move</b> to another folder, <b>Empty folder</b>, and <b>Gmail: move to Trash</b>. It also drives <b>AI Cleanup</b> - the sender header fetch (capped at <b>50</b> there for visible progress) and deleting the confirmed senders. Higher = fewer round-trips but heavier requests. Default <b>500</b>. On <b>Gmail</b>, delete/trash STORE is auto-capped at <b>200</b> (Gmail rejects larger commands). <i>The Spam tab's "Flag senders as spam" uses a fixed internal batch, independent of this.</i></span></span>
       </label>
-      <input id="batch" class="field mt-1" value="500">
-    </section>
+      <input id="batch" class="field mt-1 mb-1" value="500">
 
-    <section class="bg-panel border border-line rounded-xl p-5 space-y-4">
-      <div>
-        <div class="text-xs font-bold uppercase tracking-wider text-cream mb-2">Cleanup action</div>
-        <div class="flex gap-2">
-          <button id="btnRun" class="flex-1 bg-brand hover:bg-brand-light text-ink font-bold rounded-lg px-4 py-2.5 transition">▶ Run</button>
-          <button id="btnStop" class="hidden px-4 py-2.5 rounded-lg bg-danger text-ink font-bold">■ Stop</button>
-        </div>
-        <p class="text-[11px] text-muted mt-1.5">Runs the action chosen in <b>Options</b> on the selected folders: <b>AI Cleanup</b> (heuristic + LLM, then delete the confirmed senders), or <b>delete / move / empty folder</b> for the matching messages. With <b>dry-run</b> on, “Run” only <b>previews</b> - nothing is changed.</p>
+      <div class="flex gap-2 mt-3">
+        <button id="btnRun" class="flex-1 bg-brand hover:bg-brand-light text-ink font-bold rounded-lg px-4 py-2.5 transition">▶ Run</button>
+        <button id="btnStop" class="hidden px-4 py-2.5 rounded-lg bg-danger text-ink font-bold">■ Stop</button>
       </div>
+      <p class="text-[11px] text-muted mt-1.5">Runs the action chosen above on the selected folders: <b>Manual Cleanup</b> (delete / move / empty folder for the matching messages) or <b>AI Cleanup</b> (heuristic + LLM, then delete the confirmed senders). With <b>dry-run</b> on, “Run” only <b>previews</b> - nothing is changed.</p>
+    </div>
 
-      <div class="border-t border-line"></div>
+    <div class="border-t border-line"></div>
 
-      <div>
-        <div class="text-[11px] uppercase tracking-wider text-muted mb-2">List senders</div>
-        <button id="btnSenders" class="w-full border border-line text-cream hover:border-brand rounded-lg px-4 py-2 transition">List senders</button>
-        <p class="text-[11px] text-muted mt-1.5">Shows the senders in the selected folders ranked by how many emails each sent - use it to decide what to target.</p>
-        <div class="flex gap-2 mt-2">
-          <input id="sendersName" class="field" placeholder="senders_….csv">
-          <button id="btnSaveSenders" class="px-4 py-2 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm flex items-center gap-2 whitespace-nowrap"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Save CSV</button>
-        </div>
-        <p class="text-[11px] text-muted mt-1.5">Downloads the last “List senders” result to your browser’s download folder. Edit the file name if you like; with “ask where to save” enabled, your browser also lets you choose the folder.</p>
+    <div>
+      <div class="text-[11px] uppercase tracking-wider text-muted mb-2">List senders</div>
+      <button id="btnSenders" class="w-full border border-line text-cream hover:border-brand rounded-lg px-4 py-2 transition">List senders</button>
+      <p class="text-[11px] text-muted mt-1.5">Shows the senders in the selected folders ranked by how many emails each sent - use it to decide what to target.</p>
+      <div class="flex gap-2 mt-2">
+        <input id="sendersName" class="field" placeholder="senders_….csv">
+        <button id="btnSaveSenders" class="px-4 py-2 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm flex items-center gap-2 whitespace-nowrap"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Save CSV</button>
       </div>
-    </section>
-  </div>
+      <p class="text-[11px] text-muted mt-1.5">Downloads the last “List senders” result to your browser’s download folder. Edit the file name if you like; with “ask where to save” enabled, your browser also lets you choose the folder.</p>
+    </div>
+  </section>
 
-  <section class="lg:col-span-5 bg-panel border border-line rounded-xl p-5">
+  <!-- ROW 4: Log -->
+  <section class="bg-panel border border-line rounded-xl p-5">
     <div class="flex items-center justify-between mb-2">
       <h2 class="font-display font-semibold text-brand-light">Log</h2>
       <button id="btnClear" class="text-xs text-muted hover:text-cream">clear</button>
@@ -1128,7 +1134,7 @@ function refreshConditional(){
   const aiOk = !(typeof META==='object' && META && META.ai_available===false);
   if(!aiOk) $('aiCleanup').checked=false;   // [ai] extra missing -> can't use AI
   const ai=$('aiCleanup').checked;
-  $('aiPanel').classList.toggle('hidden', !ai);
+  $('aiPanel').classList.remove('hidden');   // AI Cleanup is its own always-expanded card
   if(ai)$('emptyFolder').checked=false;
   $('emptyFolder').disabled = ai;
   const empty=$('emptyFolder').checked;
@@ -1155,6 +1161,8 @@ function refreshConditional(){
   $('expunge').disabled = expungeOff; if(expungeOff)$('expunge').checked=false;
   // Explain *why* it's disabled - only on Gmail (and not when move/empty take over).
   $('expungeNote').classList.toggle('hidden', !(gmail && !move && !empty));
+  // When it IS usable (non-Gmail), explain what it does. Mutually exclusive with the disabled note.
+  $('expungeEnabledNote').classList.toggle('hidden', expungeOff);
   // Plain delete on Gmail (no Trash) just archives to All Mail - warn the user.
   // (AI Cleanup on Gmail always uses Trash, so it's never the archive-only case.)
   $('gmailDeleteNote').classList.toggle('hidden', !(gmail && !gtrash && !move && !empty && !ai));
@@ -2668,9 +2676,9 @@ function startTour(){
       { popover:{ title:'Welcome to IMAP Cleanup Tool 👋', description:'A quick 1-minute tour of the main areas. Everything runs locally and <b>dry-run is on by default</b>, so nothing changes until you decide. You can replay this anytime from the <b>❔ Tour</b> button.' } },
       { element:'#secConnection', popover:{ title:'1 · Connect', description:'Pick a provider preset (or type host/port), enter username and password, then Connect. Optionally save it as a <b>connection profile</b> (optionally encrypted) so you do not retype it.' } },
       { element:'#secFolders', popover:{ title:'2 · Folders', description:'Choose which folders to scan. <b>Add to scan</b> only lists a folder; <b>Create on server</b> actually makes a new folder/label; the 🗑 deletes one you created (system folders are protected).' } },
-      { element:'#secMatch', popover:{ title:'3 · What to match', description:'Match by a <b>target list</b> (senders/domains) or build a <b>rule</b> visually with AND/OR groups - no syntax to learn.' } },
-      { element:'#secOptions', popover:{ title:'4 · Options', description:'Choose the action: delete, <b>Move</b> to another folder, Gmail-trash, Expunge, or Empty folder. <b>Dry-run</b> (on by default) only reports - turn it off to act for real.' } },
-      { element:'#rowAI', popover:{ title:'4b · AI Cleanup', description:'Let an LLM decide what is junk: it scores every sender heuristically, asks the model to judge those above your threshold (slider, 0.1 steps), then deletes the confirmed ones. <b>Generate report</b> only analyzes (download it as CSV, kept per account); <b>Run</b> also deletes (dry-run simulates). Options: <b>Skip LLM</b> (heuristic-only report), and <b>Flag senders as spam</b> (move one to Junk to train the filter, delete the rest). Honors your filter or the whole folder.' } },
+      { element:'#secMatch', popover:{ title:'3 · Manual Cleanup', description:'Match by a <b>target list</b> (senders/domains) or build a <b>rule</b> visually with AND/OR groups - no syntax to learn. The manual options (scan mode, <b>Gmail: move to Trash</b>, <b>Move</b>, <b>Empty folder</b>) live in this card too.' } },
+      { element:'#secAi', popover:{ title:'4 · AI Cleanup', description:'Let an LLM decide what is junk: it scores every sender heuristically, asks the model to judge those above your threshold (slider, 0.1 steps), then deletes the confirmed ones. <b>Generate report</b> only analyzes (download it as CSV, kept per account); <b>Run</b> also deletes (dry-run simulates). Options: <b>Skip LLM</b> (heuristic-only report), and <b>Flag senders as spam</b> (move one to Junk to train the filter, delete the rest). Honors your filter or the whole folder.' } },
+      { element:'#secRun', popover:{ title:'4b · Run options', description:'The <b>Run</b> lives here, with its two options: <b>Expunge</b> (remove permanently) and <b>Dry-run</b> (preview, on by default - turn it off to act for real). The manual <b>Move</b> / <b>Gmail: move to Trash</b> / <b>Empty folder</b> options live in the <b>Manual Cleanup</b> card.' } },
       { element:'#btnCount', popover:{ title:'5 · Count first', description:'See exactly how many emails match before touching anything.' } },
       { element:'#btnSenders', popover:{ title:'6 · List senders', description:'See who is filling your mailbox - unique senders with message counts - and export the list to CSV to decide what to clean.' } },
       { element:'#btnRun', popover:{ title:'7 · Run', description:'Run the action. With dry-run on it just previews; without it you get a clear confirmation first. Use Stop to cancel a long run.' } },
