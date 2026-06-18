@@ -46,6 +46,10 @@ features are optional extras (see [Install](#install)).
   Invoice AND date starts 2025-01-01)`.
 - Fast **server-side search** for huge folders, or strict **local matching**.
 - **Count** how many emails a filter matches before deleting anything.
+- **Export / import messages**: download the matching messages (full content) -
+  or a whole folder - as a single `.mbox` file (read-only, never marks mail read),
+  and import a `.mbox`/`.eml` back into a folder. Handy for backups or moving mail
+  between mailboxes.
 - **Move** matched emails to another folder instead of deleting them, and
   **create** new folders (or **labels** on Gmail) right from the app.
 - **Spam addresses**: the senders AI flags are saved per account, and you can

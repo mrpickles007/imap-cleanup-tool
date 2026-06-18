@@ -195,6 +195,7 @@ class Session:
         self.log: list[str] = []         # rolling log buffer (persists refresh)
         self.log_base = 0                # absolute index of self.log[0]
         self.last_seen = time.monotonic()
+        self.export: tuple[str, bytes] | None = None   # last (filename, mbox bytes)
 
     def touch(self) -> None:
         self.last_seen = time.monotonic()
@@ -302,7 +303,7 @@ def _start_reaper() -> None:
 
 def create_app():
     """Build and return the FastAPI application (lazy fastapi import)."""
-    from fastapi import FastAPI, HTTPException
+    from fastapi import FastAPI, HTTPException, Request
     from fastapi.responses import FileResponse, Response
     from fastapi.staticfiles import StaticFiles
     from pydantic import BaseModel, Field
@@ -880,6 +881,47 @@ def create_app():
         run_state = _start_run(sess, "count", work)
         return {"run_id": run_state.run_id}
 
+    @app.post("/api/export-messages")
+    def export_messages(body: RunIn) -> dict[str, Any]:
+        """Download the full matching messages (bodies included) as one ``.mbox``.
+
+        Same matching as Count (rule / targets, search or full) - or the **whole**
+        folder when no filter is set. Read-only: ``BODY.PEEK[]`` never marks mail
+        read. The blob is held on the session; the browser then GETs it.
+        """
+        sess = _session(body.sid)
+        if sess.run and sess.run.status == "running":
+            raise HTTPException(409, "An operation is already running.")
+        addresses, domains, exact_domains, search_argument = _resolve_match(body)
+        folders = body.folders or ["INBOX"]
+
+        def work(rs: RunState) -> None:
+            cache = _session_cache(sess)
+            raws: list[bytes] = []
+            for folder in folders:
+                uids = core.matched_uids(
+                    sess.conn, folder, addresses=addresses, domains=domains,
+                    exact_domains=exact_domains, search_argument=search_argument,
+                    include_subdomains=body.include_subdomains,
+                    scan_mode=body.scan_mode, batch_size=body.batch_size,
+                    should_stop=rs.stop.is_set, cache=cache, account=sess.user,
+                    match_all_if_empty=True)
+                core.logger.info("Export: %d message(s) matched in %r.",
+                                 len(uids), folder)
+                if uids:
+                    raws.extend(core.fetch_messages(
+                        sess.conn, uids, body.batch_size, rs.stop.is_set))
+            mbox = core.build_mbox(raws)
+            stamp = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M")
+            fname = f"messages_{scheduler.account_slug(sess.user)}_{stamp}.mbox"
+            sess.export = (fname, mbox)
+            core.logger.info("=> exported %d message(s) (%d KB) -> %s",
+                             len(raws), len(mbox) // 1024, fname)
+            rs.result = {"messages": len(raws), "filename": fname}
+
+        run_state = _start_run(sess, "export", work)
+        return {"run_id": run_state.run_id}
+
     def _load_ai_model(body: "AIReportIn"):
         """Load the chosen LLM config (raising 400 on problems), or None."""
         name = (body.model or "").strip()
@@ -1367,6 +1409,50 @@ def create_app():
             writer.writerow([timestamp, sess.user, row["folder"],
                              row["sender"], row["count"]])
         return Response(content=buf.getvalue(), media_type="text/csv")
+
+    @app.get("/api/export-messages.mbox/{sid}")
+    def export_messages_download(sid: str):
+        """Return the last Export-messages result as a downloadable ``.mbox``."""
+        sess = _session(sid)
+        if not sess.export:
+            raise HTTPException(404, "No export available yet. Run "
+                                     "'Export messages' first.")
+        fname, blob = sess.export
+        return Response(content=blob, media_type="application/mbox",
+                        headers={"Content-Disposition":
+                                 f"attachment; filename={fname}"})
+
+    @app.post("/api/import-messages/{sid}")
+    async def import_messages(sid: str, folder: str,
+                              request: Request) -> dict[str, Any]:
+        """Import messages from an uploaded ``.mbox`` (or ``.eml``) into ``folder``.
+
+        The file is the raw request body (no multipart dep); ``folder`` is a
+        query param. Each message is APPENDed to the destination folder.
+        """
+        sess = _session(sid)
+        if sess.run and sess.run.status == "running":
+            raise HTTPException(409, "An operation is already running.")
+        dest = (folder or "").strip()
+        if not dest:
+            raise HTTPException(400, "Pick a destination folder for the import.")
+        data = await request.body()      # the uploaded file is the raw body
+        if not data:
+            raise HTTPException(400, "The uploaded file is empty.")
+        messages = core.read_messages(data)
+        if not messages:
+            raise HTTPException(400, "No messages found in the uploaded file.")
+
+        def work(rs: RunState) -> None:
+            core.logger.info("Importing %d message(s) into %r ...",
+                             len(messages), dest)
+            n = core.append_messages(sess.conn, dest, messages, rs.stop.is_set)
+            core.logger.info("=> imported %d/%d message(s) into %r.",
+                             n, len(messages), dest)
+            rs.result = {"imported": n, "total": len(messages)}
+
+        run_state = _start_run(sess, "import", work)
+        return {"run_id": run_state.run_id}
 
     @app.post("/api/stop/{sid}/{run_id}")
     def stop(sid: str, run_id: str) -> dict[str, Any]:

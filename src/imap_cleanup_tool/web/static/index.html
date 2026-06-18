@@ -337,6 +337,14 @@ tailwind.config = { theme: { extend: {
         <span class="text-[11px] text-muted">Counts how many emails match the current filter in the selected folders - makes no changes.</span>
       </div>
 
+      <!-- Export / import the matching messages (full content) -->
+      <div class="mt-3 flex items-center gap-2 flex-wrap">
+        <button id="btnExportMessages" type="button" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2" title="Download the matching messages (full content) as a .mbox file"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7"/><polyline points="22 7 12 13 2 7"/><path d="M19 15v6"/><path d="m16 18 3 3 3-3"/></svg>Export messages</button>
+        <button id="btnImportMessages" type="button" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2" title="Import messages from a .mbox / .eml file into the selected folder"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7"/><polyline points="22 7 12 13 2 7"/><path d="M19 21v-6"/><path d="m16 18 3-3 3 3"/></svg>Import messages</button>
+        <input id="importFileMsg" type="file" accept=".mbox,.eml,message/rfc822" class="hidden">
+        <span class="tip"><span class="ic">i</span><span class="bub"><b>Export</b> downloads the <b>full</b> matching messages (headers + body) from the selected folders as a single <code>.mbox</code> file - same matching as <b>Count</b> (targets/rule, "search" or "full"), or the <b>whole folder</b> when no filter is set. Read-only: it does <b>not</b> mark anything as read. <b>Import</b> appends the messages from a <code>.mbox</code> (or single <code>.eml</code>) file into the <b>one</b> folder you have selected.</span></span>
+      </div>
+
       <!-- Manual-mode options (after Count) -->
       <div class="border-t border-line mt-4 pt-3 pb-1">
         <p class="text-sm font-bold uppercase tracking-wider text-cream flex items-center">Manual-mode options
@@ -1286,6 +1294,7 @@ function optionsPayload(){
 /* ---------- run + polling + stop ---------- */
 function setBusy(busy){
   $('btnRun').disabled=busy; $('btnSenders').disabled=busy;
+  ['btnCount','btnExportMessages','btnImportMessages'].forEach(id=>{ if($(id)) $(id).disabled=busy; });
   if(busy){ $('btnStop').disabled=false; $('btnStop').textContent='■ Stop'; }
   $('btnStop').classList.toggle('hidden',!busy);
   $('btnRun').textContent= busy?'Working…':'▶ Run';
@@ -1310,6 +1319,7 @@ async function pollLog(){
       // Deletion changes folder counts - refresh the folder list (unified flow).
       if(pendingRefreshFolders && d.status==='done'){ pendingRefreshFolders=false; refreshFoldersQuiet(); }
       if(gmailTrashSeen && d.status==='done'){ gmailTrashSeen=false; showTrashNotice(); }
+      if(pendingExportDownload){ pendingExportDownload=false; if(d.status==='done') downloadExport(); }
     }
   }catch(e){ poll=null; setBusy(false); log('[ERROR] '+e.message); }
 }
@@ -2405,6 +2415,48 @@ $('btnCount').onclick=async()=>{
   const p=Object.assign({sid:SID}, matchPayload(), {folders:selectedFolders.length?selectedFolders:['INBOX'], scan_mode:$('scanMode').value, include_subdomains:$('subdomains').checked, batch_size:parseInt($('batch').value)||500});
   log('Counting matching emails in: '+p.folders.join(', ')+' …');
   startJob('/api/count', p);
+};
+
+// --- Export / import full messages (.mbox) ---
+let pendingExportDownload=false;
+async function downloadExport(){
+  try{
+    const r=await fetch('/api/export-messages.mbox/'+SID);
+    if(!r.ok){ const j=await r.json().catch(()=>({})); throw new Error(errText(j,r.status)); }
+    const blob=await r.blob();
+    const cd=r.headers.get('Content-Disposition')||'';
+    const m=cd.match(/filename=([^;]+)/);
+    const name=(m?m[1].trim():('messages_'+humanStamp()+'.mbox'));
+    const url=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    log('Messages exported to '+name+'.');
+  }catch(e){ log('[ERROR] export download: '+e.message); }
+}
+$('btnExportMessages').onclick=async()=>{
+  if(!SID){ log('[ERROR] Not connected.'); return; }
+  if(!(await ensureFolderChosen())) return;
+  const p=Object.assign({sid:SID}, matchPayload(), {folders:selectedFolders.length?selectedFolders:['INBOX'], scan_mode:$('scanMode').value, include_subdomains:$('subdomains').checked, batch_size:parseInt($('batch').value)||500});
+  log('Exporting messages from: '+p.folders.join(', ')+' … (downloads when done)');
+  pendingExportDownload=true;
+  startJob('/api/export-messages', p);
+};
+$('btnImportMessages').onclick=()=>{
+  if(!SID){ log('[ERROR] Not connected.'); return; }
+  if(selectedFolders.length!==1){ toast('Import needs exactly ONE selected folder (the destination).','border-warn/50 bg-warn/15 text-warn'); log('[INFO] Select exactly one folder to import into.'); return; }
+  $('importFileMsg').value=''; $('importFileMsg').click();
+};
+$('importFileMsg').onchange=async(e)=>{
+  const f=e.target.files && e.target.files[0]; if(!f) return;
+  const dest=selectedFolders[0];
+  if(!(await confirmDialog({title:'Import messages', message:'Import "'+f.name+'" ('+Math.round(f.size/1024)+' KB) into folder "'+dest+'"?\n\nEach message is appended to that folder on the server.', okText:'Import'}))) return;
+  log('Importing "'+f.name+'" into '+dest+' …');
+  try{
+    const buf=await f.arrayBuffer();
+    const r=await fetch('/api/import-messages/'+SID+'?folder='+encodeURIComponent(dest), {method:'POST', headers:{'Content-Type':'application/octet-stream'}, body:buf});
+    if(!r.ok){ const j=await r.json().catch(()=>({})); throw new Error(errText(j,r.status)); }
+    const j=await r.json(); curRunId=j.run_id; pendingRefreshFolders=true; startPolling();
+  }catch(err){ log('[ERROR] '+err.message); toast('Import error: '+err.message,'border-danger/50 bg-danger/15 text-danger'); }
 };
 
 // Heartbeat: keep the session alive while the page is open; if it has been

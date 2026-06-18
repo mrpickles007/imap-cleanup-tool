@@ -10,8 +10,10 @@ from __future__ import annotations
 import csv
 import imaplib
 import logging
+import mailbox
 import os
 import re
+import tempfile
 from collections.abc import Callable
 from datetime import datetime
 from email.header import decode_header, make_header
@@ -914,6 +916,147 @@ def _per_week(date_headers: list[str], count: int) -> float:
 # --------------------------------------------------------------------------- #
 # High-level per-folder operation
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# Export / import full messages (mbox)                                          #
+# --------------------------------------------------------------------------- #
+
+def matched_uids(conn: imaplib.IMAP4_SSL, folder: str, *,
+                 addresses: set[str] | None = None,
+                 domains: set[str] | None = None,
+                 exact_domains: set[str] | None = None,
+                 search_argument: str | None = None,
+                 include_subdomains: bool = False,
+                 scan_mode: str = "search",
+                 batch_size: int = UID_CHUNK_SIZE,
+                 should_stop: StopCheck | None = None,
+                 cache=None, account: str = "",
+                 match_all_if_empty: bool = False) -> list[bytes]:
+    """Select ``folder`` **read-only** and return the matching message UIDs.
+
+    Same matching as :func:`process_folder` (rule, server-side SEARCH, or local
+    full-scan on cached headers). With ``match_all_if_empty`` and no criteria,
+    returns *every* UID in the folder - used by Export to grab a whole folder.
+    """
+    status, _ = conn.select(_quote_mailbox(folder), readonly=True)
+    if status != "OK":
+        logger.error("Cannot open folder %r - skipping.", folder)
+        return []
+    has_criteria = bool(search_argument or addresses or domains or exact_domains)
+    if not has_criteria:
+        if not match_all_if_empty:
+            return []
+        status, data = conn.uid("SEARCH", None, "ALL")
+        return data[0].split() if status == "OK" and data and data[0] else []
+    if search_argument:
+        return sorted(search_rule(conn, search_argument), key=int)
+    if scan_mode == "search":
+        return sorted(search_targets(conn, addresses or set(), domains or set(),
+                                     exact_domains or set(), should_stop), key=int)
+    # full scan: match locally on the fetched (cache-assisted) From headers
+    uidvalidity = _read_uidvalidity(conn) if cache is not None else ""
+    status, data = conn.uid("SEARCH", None, "ALL")
+    if status != "OK" or not data or not data[0]:
+        return []
+    all_uids = data[0].split()
+    headers = fetch_from_headers(conn, all_uids, batch_size, should_stop,
+                                 cache=cache, account=account, folder=folder,
+                                 uidvalidity=uidvalidity)
+    out: list[bytes] = []
+    for uid, value in headers.items():
+        if sender_matches(extract_sender_email(value), addresses or set(),
+                          domains or set(), exact_domains or set(),
+                          include_subdomains):
+            out.append(uid)
+    return out
+
+
+def fetch_messages(conn: imaplib.IMAP4_SSL, uids: list[bytes],
+                   batch_size: int = UID_CHUNK_SIZE,
+                   should_stop: StopCheck | None = None) -> list[bytes]:
+    """Fetch the full raw messages for ``uids`` - **never sets ``\\Seen``**.
+
+    Uses ``BODY.PEEK[]`` so reading a message for export does not mark it read
+    on the server. Returns a list of raw RFC822 ``bytes`` in batches.
+    """
+    out: list[bytes] = []
+    total = len(uids)
+    for i in range(0, total, batch_size):
+        _check_stop(should_stop)
+        chunk = uids[i:i + batch_size]
+        status, data = conn.uid("FETCH", b",".join(chunk), "(BODY.PEEK[])")
+        if status != "OK":
+            logger.warning("FETCH of a batch failed; continuing.")
+            continue
+        for item in data:
+            if isinstance(item, tuple) and len(item) >= 2 and item[1]:
+                out.append(item[1])
+        logger.info("  ... fetched %d/%d message(s)", min(i + batch_size, total),
+                    total)
+    return out
+
+
+def build_mbox(messages) -> bytes:
+    """Serialize an iterable of raw message ``bytes`` into one ``mbox`` blob."""
+    fd, path = tempfile.mkstemp(suffix=".mbox")
+    os.close(fd)
+    try:
+        box = mailbox.mbox(path)
+        box.lock()
+        for raw in messages:
+            box.add(mailbox.mboxMessage(raw))
+        box.flush()
+        box.unlock()
+        box.close()
+        with open(path, "rb") as fh:
+            return fh.read()
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def read_messages(data: bytes) -> list[bytes]:
+    """Parse an uploaded ``.mbox`` (or a single ``.eml``) into raw messages."""
+    if not data:
+        return []
+    if data.lstrip()[:5] != b"From ":
+        return [data]                 # a single .eml (no mbox "From " separator)
+    fd, path = tempfile.mkstemp(suffix=".mbox")
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(data)
+    try:
+        box = mailbox.mbox(path)
+        try:
+            return [msg.as_bytes() for msg in box]
+        finally:
+            box.close()
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def append_messages(conn: imaplib.IMAP4_SSL, folder: str, messages,
+                    should_stop: StopCheck | None = None) -> int:
+    """APPEND each raw message into ``folder``; return how many succeeded."""
+    appended = 0
+    target = _quote_mailbox(folder)
+    for raw in messages:
+        _check_stop(should_stop)
+        try:
+            status, _ = conn.append(target, "", None, raw)
+        except (imaplib.IMAP4.error, OSError) as exc:
+            logger.warning("APPEND failed for one message: %s", exc)
+            continue
+        if status == "OK":
+            appended += 1
+        else:
+            logger.warning("APPEND rejected one message.")
+    return appended
+
+
 def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
                    addresses: set[str] | None = None,
                    domains: set[str] | None = None,
