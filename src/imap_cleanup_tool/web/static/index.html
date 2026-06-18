@@ -207,6 +207,7 @@ tailwind.config = { theme: { extend: {
             <button id="btnImportProfile" type="button" class="px-3 py-1.5 rounded-lg border border-line text-cream hover:border-brand text-sm">Import…</button>
             <button id="btnExportProfile" type="button" class="px-3 py-1.5 rounded-lg border border-line text-cream hover:border-brand text-sm">Export</button>
             <button id="btnDeleteProfile" type="button" class="px-3 py-1.5 rounded-lg border border-line text-muted hover:text-danger text-sm">Delete</button>
+            <button id="btnClearForm" type="button" class="ml-auto px-2 py-1 rounded-lg border border-line text-muted hover:text-cream text-[11px]" title="Reset the form: provider Custom, empty host/port/user/password/timeout (local cache stays on)">Clear</button>
             <input id="importFile" type="file" accept=".json,application/json" class="hidden">
           </div>
         </div>
@@ -496,6 +497,15 @@ tailwind.config = { theme: { extend: {
   </div>
   <!-- /ROW 2 (Manual Cleanup | AI Cleanup) -->
 
+  <!-- Log (moved above the Run card so it stays visible when you press Run) -->
+  <section class="bg-panel border border-line rounded-xl p-5">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="font-display font-semibold text-brand-light">Log</h2>
+      <button id="btnClear" class="text-xs text-muted hover:text-cream">clear</button>
+    </div>
+    <pre id="log" class="console text-[12.5px] leading-relaxed bg-ink border border-line rounded-lg p-3 h-64 overflow-auto whitespace-pre-wrap text-[#c4c8d4]"></pre>
+  </section>
+
   <!-- ROW 3: Run + run options + List senders -->
   <section id="secRun" class="bg-panel border border-line rounded-xl p-5 space-y-4">
     <div>
@@ -548,14 +558,6 @@ tailwind.config = { theme: { extend: {
     </div>
   </section>
 
-  <!-- ROW 4: Log -->
-  <section class="bg-panel border border-line rounded-xl p-5">
-    <div class="flex items-center justify-between mb-2">
-      <h2 class="font-display font-semibold text-brand-light">Log</h2>
-      <button id="btnClear" class="text-xs text-muted hover:text-cream">clear</button>
-    </div>
-    <pre id="log" class="console text-[12.5px] leading-relaxed bg-ink border border-line rounded-lg p-3 h-64 overflow-auto whitespace-pre-wrap text-[#c4c8d4]"></pre>
-  </section>
 </div>
 
 <!-- ============================ SCHEDULING TAB ============================ -->
@@ -1189,9 +1191,9 @@ function placeMatchSection(ai){
 function updateDryRun(){
   const box=$('dryRunBox'); if(!box) return;
   const on=$('dryRun').checked;
-  box.className='rounded-lg border -mx-2 px-2 py-2.5 my-3 '+(on?'border-ok/50 bg-ok/10':'border-warn/60 bg-warn/15');
-  $('dryRunLabel').className='flex items-center font-semibold '+(on?'text-ok':'text-warn');
-  $('dryRunNote').className='text-[11px] mt-1 '+(on?'text-ok':'text-warn');
+  box.className='rounded-lg border -mx-2 px-2 py-2.5 my-3 '+(on?'border-ok/50 bg-ok/10':'border-danger/60 bg-danger/15');
+  $('dryRunLabel').className='flex items-center font-semibold '+(on?'text-ok':'text-danger');
+  $('dryRunNote').className='text-[11px] mt-1 '+(on?'text-ok':'text-danger');
   $('dryRunNote').innerHTML = on
     ? '✓ <b>Preview only</b> - the tool just <b>simulates</b> and changes nothing. To run for real, <b>turn this off</b>.'
     : '⚠️ <b>Real run</b> - everything is <b>executed for real</b> and will <b>delete / move</b> the emails matching your selected criteria.';
@@ -1205,7 +1207,8 @@ function refreshConditional(){
   if(ai)$('emptyFolder').checked=false;
   $('emptyFolder').disabled = ai;
   const empty=$('emptyFolder').checked;
-  $('aiCleanup').disabled = empty || !aiOk;   // empty folder, or no [ai] extra
+  $('aiCleanup').disabled = !aiOk;   // only the missing [ai] extra disables the toggle;
+  // Empty folder doesn't disable it - switching to AI just unchecks Empty folder above.
   // Reflect the AI <-> Manual mode toggle: knob position, label colours, disabled.
   if($('modeToggle')){
     $('modeToggle').disabled = $('aiCleanup').disabled;
@@ -1389,7 +1392,10 @@ async function pollLog(){
       if(d.lines.some(l=> l.indexOf('Gmail Trash')!==-1 && l.indexOf('[DRY-RUN]')===-1)) gmailTrashSeen=true;
     }
     if(d.running){ poll=setTimeout(pollLog, pollDelay()); }
-    else { poll=null; if(d.status && d.status!=='running') log('- '+d.status+(d.error?(': '+d.error):'')+' -'); setBusy(false); curRunId=null; persistLog();
+    else { poll=null; if(d.status && d.status!=='running') log('- '+d.status+(d.error?(': '+d.error):'')+' -');
+      if(d.status==='done') toast('Operation completed.', 'border-ok/50 bg-ok/15 text-ok');
+      else if(d.status==='stopped') toast('Operation stopped.', 'border-warn/50 bg-warn/15 text-warn');
+      setBusy(false); curRunId=null; persistLog();
       loadAiReports();   // a finished run may have saved a new report
       refreshLoadSpam(); // a finished AI run may have added spam addresses
       refreshCacheInfo(); // ... and may have grown the header cache
@@ -1667,6 +1673,13 @@ if($('drawerClose')) $('drawerClose').onclick=closeDrawer;
 if($('drawerBackdrop')) $('drawerBackdrop').onclick=closeDrawer;
 if($('btnTour2')) $('btnTour2').onclick=()=>{ closeDrawer(); if($('btnTour')) $('btnTour').click(); };
 $('provider').onchange=()=>{ const p=(META.providers||[])[parseInt($('provider').value)||0]; if(p){ if(p.host)$('host').value=p.host; if(p.port)$('port').value=p.port; if(p.gmail){$('gmailTrash').disabled=false;$('gmailTrash').checked=true;} } applyProviderTips(); refreshConditional(); };
+if($('btnClearForm')) $('btnClearForm').onclick=()=>{
+  $('provider').value='0';   // Custom (first provider, empty host)
+  $('host').value=''; $('port').value='993'; $('user').value=''; $('password').value=''; $('timeout').value='120';
+  if($('localCache')) $('localCache').checked=true;   // local cache stays on by default
+  applyProviderTips(); refreshConditional();
+  toast('Connection form cleared.', 'border-ok/50 bg-ok/15 text-ok');
+};
 $('host').oninput=refreshConditional; $('scanMode').onchange=refreshConditional; $('emptyFolder').onchange=refreshConditional; $('gmailTrash').onchange=refreshConditional;
 $('moveMode').onchange=()=>{ refreshConditional(); populateMoveDest(); updateJobSummary(); };
 $('moveDest').onchange=()=>{ const nr=$('moveNewRow'); if(nr) nr.classList.toggle('hidden',$('moveDest').value!=='__new__'); updateJobSummary(); };
@@ -1702,7 +1715,7 @@ $('btnAiReport').onclick=async()=>{ if(!SID){ toastErr('Not connected.'); return
   const p=aiPayload();
   // No LLM configured and Skip LLM not explicitly ticked -> confirm heuristic-only.
   if((typeof LLM_MODELS!=='undefined'?LLM_MODELS:[]).length===0 && !($('aiSkipLlm') && $('aiSkipLlm').checked)){
-    const ch=await choiceDialog({title:'No LLM configured', message:'No LLM model is configured, so the report will use the local HEURISTIC engine only (spam score, no AI verdicts). It is free and private, but less precise.\n\nProceed heuristic-only, or open the LLM tab to configure a model?', choices:[{key:'go', label:'Proceed (heuristic only)'},{key:'llm', label:'Open LLM tab'}]});
+    const ch=await choiceDialog({title:'No LLM configured', message:'No LLM model is configured, so the report will use the local HEURISTIC engine only (spam score, no AI verdicts) - exactly as if you had ticked "Skip LLM". It is free and private, but less precise.\n\nProceed heuristic-only, or open the LLM tab to configure a model?', choices:[{key:'go', label:'Proceed (heuristic only)'},{key:'llm', label:'Open LLM tab'}]});
     if(!ch){ log('Report cancelled.'); return; }
     if(ch==='llm'){ switchTab('llm'); return; }
   }
@@ -2274,14 +2287,14 @@ if($('spamFlag')) $('spamFlag').onclick=async()=>{
 $('togglePass').onclick=()=>{ const p=$('password'); p.type=p.type==='password'?'text':'password'; $('togglePass').textContent=p.type==='password'?'show':'hide'; };
 document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const mode=document.querySelector('input[name=mode]:checked').value; try{localStorage.setItem('icw_mode',mode);}catch(_){} const rule=mode==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); refreshConditional(); });
 $('targets').addEventListener('input', ()=>{ try{localStorage.setItem('icw_targets',$('targets').value);}catch(_){} });
-$('btnAddFolder').onclick=()=>{ const v=$('manualFolder').value.trim(); if(!v)return; if(!selectedFolders.includes(v))selectedFolders.push(v); if(!knownFolders.some(f=>f.name===v))knownFolders.push({name:v,count:null}); $('manualFolder').value=''; renderFolders(); };
+$('btnAddFolder').onclick=()=>{ const v=$('manualFolder').value.trim(); if(!v){ toastErr('Enter a folder / label name first.'); return; } if(!selectedFolders.includes(v))selectedFolders.push(v); if(!knownFolders.some(f=>f.name===v))knownFolders.push({name:v,count:null}); $('manualFolder').value=''; renderFolders(); };
 async function createServerFolder(name){
   if(!SID){ log('[ERROR] Connect first to create a folder on the server.'); return false; }
   name=(name||'').trim(); if(!name){ log('[ERROR] Type a folder/label name first.'); return false; }
   try{ const d=await api('/api/create-folder',{sid:SID,name:name}); knownFolders=d.folders||knownFolders; renderFolders(); log(d.message); return true; }
   catch(e){ log('[ERROR] '+e.message); return false; }
 }
-$('btnCreateFolder').onclick=async()=>{ if(await createServerFolder($('manualFolder').value)) $('manualFolder').value=''; };
+$('btnCreateFolder').onclick=async()=>{ if(!$('manualFolder').value.trim()){ toastErr('Enter a folder / label name to create.'); return; } if(await createServerFolder($('manualFolder').value)) $('manualFolder').value=''; };
 $('btnCreateDest').onclick=async()=>{ const v=$('moveDestNew').value.trim(); if(await createServerFolder(v)){ populateMoveDest(); $('moveDest').value=v; const nr=$('moveNewRow'); if(nr) nr.classList.add('hidden'); $('moveDestNew').value=''; updateJobSummary(); } };
 $('btnClear').onclick=()=>{ logLines=[]; renderLog(); persistLog(); };
 $('btnSelectAll').onclick=()=>{ const names=new Set(knownFolders.map(f=>f.name)); selectedFolders.forEach(n=>names.add(n)); selectedFolders=[...names]; renderFolders(); };
@@ -2298,7 +2311,7 @@ $('btnConnect').onclick=async()=>{
     loadAiReports();   // show this account's reports right away (no manual reload)
     refreshLoadSpam(); // show the "Load saved Spam addresses" box if any exist
     refreshCacheInfo(); // show cached-header count + Clear cache control
-    log('Connected. Loaded '+knownFolders.length+' folder(s).'); refreshConditional();
+    log('Connected. Loaded '+knownFolders.length+' folder(s).'); toast('Connected - '+knownFolders.length+' folder(s) loaded.', 'border-ok/50 bg-ok/15 text-ok'); refreshConditional();
   }catch(e){ setStatus(false,'failed'); setConnectedUI(false); log('[ERROR] '+e.message); }
 };
 // Pre-fill the AI exclude box with the connected mailbox so self-sent mail is
