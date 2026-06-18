@@ -57,10 +57,11 @@ class HeaderCache:
                 " from_header TEXT,"        # raw From (for list-senders/full-scan)
                 " unsub_value TEXT,"        # raw List-Unsubscribe header
                 " unsub_post TEXT,"         # raw List-Unsubscribe-Post header
+                " message_id TEXT,"         # Message-ID (for import de-duplication)
                 " PRIMARY KEY (account, folder, uidvalidity, uid))")
             # Migrate caches created before later columns existed.
             cols = {r["name"] for r in conn.execute("PRAGMA table_info(headers)")}
-            for col in ("from_header", "unsub_value", "unsub_post"):
+            for col in ("from_header", "unsub_value", "unsub_post", "message_id"):
                 if col not in cols:
                     conn.execute(f"ALTER TABLE headers ADD COLUMN {col} TEXT")
             conn.commit()
@@ -180,6 +181,49 @@ class HeaderCache:
                 " from_header=excluded.from_header",
                 [(account, folder, uidvalidity, uid, fh)
                  for uid, fh in rows.items()])
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_message_ids(self, account: str, folder: str, uidvalidity: str,
+                        uids: list[str]) -> dict[str, str]:
+        """Return cached ``Message-ID`` headers as ``{uid: message_id}`` (used by
+        import de-duplication); only rows that have a stored message_id."""
+        if not uids:
+            return {}
+        conn = self._connect()
+        try:
+            out: dict[str, str] = {}
+            for i in range(0, len(uids), 400):
+                chunk = uids[i:i + 400]
+                ph = ",".join("?" * len(chunk))
+                rows = conn.execute(
+                    f"SELECT uid, message_id FROM headers "
+                    f"WHERE account=? AND folder=? AND uidvalidity=? "
+                    f"AND message_id IS NOT NULL AND uid IN ({ph})",
+                    (account, folder, uidvalidity, *chunk)).fetchall()
+                for r in rows:
+                    out[r["uid"]] = r["message_id"]
+            return out
+        finally:
+            conn.close()
+
+    def put_message_ids(self, account: str, folder: str, uidvalidity: str,
+                       rows: dict[str, str]) -> None:
+        """Insert/replace Message-ID-only rows; updates only ``message_id`` on
+        conflict (never wipes the richer fields of an existing row)."""
+        if not rows:
+            return
+        conn = self._connect()
+        try:
+            conn.executemany(
+                "INSERT INTO headers"
+                " (account, folder, uidvalidity, uid, message_id)"
+                " VALUES (?, ?, ?, ?, ?)"
+                " ON CONFLICT(account, folder, uidvalidity, uid) DO UPDATE SET"
+                " message_id=excluded.message_id",
+                [(account, folder, uidvalidity, uid, mid)
+                 for uid, mid in rows.items()])
             conn.commit()
         finally:
             conn.close()

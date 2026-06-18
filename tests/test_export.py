@@ -60,14 +60,35 @@ class FetchTests(unittest.TestCase):
         self.assertTrue(fetches and "BODY.PEEK[]" in fetches[0][2])
 
 
+_MID1 = b"Message-ID: <m1@x>\r\nFrom: a@x.com\r\nSubject: 1\r\n\r\nbody\r\n"
+_MID2 = b"Message-ID: <m2@x>\r\nFrom: b@y.com\r\nSubject: 2\r\n\r\nbody\r\n"
+
+
 class AppendTests(unittest.TestCase):
     def test_append_counts_and_targets_folder(self):
         conn = FakeConn()
-        n = core.append_messages(conn, "Archive", [RAW1, RAW2])
-        self.assertEqual(n, 2)
+        appended, skipped = core.append_messages(conn, "Archive", [RAW1, RAW2])
+        self.assertEqual((appended, skipped), (2, 0))
         self.assertEqual(len(conn.appended), 2)
         self.assertIn("Archive", conn.appended[0][0])   # quoted mailbox name
         self.assertEqual(conn.appended[0][1], RAW1)
+
+    def test_message_id_extraction(self):
+        self.assertEqual(core._message_id(_MID1), "<m1@x>")
+        self.assertEqual(core._message_id(b"From: a@x.com\r\n\r\nx"), "")
+
+    def test_append_skips_duplicates_by_message_id(self):
+        conn = FakeConn()
+        appended, skipped = core.append_messages(
+            conn, "Archive", [_MID1, _MID2], skip_ids={"<m1@x>"})
+        self.assertEqual((appended, skipped), (1, 1))   # m1 in folder -> skipped
+        self.assertEqual(conn.appended[0][1], _MID2)
+
+    def test_append_collapses_in_file_duplicates(self):
+        conn = FakeConn()
+        appended, skipped = core.append_messages(
+            conn, "Archive", [_MID1, _MID1, _MID2])
+        self.assertEqual((appended, skipped), (2, 1))   # 2nd copy of m1 collapsed
 
 
 class MatchedUidsTests(unittest.TestCase):

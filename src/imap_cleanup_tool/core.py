@@ -1079,13 +1079,105 @@ def read_messages(data: bytes) -> list[bytes]:
             pass
 
 
+def _message_id(raw: bytes) -> str:
+    """Extract the ``Message-ID`` (with angle brackets) from a raw message, or ''."""
+    m = re.search(rb"(?im)^Message-ID:[ \t]*(<[^>\r\n]+>)", raw or b"")
+    return m.group(1).decode(errors="replace").strip() if m else ""
+
+
+def _msgid_in_folder(conn: imaplib.IMAP4_SSL, message_id: str) -> bool:
+    """True if a message with ``message_id`` is already in the selected folder."""
+    if not message_id:
+        return False
+    try:
+        status, data = conn.uid("SEARCH", None, "HEADER", "Message-ID",
+                                f'"{message_id}"')
+    except (imaplib.IMAP4.error, OSError):
+        return False
+    return bool(status == "OK" and data and data[0] and data[0].split())
+
+
+def existing_message_ids(conn: imaplib.IMAP4_SSL, folder: str, *,
+                         cache=None, account: str = "",
+                         batch_size: int = UID_CHUNK_SIZE,
+                         should_stop: StopCheck | None = None) -> set[str]:
+    """Message-IDs already present in ``folder`` (used by import de-dup, *full* mode).
+
+    With a header ``cache`` the Message-IDs already seen are read from it and only
+    the **new** UIDs are fetched, then written back - like the AI report cache.
+    """
+    status, _ = conn.select(_quote_mailbox(folder), readonly=True)
+    if status != "OK":
+        return set()
+    status, data = conn.uid("SEARCH", None, "ALL")
+    if status != "OK" or not data or not data[0]:
+        return set()
+    uids = data[0].split()
+    uidvalidity = _read_uidvalidity(conn) if cache is not None else ""
+    cached: dict[str, str] = {}
+    if cache is not None and uidvalidity:
+        try:
+            cache.purge_other(account, folder, uidvalidity)
+            cached = cache.get_message_ids(account, folder, uidvalidity,
+                                           [u.decode() for u in uids])
+        except Exception:  # pylint: disable=broad-exception-caught
+            cached = {}
+    ids = {v for v in cached.values() if v}
+    missing = [u for u in uids if u.decode() not in cached]
+    if cached:
+        logger.info("  %d/%d Message-ID(s) from cache; fetching %d new.",
+                    len(cached), len(uids), len(missing))
+    new_rows: dict[str, str] = {}
+    for i in range(0, len(missing), batch_size):
+        _check_stop(should_stop)
+        chunk = missing[i:i + batch_size]
+        status, data = conn.uid("FETCH", b",".join(chunk),
+                                "(UID BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])")
+        if status != "OK" or not data:
+            continue
+        for part in data:
+            if not (isinstance(part, tuple) and len(part) >= 2 and part[1]):
+                continue
+            uid = _extract_uid(part[0])
+            mid = _message_id(part[1])
+            if uid is not None:
+                new_rows[uid.decode()] = mid
+            if mid:
+                ids.add(mid)
+    if cache is not None and uidvalidity and new_rows:
+        try:
+            cache.put_message_ids(account, folder, uidvalidity, new_rows)
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
+    return ids
+
+
 def append_messages(conn: imaplib.IMAP4_SSL, folder: str, messages,
-                    should_stop: StopCheck | None = None) -> int:
-    """APPEND each raw message into ``folder``; return how many succeeded."""
-    appended = 0
+                    should_stop: StopCheck | None = None, *,
+                    skip_ids: set[str] | None = None,
+                    dedup_search: bool = False) -> tuple[int, int]:
+    """APPEND each raw message into ``folder``; return ``(appended, skipped)``.
+
+    With ``skip_ids`` (a set of Message-IDs - the *full* dedup mode) or
+    ``dedup_search`` (a per-message ``SEARCH HEADER Message-ID``, lighter on huge
+    folders) a message already in the folder is skipped; messages duplicated
+    **within** this import are collapsed too.
+    """
+    appended = skipped = 0
+    skip = {m for m in (skip_ids or set()) if m}
     target = _quote_mailbox(folder)
+    if dedup_search:
+        conn.select(target, readonly=True)        # so SEARCH HEADER targets it
+    seen: set[str] = set()
     for raw in messages:
         _check_stop(should_stop)
+        mid = _message_id(raw)
+        if mid and (mid in skip or mid in seen
+                    or (dedup_search and _msgid_in_folder(conn, mid))):
+            skipped += 1
+            continue
+        if mid:
+            seen.add(mid)
         try:
             status, _ = conn.append(target, "", None, raw)
         except (imaplib.IMAP4.error, OSError) as exc:
@@ -1095,7 +1187,7 @@ def append_messages(conn: imaplib.IMAP4_SSL, folder: str, messages,
             appended += 1
         else:
             logger.warning("APPEND rejected one message.")
-    return appended
+    return appended, skipped
 
 
 def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,

@@ -1486,12 +1486,15 @@ def create_app():
                                  f"attachment; filename={fname}"})
 
     @app.post("/api/import-messages/{sid}")
-    async def import_messages(sid: str, folder: str,
-                              request: Request) -> dict[str, Any]:
+    async def import_messages(sid: str, folder: str, request: Request,
+                              dedup: bool = False,
+                              dedup_mode: str = "full") -> dict[str, Any]:
         """Import messages from an uploaded ``.mbox`` (or ``.eml``) into ``folder``.
 
         The file is the raw request body (no multipart dep); ``folder`` is a
-        query param. Each message is APPENDed to the destination folder.
+        query param. Each message is APPENDed to the destination folder. With
+        ``dedup`` (``dedup_mode`` ``full``/``search``) messages whose Message-ID
+        is already in the folder are skipped.
         """
         sess = _session(sid)
         if sess.run and sess.run.status == "running":
@@ -1507,12 +1510,24 @@ def create_app():
             raise HTTPException(400, "No messages found in the uploaded file.")
 
         def work(rs: RunState) -> None:
-            core.logger.info("Importing %d message(s) into %r ...",
-                             len(messages), dest)
-            n = core.append_messages(sess.conn, dest, messages, rs.stop.is_set)
-            core.logger.info("=> imported %d/%d message(s) into %r.",
-                             n, len(messages), dest)
-            rs.result = {"imported": n, "total": len(messages)}
+            core.logger.info("Importing %d message(s) into %r%s ...",
+                             len(messages), dest,
+                             f" (skip duplicates: {dedup_mode})" if dedup else "")
+            skip_ids, search = None, False
+            if dedup and dedup_mode == "search":
+                search = True
+            elif dedup:                                  # "full": cache-assisted
+                skip_ids = core.existing_message_ids(
+                    sess.conn, dest, cache=_session_cache(sess),
+                    account=sess.user, batch_size=core.UID_CHUNK_SIZE,
+                    should_stop=rs.stop.is_set)
+            n, skipped = core.append_messages(
+                sess.conn, dest, messages, rs.stop.is_set,
+                skip_ids=skip_ids, dedup_search=search)
+            core.logger.info("=> imported %d, skipped %d duplicate(s), of %d "
+                             "into %r.", n, skipped, len(messages), dest)
+            rs.result = {"imported": n, "skipped": skipped,
+                         "total": len(messages)}
 
         run_state = _start_run(sess, "import", work)
         return {"run_id": run_state.run_id}

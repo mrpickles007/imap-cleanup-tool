@@ -1101,6 +1101,35 @@ function choiceDialog(opts){
     ov.onclick=(e)=>{ if(e.target===ov) done(null); };
   });
 }
+/* Import dialog: confirm + optional Message-ID de-dup (search/full). Resolves to
+   {dedup, mode} on Import, or null on cancel. */
+function importDialog(opts){
+  opts = opts || {};
+  return new Promise(resolve=>{
+    const ov=document.createElement('div');
+    ov.className='fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4';
+    ov.innerHTML='<div class="bg-panel border border-line rounded-xl p-5 w-full max-w-md">'
+      +'<h3 class="font-display font-semibold text-brand-light mb-2">'+escapeHtml(opts.title||'Import messages')+'</h3>'
+      +'<p class="text-muted text-sm mb-3 whitespace-pre-line">'+escapeHtml(opts.message||'')+'</p>'
+      +'<label class="flex items-start gap-2 text-sm text-cream cursor-pointer"><input id="dlgDedup" type="checkbox" class="mt-0.5"><span>Skip duplicates already in the folder <span class="text-muted">(by Message-ID)</span></span></label>'
+      +'<div id="dlgDedupMode" class="hidden mt-2 ml-6 text-xs text-muted space-y-1">'
+        +'<label class="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="dlgmode" value="full" checked> <b class="text-cream">full</b> - fetch the folder\'s IDs once (faster for many messages)</label>'
+        +'<label class="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="dlgmode" value="search"> <b class="text-cream">search</b> - one search per message (lighter on a huge folder)</label>'
+        +'<p>Reliable for received mail; drafts can carry a different Message-ID.</p>'
+      +'</div>'
+      +'<div class="flex gap-2 justify-end mt-4">'
+        +'<button data-k="c" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Cancel</button>'
+        +'<button data-k="ok" class="px-4 py-2 rounded-lg font-semibold bg-brand text-ink hover:bg-brand-light">'+escapeHtml(opts.okText||'Import')+'</button>'
+      +'</div></div>';
+    document.body.appendChild(ov);
+    const cb=ov.querySelector('#dlgDedup'), modeBox=ov.querySelector('#dlgDedupMode');
+    cb.onchange=()=>modeBox.classList.toggle('hidden', !cb.checked);
+    const done=(v)=>{ ov.remove(); resolve(v); };
+    ov.querySelector('[data-k="c"]').onclick=()=>done(null);
+    ov.querySelector('[data-k="ok"]').onclick=()=>{ const mode=(ov.querySelector('input[name=dlgmode]:checked')||{}).value||'full'; done({dedup:cb.checked, mode}); };
+    ov.onclick=(e)=>{ if(e.target===ov) done(null); };
+  });
+}
 /* Read-only source viewer popup (monospaced) with Copy + Close. */
 function sourceDialog(title, text){
   const ov=document.createElement('div');
@@ -2579,11 +2608,13 @@ $('importFileMsg').onchange=async(e)=>{
   const f=e.target.files && e.target.files[0]; if(!f) return;
   const dest=selectedFolders[0];
   let count=0; try{ count=countMboxMessages(await f.text()); }catch(_){}
-  if(!(await confirmDialog({title:'Import messages', message:'Import "'+f.name+'" ('+count+' message'+(count===1?'':'s')+', '+Math.round(f.size/1024)+' KB) into folder "'+dest+'"?\n\nEach message is appended to that folder on the server.', okText:'Import'}))) return;
-  log('Importing '+count+' message(s) from "'+f.name+'" into '+dest+' …');
+  const opt=await importDialog({title:'Import messages', message:'Import "'+f.name+'" ('+count+' message'+(count===1?'':'s')+', '+Math.round(f.size/1024)+' KB) into folder "'+dest+'"?\n\nEach message is appended to that folder on the server.', okText:'Import'});
+  if(!opt) return;
+  log('Importing '+count+' message(s) from "'+f.name+'" into '+dest+(opt.dedup?' (skip duplicates: '+opt.mode+')':'')+' …');
   try{
     const buf=await f.arrayBuffer();
-    const r=await fetch('/api/import-messages/'+SID+'?folder='+encodeURIComponent(dest), {method:'POST', headers:{'Content-Type':'application/octet-stream'}, body:buf});
+    const url='/api/import-messages/'+SID+'?folder='+encodeURIComponent(dest)+(opt.dedup?'&dedup=1&dedup_mode='+opt.mode:'');
+    const r=await fetch(url, {method:'POST', headers:{'Content-Type':'application/octet-stream'}, body:buf});
     if(!r.ok){ const j=await r.json().catch(()=>({})); throw new Error(errText(j,r.status)); }
     const j=await r.json(); curRunId=j.run_id; pendingRefreshFolders=true; startPolling();
   }catch(err){ toastErr('Import error: '+err.message); }
