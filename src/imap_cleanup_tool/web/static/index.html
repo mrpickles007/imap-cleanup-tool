@@ -1439,7 +1439,7 @@ async function startJob(path, body, refreshFolders){
   if(!SID){ toastErr('Not connected.'); return; }
   pendingRefreshFolders=!!refreshFolders;
   try{ const d=await api(path, body); curRunId=d.run_id; startPolling(); }
-  catch(e){ log('[ERROR] '+e.message); toast('Error: '+e.message, 'border-danger/50 bg-danger/15 text-danger'); }
+  catch(e){ toastErr(e.message); }   // toastErr logs + pops a single red toast
 }
 async function refreshFoldersQuiet(){
   if(!SID) return;
@@ -1620,10 +1620,10 @@ async function loadJobs(){
       const toggle=document.createElement('button');
       if(j.installed){
         toggle.className='text-muted text-xs hover:text-cream'; toggle.textContent='uninstall';
-        toggle.onclick=async()=>{ try{ const r=await api('/api/jobs/uninstall',{name:j.name}); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=r.message; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
+        toggle.onclick=async()=>{ try{ const r=await api('/api/jobs/uninstall',{name:j.name}); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=r.message; loadJobs(); }catch(e){ toastErr(e.message); } };
       } else {
         toggle.className='text-brand-light text-xs hover:underline'; toggle.textContent='install';
-        toggle.onclick=async()=>{ try{ const r=await api('/api/jobs/install-saved',{name:j.name}); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=r.message+'\n\n'+r.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
+        toggle.onclick=async()=>{ try{ const r=await api('/api/jobs/install-saved',{name:j.name}); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=r.message+'\n\n'+r.command; loadJobs(); }catch(e){ toastErr(e.message); } };
       }
       const src=document.createElement('button'); src.className='text-muted text-xs hover:text-cream'; src.textContent='source';
       src.onclick=()=>{ const cmd=(j.args||[]).join(' ');
@@ -2410,14 +2410,14 @@ async function confirmJobOverwrite(){
   }
   return true;
 }
-$('btnSaveJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; try{ const d=await api('/api/jobs',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Saved. System command:\n'+d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
-$('btnExportJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; try{ const d=await api('/api/jobs/export',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
+$('btnSaveJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; try{ const d=await api('/api/jobs',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Saved. System command:\n'+d.command; loadJobs(); }catch(e){ toastErr(e.message); } };
+$('btnExportJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; try{ const d=await api('/api/jobs/export',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.command; loadJobs(); }catch(e){ toastErr(e.message); } };
 if($('btnJobSource')) $('btnJobSource').onclick=async()=>{
   try{ const d=await api('/api/jobs/export', jobPayload());
     sourceDialog('Job source (preview, not saved)', 'System scheduler command:\n'+d.command); }
   catch(e){ sourceDialog('Job source - error', e.message); }
 };
-$('btnInstallJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; try{ const d=await api('/api/jobs/install',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.message+'\n\n'+d.command; loadJobs(); }catch(e){ $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent='Error: '+e.message; } };
+$('btnInstallJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; try{ const d=await api('/api/jobs/install',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.message+'\n\n'+d.command; loadJobs(); }catch(e){ toastErr(e.message); } };
 $('jobProfile').onchange=updateJobSummary;
 ['jobAiThreshold','jobAiSample'].forEach(id=>{ if($(id)) $(id).oninput=updateJobSummary; });
 if($('jobAiModel')) $('jobAiModel').onchange=updateJobSummary;
@@ -2581,7 +2581,7 @@ $('importFileMsg').onchange=async(e)=>{
     const r=await fetch('/api/import-messages/'+SID+'?folder='+encodeURIComponent(dest), {method:'POST', headers:{'Content-Type':'application/octet-stream'}, body:buf});
     if(!r.ok){ const j=await r.json().catch(()=>({})); throw new Error(errText(j,r.status)); }
     const j=await r.json(); curRunId=j.run_id; pendingRefreshFolders=true; startPolling();
-  }catch(err){ log('[ERROR] '+err.message); toast('Import error: '+err.message,'border-danger/50 bg-danger/15 text-danger'); }
+  }catch(err){ toastErr('Import error: '+err.message); }
 };
 
 // Heartbeat: keep the session alive while the page is open; if it has been

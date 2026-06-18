@@ -1571,7 +1571,7 @@ def create_app():
                 if minfo is None:
                     raise HTTPException(
                         400, "Choose a saved LLM model for the AI job "
-                             "(or tick Skip LLM).")
+                             "(or tick Skip LLM + Report only).")
                 if minfo["encrypted"]:
                     raise HTTPException(
                         400, "Encrypted model configs can't run unattended - "
