@@ -528,7 +528,7 @@ tailwind.config = { theme: { extend: {
         <button id="btnStop" class="hidden px-4 py-2.5 rounded-lg bg-danger text-ink font-bold">■ Stop</button>
       </div>
       <p class="text-[11px] text-muted mt-1.5">Runs the action chosen above on the selected folders: <b>Manual Cleanup</b> (delete / move / empty folder for the matching messages) or <b>AI Cleanup</b> (heuristic + LLM, then delete the confirmed senders). With <b>dry-run</b> on, “Run” only <b>previews</b> - nothing is changed.</p>
-      <p id="gmailDraftsNote" class="hidden text-[11px] text-warn mt-1.5">ℹ️ On <b>Gmail</b>, some folders (e.g. <b>[Gmail]/Drafts</b>) may need <b>more than one pass</b> for deleting messages - including <b>Empty folder</b> - because of how Gmail handles them. If some messages remain, just <b>run it again</b>.</p>
+      <p id="gmailDraftsNote" class="hidden text-[11px] text-warn mt-1.5">ℹ️ On <b>Gmail</b>, some folders (e.g. <b>[Gmail]/Drafts</b>) may need <b>more than one pass</b> for deleting messages - including <b>Empty folder</b> - because of how Gmail handles them. If some messages remain, just <b>run it again</b>. Or prefer the standard flow: <b>Run</b> with <b>“Gmail: move to Trash”</b>, then after the run select <b>[Gmail]/Trash</b> and tick <b>Empty folder</b>.</p>
     </div>
 
     <div class="border-t border-line"></div>
