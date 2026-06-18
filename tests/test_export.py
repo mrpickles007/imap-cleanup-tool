@@ -86,6 +86,13 @@ class MatchedUidsTests(unittest.TestCase):
         sel = [c for c in conn.calls if c[0] == "SELECT"]
         self.assertTrue(sel and sel[0][2] is True)   # readonly=True
 
+    def test_exclude_drops_matching_senders(self):
+        # SendersFake: SEARCH ALL -> 1,2,3; a FROM search -> uid 1. So excluding
+        # one address removes uid 1 from the whole-folder match.
+        uids = core.matched_uids(SendersFake(), "INBOX",
+                                 match_all_if_empty=True, exclude={"me@x.com"})
+        self.assertEqual(uids, [b"2", b"3"])
+
 
 _FROM = {b"1": b"From: a@x.com\r\n\r\n",
          b"2": b"From: b@y.com\r\n\r\n",

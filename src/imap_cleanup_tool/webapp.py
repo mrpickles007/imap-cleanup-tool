@@ -85,6 +85,12 @@ def _is_gmail(host: str) -> bool:
     return bool(gp) and h == (gp.get("host") or "").lower()
 
 
+def _parse_exclude(text: str) -> set:
+    """Sender addresses to exclude (one per line; blank lines / '#' comments out)."""
+    return {ln.strip().lower() for ln in (text or "").splitlines()
+            if ln.strip() and not ln.strip().startswith("#")}
+
+
 def _ai_extra_available() -> bool:
     """True if the optional ``[ai]`` extra (litellm) is importable."""
     import importlib.util
@@ -342,6 +348,7 @@ def create_app():
         match_mode: str = "targets"          # "targets" | "rule"
         targets_text: str = ""
         rule_tree: dict | None = None
+        exclude_text: str = ""               # sender addresses to exclude (manual)
 
     class Options(BaseModel):
         folders: list[str] = Field(default_factory=lambda: ["INBOX"])
@@ -836,7 +843,8 @@ def create_app():
                     addresses=addresses, domains=domains,
                     exact_domains=exact_domains, search_argument=search_argument,
                     include_subdomains=body.include_subdomains,
-                    scan_mode=body.scan_mode)
+                    scan_mode=body.scan_mode,
+                    exclude=_parse_exclude(body.exclude_text))
                 for sender, count in sorted(counts.items(),
                                             key=lambda kv: kv[1], reverse=True):
                     ranked.append({"folder": folder, "sender": sender,
@@ -888,7 +896,8 @@ def create_app():
                         batch_size=body.batch_size, scan_mode=body.scan_mode,
                         gmail_trash=body.gmail_trash, move=body.move,
                         dest_folder=dest, should_stop=rs.stop.is_set,
-                        cache=cache, account=sess.user)
+                        cache=cache, account=sess.user,
+                        exclude=_parse_exclude(body.exclude_text))
             verb = "would be processed" if body.dry_run else "processed"
             core.logger.info("Done. %d message(s) %s.", total, verb)
             rs.result = {"processed": total, "dry_run": body.dry_run}
@@ -924,7 +933,8 @@ def create_app():
                     dry_run=True, count_only=True,
                     include_subdomains=body.include_subdomains,
                     batch_size=body.batch_size, scan_mode=body.scan_mode,
-                    should_stop=rs.stop.is_set, cache=cache, account=sess.user)
+                    should_stop=rs.stop.is_set, cache=cache, account=sess.user,
+                    exclude=_parse_exclude(body.exclude_text))
             core.logger.info("=> %d matching message(s) across %d folder(s).",
                              total, len(folders))
             rs.result = {"matched": total}
@@ -957,7 +967,8 @@ def create_app():
                     include_subdomains=body.include_subdomains,
                     scan_mode=body.scan_mode, batch_size=body.batch_size,
                     should_stop=rs.stop.is_set, cache=cache, account=sess.user,
-                    match_all_if_empty=True)
+                    match_all_if_empty=True,
+                    exclude=_parse_exclude(body.exclude_text))
                 core.logger.info("Export: %d message(s) matched in %r.",
                                  len(uids), folder)
                 if uids:

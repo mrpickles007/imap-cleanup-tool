@@ -254,7 +254,8 @@ def list_senders(conn: imaplib.IMAP4_SSL, folder: str,
                  exact_domains: set[str] | None = None,
                  search_argument: str | None = None,
                  include_subdomains: bool = False,
-                 scan_mode: str = "search") -> dict[str, int]:
+                 scan_mode: str = "search",
+                 exclude: set[str] | None = None) -> dict[str, int]:
     """Log unique senders in a folder with counts; optionally save to CSV.
 
     When a **filter** is set (Target list / Rule) only the matching messages are
@@ -281,6 +282,7 @@ def list_senders(conn: imaplib.IMAP4_SSL, folder: str,
             return {}
         uids = data[0].split()
         full_filter = has_criteria       # full mode + filter -> filter while counting
+    uids = _apply_exclude(conn, uids, exclude, should_stop)
     if not uids:
         logger.info("No matching senders in %r.", folder)
         return {}
@@ -949,6 +951,16 @@ def _per_week(date_headers: list[str], count: int) -> float:
 # Export / import full messages (mbox)                                          #
 # --------------------------------------------------------------------------- #
 
+def _apply_exclude(conn: imaplib.IMAP4_SSL, uids, exclude, should_stop=None):
+    """Drop UIDs whose sender matches any address in ``exclude`` (SEARCH FROM)."""
+    ex = {a for a in (exclude or set()) if a}
+    if not ex or not uids:
+        return uids
+    logger.info("Excluding messages from: %s", ", ".join(sorted(ex)))
+    drop = search_targets(conn, ex, set(), should_stop=should_stop)
+    return [u for u in uids if u not in drop] if drop else uids
+
+
 def matched_uids(conn: imaplib.IMAP4_SSL, folder: str, *,
                  addresses: set[str] | None = None,
                  domains: set[str] | None = None,
@@ -959,12 +971,14 @@ def matched_uids(conn: imaplib.IMAP4_SSL, folder: str, *,
                  batch_size: int = UID_CHUNK_SIZE,
                  should_stop: StopCheck | None = None,
                  cache=None, account: str = "",
-                 match_all_if_empty: bool = False) -> list[bytes]:
+                 match_all_if_empty: bool = False,
+                 exclude: set[str] | None = None) -> list[bytes]:
     """Select ``folder`` **read-only** and return the matching message UIDs.
 
     Same matching as :func:`process_folder` (rule, server-side SEARCH, or local
     full-scan on cached headers). With ``match_all_if_empty`` and no criteria,
     returns *every* UID in the folder - used by Export to grab a whole folder.
+    ``exclude`` drops messages from those sender addresses.
     """
     status, _ = conn.select(_quote_mailbox(folder), readonly=True)
     if status != "OK":
@@ -975,28 +989,26 @@ def matched_uids(conn: imaplib.IMAP4_SSL, folder: str, *,
         if not match_all_if_empty:
             return []
         status, data = conn.uid("SEARCH", None, "ALL")
-        return data[0].split() if status == "OK" and data and data[0] else []
-    if search_argument:
-        return sorted(search_rule(conn, search_argument), key=int)
-    if scan_mode == "search":
-        return sorted(search_targets(conn, addresses or set(), domains or set(),
-                                     exact_domains or set(), should_stop), key=int)
-    # full scan: match locally on the fetched (cache-assisted) From headers
-    uidvalidity = _read_uidvalidity(conn) if cache is not None else ""
-    status, data = conn.uid("SEARCH", None, "ALL")
-    if status != "OK" or not data or not data[0]:
-        return []
-    all_uids = data[0].split()
-    headers = fetch_from_headers(conn, all_uids, batch_size, should_stop,
-                                 cache=cache, account=account, folder=folder,
-                                 uidvalidity=uidvalidity)
-    out: list[bytes] = []
-    for uid, value in headers.items():
-        if sender_matches(extract_sender_email(value), addresses or set(),
-                          domains or set(), exact_domains or set(),
-                          include_subdomains):
-            out.append(uid)
-    return out
+        result = data[0].split() if status == "OK" and data and data[0] else []
+    elif search_argument:
+        result = sorted(search_rule(conn, search_argument), key=int)
+    elif scan_mode == "search":
+        result = sorted(search_targets(conn, addresses or set(), domains or set(),
+                                       exact_domains or set(), should_stop), key=int)
+    else:   # full scan: match locally on the fetched (cache-assisted) From headers
+        uidvalidity = _read_uidvalidity(conn) if cache is not None else ""
+        status, data = conn.uid("SEARCH", None, "ALL")
+        if status != "OK" or not data or not data[0]:
+            return []
+        all_uids = data[0].split()
+        headers = fetch_from_headers(conn, all_uids, batch_size, should_stop,
+                                     cache=cache, account=account, folder=folder,
+                                     uidvalidity=uidvalidity)
+        result = [uid for uid, value in headers.items()
+                  if sender_matches(extract_sender_email(value), addresses or set(),
+                                    domains or set(), exact_domains or set(),
+                                    include_subdomains)]
+    return _apply_exclude(conn, result, exclude, should_stop)
 
 
 def fetch_messages(conn: imaplib.IMAP4_SSL, uids: list[bytes],
@@ -1100,7 +1112,8 @@ def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
                    dest_folder: str | None = None,
                    count_only: bool = False,
                    should_stop: StopCheck | None = None,
-                   cache=None, account: str = "") -> int:
+                   cache=None, account: str = "",
+                   exclude: set[str] | None = None) -> int:
     """Scan one folder and act on matching messages. Returns count acted on.
 
     The action is delete (default), Gmail-trash (``gmail_trash``), or **move**
@@ -1147,6 +1160,7 @@ def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
                 matched.append(uid)
                 logger.info("  MATCH  uid=%s  <%s>", uid.decode(), sender)
 
+    matched = _apply_exclude(conn, matched, exclude, should_stop)
     if not matched:
         logger.info("No matching messages in %r.", folder)
         return 0
