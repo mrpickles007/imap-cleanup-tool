@@ -276,11 +276,11 @@ tailwind.config = { theme: { extend: {
 
     <!-- Mode toggle: AI Cleanup (left) <-> Manual Cleanup (right); AI by default -->
     <div class="flex items-center justify-center gap-4 py-1">
-      <span id="modeLabelAi" class="text-base font-semibold flex items-center">✨ AI Cleanup</span>
+      <span id="modeLabelAi" class="text-sm sm:text-base font-semibold flex items-center">✨ AI Cleanup</span>
       <button id="modeToggle" type="button" role="switch" aria-checked="true" title="Switch between AI Cleanup and Manual Cleanup" class="relative w-16 h-8 rounded-full border border-brand/60 bg-panel2 transition-colors flex-none disabled:opacity-50">
         <span id="modeKnob" class="absolute top-1 left-1 w-6 h-6 rounded-full bg-brand transition-transform"></span>
       </button>
-      <span id="modeLabelManual" class="text-base font-semibold flex items-center">Manual Cleanup</span>
+      <span id="modeLabelManual" class="text-sm sm:text-base font-semibold flex items-center">Manual Cleanup</span>
       <input id="aiCleanup" type="checkbox" class="hidden" checked>
     </div>
 
@@ -1184,8 +1184,8 @@ function refreshConditional(){
     $('modeToggle').disabled = $('aiCleanup').disabled;
     $('modeToggle').setAttribute('aria-checked', ai?'true':'false');
     $('modeKnob').style.transform = ai ? 'translateX(0)' : 'translateX(32px)';
-    $('modeLabelAi').className = 'text-base font-semibold flex items-center '+(ai?'text-brand-light':'text-muted');
-    $('modeLabelManual').className = 'text-base font-semibold flex items-center '+(ai?'text-muted':'text-brand-light');
+    $('modeLabelAi').className = 'text-sm sm:text-base font-semibold flex items-center '+(ai?'text-brand-light':'text-muted');
+    $('modeLabelManual').className = 'text-sm sm:text-base font-semibold flex items-center '+(ai?'text-muted':'text-brand-light');
   }
   // AI Cleanup uses the match (filter, or whole folder when empty) exactly like
   // Move, so it does NOT dim the match - only Empty folder does.
