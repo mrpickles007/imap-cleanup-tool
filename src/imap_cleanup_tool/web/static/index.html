@@ -290,11 +290,13 @@ tailwind.config = { theme: { extend: {
     <!-- Manual Cleanup (visually on the RIGHT via order-2) -->
     <section id="secMatch" class="order-2 bg-panel border border-line rounded-xl p-5">
       <h2 class="font-display font-semibold text-brand-light mb-3">Manual Cleanup</h2>
+      <div id="matchSection">
       <div class="text-xs font-bold uppercase tracking-wider text-cream mb-2">What to match</div>
-      <div class="flex gap-4 mb-3 text-sm">
+      <div class="flex gap-4 mb-2 text-sm">
         <label class="flex items-center gap-2"><input type="radio" name="mode" value="targets" checked> Target list</label>
         <label class="flex items-center gap-2"><input type="radio" name="mode" value="rule"> Rule (query builder)</label>
       </div>
+      <p class="text-[11px] text-muted mt-1 mb-3">Choose which messages to act on: paste senders / domains as a <b>Target list</b>, or build a <b>Rule</b> with the query builder. This selects the messages for <b>Count</b>, <b>Run</b> and <b>Export</b> - and, with <b>AI Cleanup</b>, the senders the AI analyzes.</p>
       <p id="aiMatchNote" class="hidden text-[11px] text-ok border border-ok/40 bg-ok/10 rounded-lg px-2.5 py-1.5 mb-3">✓ <b>Works with AI Cleanup too:</b> the <b>Target list / Rule</b> selection and the <b>Load from file</b> / <b>Save to file</b> / <b>Clear all</b> buttons and the <b>Load saved Spam addresses</b> flag still apply - AI takes them into account in its search. <b>Leave it empty</b> to have AI analyze the <b>whole selected folder(s)</b>.</p>
       <div id="paneTargets">
         <div class="flex items-center text-xs text-muted mb-1">Senders / domains, one per line
@@ -343,12 +345,10 @@ tailwind.config = { theme: { extend: {
         <span id="ruleOut" class="text-xs text-muted ml-2"></span>
         <p class="text-[11px] text-muted mt-2">Rules match <b>server-side</b> (substring), so a domain also matches its subdomains and partials - and <code>*@</code> is not special here. For an <b>exact</b> domain with no subdomains, use a <b>Target list</b> with <code>*@domain.com</code> and scan mode <b>"full"</b>.</p>
       </div>
-      <div class="mt-4 pt-3 border-t border-line">
-        <div class="manual-only-chip hidden flex items-center gap-2 mb-3">
-          <span class="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-brand/70 bg-brand/15 text-brand-light backdrop-blur-sm">manual only</span>
-          <span class="text-[11px] text-muted">applies to <b>all the actions below</b> (Count, export/import, scan mode, move, empty) - they ignore AI Cleanup.</span>
-        </div>
-        <p class="text-[11px] text-muted mt-2 mb-1.5">Counts how many emails match the current filter in the selected folders - makes no changes.</p>
+      </div><!-- /matchSection -->
+
+      <div id="countGroup" class="mt-4 pt-3 border-t border-line">
+        <p class="text-[11px] text-muted mb-1.5">Counts how many emails match the current filter in the selected folders - makes no changes.</p>
         <button id="btnCount" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>Count matching emails</button>
       </div>
 
@@ -363,7 +363,7 @@ tailwind.config = { theme: { extend: {
 
       <!-- Manual-mode options (after Count) -->
       <div class="border-t border-line mt-4 pt-3 pb-1">
-        <p class="text-sm font-bold uppercase tracking-wider text-cream flex items-center">Manual-mode options
+        <p class="text-sm font-bold uppercase tracking-wider text-cream flex items-center">Options
           <span class="tip"><span class="ic">i</span><span class="bub">These shape a <b>Target list / Rule</b> run. <b>AI Cleanup</b> decides what to delete on its own and <b>ignores</b> all of them (it always scans server-side, never moves/empties, and handles Gmail Trash automatically). <b>Expunge</b> (in the Run section below) is the exception - it applies to AI Cleanup too.</span></span>
         </p>
         <p class="text-[11px] text-muted mt-0.5">Below options apply to a <b>Target list / Rule</b> run only - <b>AI Cleanup</b> ignores them.</p>
@@ -481,6 +481,7 @@ tailwind.config = { theme: { extend: {
           <span>Check spam addresses</span>
           <span class="tip"><span class="ic">i</span><span class="bub">Saves LLM tokens: flagged senders that are <b>already in your Spam addresses</b> list (from earlier reports/runs) are accepted as spam <b>without asking the model again</b>, so fewer addresses are sent to the LLM. Edge case: an important email from a sender already on the list would be treated as spam - rare, and avoided by running with this <b>unchecked</b> (then every flagged sender is re-evaluated by the LLM).</span></span>
         </label>
+        <div id="matchSlotAi" class="hidden my-3 py-3 border-t border-b border-line"></div>
         <div class="flex gap-2 pt-1 flex-wrap items-center">
           <button id="btnAiReport" type="button" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-brand hover:bg-brand-light text-ink font-semibold text-sm inline-flex items-center justify-center gap-1.5">Generate report<span class="tip"><span class="ic" style="border-color:rgba(0,0,0,.35);background:rgba(0,0,0,.18);color:rgba(0,0,0,.7)">i</span><span class="bub">Builds the report <b>only</b>: it scores senders, asks the model, <b>saves the CSV</b> (and <b>emails it</b> if notifications are enabled) and records flagged senders to your Spam list. It <b>does not delete anything</b>. To actually clean up - delete the confirmed senders - click <b>Run</b> (with AI Cleanup ticked).</span></span></button>
           <div class="flex gap-2 items-center flex-wrap sm:flex-nowrap min-w-0 basis-full grow">
@@ -1153,6 +1154,20 @@ function applyProviderTips(){
   set('passTip', p.pass_tip);
 }
 function gmailHost(){ return $('host').value.trim()==='imap.gmail.com'; }
+// Visual only: under AI Cleanup the whole "What to match" block lives inside the
+// AI card (between Check-spam and Generate report); under Manual it sits back in
+// the Manual Cleanup card. Same DOM node is moved - no content/handlers lost.
+function placeMatchSection(ai){
+  const sec=$('matchSection'), slot=$('matchSlotAi'), cg=$('countGroup'), sm=$('secMatch');
+  if(!sec||!slot||!cg||!sm) return;
+  if(ai){
+    if(sec.parentElement!==slot) slot.appendChild(sec);
+    slot.classList.remove('hidden');
+  } else {
+    slot.classList.add('hidden');
+    if(sec.parentElement!==sm) sm.insertBefore(sec, cg);
+  }
+}
 function refreshConditional(){
   const rule=document.querySelector('input[name=mode]:checked').value==='rule';
   const aiOk = !(typeof META==='object' && META && META.ai_available===false);
@@ -1209,6 +1224,7 @@ function refreshConditional(){
   document.querySelectorAll('.manual-only-chip').forEach(c=>c.classList.toggle('hidden', !ai));
   // Green note: under AI the match (targets/rule + load/save/clear) is still used
   if($('aiMatchNote')) $('aiMatchNote').classList.toggle('hidden', !ai);
+  placeMatchSection(ai);   // move the whole What-to-match block into the AI card under AI
   if($('btnSenders')) $('btnSenders').disabled = ai;
   if($('btnSaveSenders')) $('btnSaveSenders').disabled = ai;
   if($('sendersName')) $('sendersName').disabled = ai;
@@ -1796,7 +1812,11 @@ async function saveLlmPreset(kind, value){
 // "(Custom)" entry in the dropdown for the session, but is not a saved preset).
 async function offerSavePreset(value){
   const v=(value||'').trim();
-  if(!v || llmPresetList().includes(v)) return;   // empty or already a preset -> nothing to offer
+  if(!v) return;
+  if(llmPresetList().includes(v)){                 // already a preset
+    if(llmUserList().includes(v)) toast('"'+v+'" is already in your saved presets.', 'border-ok/50 bg-ok/15 text-ok');
+    return;                                         // (bundled preset -> stay quiet)
+  }
   const kind=$('llmType').value==='local'?'local':'remote';
   if(await confirmDialog({title:'Save as a preset?',
       message:'Save "'+v+'" as a reusable model preset, so it stays in your dropdown for any model?\n\nChoose "Just use it" to use this model id for the CURRENT model only - it shows as "(Custom)" in the dropdown while selected (kept for this session) but is NOT added to your saved presets.',
