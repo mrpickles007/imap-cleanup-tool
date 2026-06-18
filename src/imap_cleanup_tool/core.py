@@ -1119,6 +1119,8 @@ def existing_message_ids(conn: imaplib.IMAP4_SSL, folder: str, *,
     if status != "OK" or not data or not data[0]:
         return set()
     uids = data[0].split()
+    logger.info("Duplicate check in %r: %d message(s) already in the folder.",
+                folder, len(uids))
     uidvalidity = _read_uidvalidity(conn) if cache is not None else ""
     cached: dict[str, str] = {}
     if cache is not None and uidvalidity:
@@ -1130,15 +1132,20 @@ def existing_message_ids(conn: imaplib.IMAP4_SSL, folder: str, *,
             cached = {}
     ids = {v for v in cached.values() if v}
     missing = [u for u in uids if u.decode() not in cached]
-    if cached:
-        logger.info("  %d/%d Message-ID(s) from cache; fetching %d new.",
-                    len(cached), len(uids), len(missing))
+    if cache is not None and uidvalidity:
+        logger.info("  %d Message-ID(s) from local cache; fetching %d new.",
+                    len(cached), len(missing))
+    elif missing:
+        logger.info("  Fetching %d Message-ID(s) (local cache off).", len(missing))
     new_rows: dict[str, str] = {}
+    done = 0
     for i in range(0, len(missing), batch_size):
         _check_stop(should_stop)
         chunk = missing[i:i + batch_size]
         status, data = conn.uid("FETCH", b",".join(chunk),
                                 "(UID BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])")
+        done += len(chunk)
+        logger.info("  ... checked %d/%d message-ID(s)", done, len(missing))
         if status != "OK" or not data:
             continue
         for part in data:

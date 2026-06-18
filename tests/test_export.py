@@ -33,6 +33,24 @@ class FakeConn:
         return ("OK", [b"[APPENDUID 1 9] APPEND completed"])
 
 
+class ExistingMessageIdsTests(unittest.TestCase):
+    def test_collects_message_ids(self):
+        class C:
+            def select(self, n, readonly=False):
+                return ("OK", [b"2"])
+            def uid(self, *a):
+                if a[0] == "SEARCH":
+                    return ("OK", [b"1 2"])
+                if a[0] == "FETCH":
+                    return ("OK", [(b"1 (UID 1 BODY[] {0}", b"Message-ID: <a@x>\r\n\r\n"),
+                                   b")",
+                                   (b"2 (UID 2 BODY[] {0}", b"Message-ID: <b@x>\r\n\r\n"),
+                                   b")"])
+                return ("OK", [b""])
+        ids = core.existing_message_ids(C(), "INBOX")   # no cache -> fetch all
+        self.assertEqual(ids, {"<a@x>", "<b@x>"})
+
+
 class MboxRoundTripTests(unittest.TestCase):
     def test_build_then_read_preserves_messages(self):
         blob = core.build_mbox([RAW1, RAW2])
