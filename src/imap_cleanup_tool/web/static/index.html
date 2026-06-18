@@ -274,11 +274,21 @@ tailwind.config = { theme: { extend: {
       </div>
     </section>
 
-    <!-- ROW 2: Manual Cleanup (left) + AI Cleanup (right), 50-50 -->
+    <!-- Mode toggle: AI Cleanup (left) <-> Manual Cleanup (right); AI by default -->
+    <div class="flex items-center justify-center gap-4 py-1">
+      <span id="modeLabelAi" class="text-sm font-semibold flex items-center">✨ AI Cleanup</span>
+      <button id="modeToggle" type="button" role="switch" aria-checked="true" title="Switch between AI Cleanup and Manual Cleanup" class="relative w-16 h-8 rounded-full border border-brand/60 bg-panel2 transition-colors flex-none disabled:opacity-50">
+        <span id="modeKnob" class="absolute top-1 left-1 w-6 h-6 rounded-full bg-brand transition-transform"></span>
+      </button>
+      <span id="modeLabelManual" class="text-sm font-semibold flex items-center">Manual Cleanup</span>
+      <input id="aiCleanup" type="checkbox" class="hidden" checked>
+    </div>
+
+    <!-- ROW 2: AI Cleanup (left) + Manual Cleanup (right), 50-50 -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-    <!-- Manual Cleanup -->
-    <section id="secMatch" class="bg-panel border border-line rounded-xl p-5">
+    <!-- Manual Cleanup (visually on the RIGHT via order-2) -->
+    <section id="secMatch" class="order-2 bg-panel border border-line rounded-xl p-5">
       <h2 class="font-display font-semibold text-brand-light mb-3">Manual Cleanup</h2>
       <div class="text-xs font-bold uppercase tracking-wider text-cream mb-2">What to match</div>
       <div class="flex gap-4 mb-3 text-sm">
@@ -404,14 +414,11 @@ tailwind.config = { theme: { extend: {
       <p id="emptyNote" class="hidden text-[11px] text-warn -mt-1 mb-1">⚠️ Will delete <b>all</b> messages in the <b>selected</b> folders (the ones ticked under <b>Folders</b>), not just matches.</p>
     </section>
 
-    <!-- AI Cleanup (expanded card, same style as Manual Cleanup) -->
-    <section id="secAi" class="bg-panel border border-line rounded-xl p-5">
-      <label class="flex items-center justify-between cursor-pointer mb-3">
-        <span class="font-display font-semibold text-brand-light flex items-center">✨ AI Cleanup
-          <span class="tip"><span class="ic">i</span><span class="bub">Scores every sender with a <b>heuristic spam score</b> (List-Unsubscribe, unread ratio, send frequency, sender pattern, bulk), then - with a configured model - asks an LLM to judge the senders above your threshold. <b>Generate report</b> only analyzes; later, <b>Run</b> will also delete the confirmed ones. Selecting this disables the other actions and the match list (it looks at all senders).</span></span>
-        </span>
-        <input id="aiCleanup" type="checkbox">
-      </label>
+    <!-- AI Cleanup (visually on the LEFT via order-1; mode chosen by the toggle above) -->
+    <section id="secAi" class="order-1 bg-panel border border-line rounded-xl p-5">
+      <h2 class="font-display font-semibold text-brand-light flex items-center mb-3">✨ AI Cleanup
+        <span class="tip"><span class="ic">i</span><span class="bub">Scores every sender with a <b>heuristic spam score</b> (List-Unsubscribe, unread ratio, send frequency, sender pattern, bulk), then - with a configured model - asks an LLM to judge the senders above your threshold. <b>Generate report</b> only analyzes; later, <b>Run</b> will also delete the confirmed ones. Selecting this disables the other actions and the match list (it looks at all senders).</span></span>
+      </h2>
       <div id="aiExtraBanner" class="hidden rounded-lg border border-warn/40 bg-warn/10 text-warn text-xs px-3 py-2 mb-3">
         ⚠️ AI features are disabled: the optional <b>[ai]</b> extra isn't installed. Install it where the app runs:
         <code class="block mt-1 text-cream">pip install "imap-cleanup-tool[ai]"</code>
@@ -487,13 +494,13 @@ tailwind.config = { theme: { extend: {
       <div class="text-xs font-bold uppercase tracking-wider text-cream mb-2">Cleanup action</div>
 
       <!-- Run options: Expunge + Dry-run both apply to the Run -->
-      <p id="expungeNote" class="hidden text-[11px] text-muted mb-1"><b>Disabled on Gmail</b> (no effect here): Gmail <b>auto-expunges</b> deleted messages itself. With “Gmail: move to Trash” they go to the Trash - then, <b>after the run</b>, select <code>[Gmail]/Trash</code> and use <b>Empty folder</b> to remove them for good.</p>
       <label class="flex items-center justify-between text-sm py-1.5">
         <span class="flex items-center">Expunge (remove permanently)
           <span class="tip"><span class="ic">i</span><span class="bub" style="border-color:#ff5d73">⚠️ Permanently removes flagged messages. Without it, messages are only flagged <code>\\Deleted</code> (hidden but recoverable until expunged). Applies to both manual runs and AI Cleanup.</span></span>
         </span>
         <input id="expunge" type="checkbox">
       </label>
+      <p id="expungeNote" class="hidden text-[11px] text-muted -mt-1 mb-1"><b>Disabled on Gmail</b> (no effect here): Gmail <b>auto-expunges</b> deleted messages itself. With “Gmail: move to Trash” they go to the Trash - then, <b>after the run</b>, select <code>[Gmail]/Trash</code> and use <b>Empty folder</b> to remove them for good.</p>
       <p id="expungeEnabledNote" class="hidden text-[11px] text-muted -mt-1 mb-1">Removes the flagged messages <b>permanently</b>. Without it they are only flagged <code>\\Deleted</code> - <b>not every server</b> drops those on its own, so they can linger until expunged. Applies to manual runs and AI Cleanup.</p>
 
       <label class="flex items-center justify-between text-sm py-1.5">
@@ -1147,6 +1154,14 @@ function refreshConditional(){
   $('emptyFolder').disabled = ai;
   const empty=$('emptyFolder').checked;
   $('aiCleanup').disabled = empty || !aiOk;   // empty folder, or no [ai] extra
+  // Reflect the AI <-> Manual mode toggle: knob position, label colours, disabled.
+  if($('modeToggle')){
+    $('modeToggle').disabled = $('aiCleanup').disabled;
+    $('modeToggle').setAttribute('aria-checked', ai?'true':'false');
+    $('modeKnob').style.transform = ai ? 'translateX(0)' : 'translateX(32px)';
+    $('modeLabelAi').className = 'text-sm font-semibold flex items-center '+(ai?'text-brand-light':'text-muted');
+    $('modeLabelManual').className = 'text-sm font-semibold flex items-center '+(ai?'text-muted':'text-brand-light');
+  }
   // AI Cleanup uses the match (filter, or whole folder when empty) exactly like
   // Move, so it does NOT dim the match - only Empty folder does.
   const matchOff = empty;
@@ -1179,6 +1194,8 @@ function refreshConditional(){
   $('btnRun').title = ai ? 'AI Cleanup: heuristic + LLM, then delete the confirmed senders (dry-run simulates)' : '';
   // These are manual-only operations - AI Cleanup decides per sender, so hide them away.
   $('btnCount').disabled = ai;
+  if($('btnExportMessages')) $('btnExportMessages').disabled = ai;
+  if($('btnImportMessages')) $('btnImportMessages').disabled = ai;
   if($('btnSenders')) $('btnSenders').disabled = ai;
   if($('btnSaveSenders')) $('btnSaveSenders').disabled = ai;
   if($('sendersName')) $('sendersName').disabled = ai;
@@ -1597,6 +1614,7 @@ $('moveDestNew').oninput=updateJobSummary;
 
 /* ---------- AI cleanup (heuristic report) ---------- */
 $('aiCleanup').onchange=refreshConditional;
+if($('modeToggle')) $('modeToggle').onclick=()=>{ if($('aiCleanup').disabled) return; $('aiCleanup').checked=!$('aiCleanup').checked; refreshConditional(); };
 $('aiThreshold').oninput=()=>{ $('thrVal').textContent=parseFloat($('aiThreshold').value).toFixed(1); };
 $('aiModel').onchange=updateAiSecret;
 function aiPayload(){
