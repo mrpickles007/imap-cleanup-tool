@@ -701,6 +701,15 @@ password login** for IMAP/SMTP in favor of **OAuth2 / modern auth**; for those
 accounts you sign in with OAuth2 instead of a password - over the same standard
 library, no extra dependency.
 
+> **Most providers still use an app password - only Microsoft is OAuth-only here.**
+> Out of the box, **Gmail, Yahoo, iCloud, Fastmail, AOL, Zoho, …** all connect with
+> a normal **app password** (not OAuth): pick the provider in the connection form
+> and read its **ⓘ tooltip** on the User/Password fields - where present it explains
+> exactly how to generate that provider's app password and enable IMAP. Only the
+> **Microsoft** preset is flagged modern-auth-only and hides the password in favor
+> of *Sign in with Microsoft* (Google can be switched to OAuth too, but only if you
+> add its credentials - see [below](#enabling-oauth-for-a-provider-example-gmail--google)).
+
 How it works: you sign in **once** in your browser (a **device-code** flow: open
 a URL, type a short code). The tool stores only a **refresh token** (never your
 password), encrypted like a profile password if you choose. From then on it mints
