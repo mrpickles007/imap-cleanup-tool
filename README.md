@@ -1033,6 +1033,10 @@ Get an email when a cleanup finishes. Configure it in the **Notifications** tab:
   profiles - the passphrase needs a **confirmation**, a show/hide toggle, and
   meets **strength criteria** before you can save (an encrypted profile can't run
   in scheduled jobs). Each profile has a **test connection** button.
+- **Sign in with Microsoft (OAuth2)** for sending, too - for hosts that dropped
+  password login. The button creates an OAuth2 SMTP profile (no password, a stored
+  refresh token); editing it shows a *re-authenticate* action, and a failed test
+  offers to re-sign-in. See [OAuth2 login](#oauth2-login-microsoft-modern-auth).
 - **One active profile** + a recipient address. Toggle notifications for
   **scheduled jobs** (default) and/or **interactive runs**. A **Send test email**
   button confirms it all works. With **interactive runs** on, you get an email
