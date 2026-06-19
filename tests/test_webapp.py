@@ -178,6 +178,35 @@ class WebApiTests(unittest.TestCase):
                 self.assertEqual(
                     len(self.client.get("/api/jobs").json()["jobs"]), 2)
 
+    def test_rename_job_changes_label_keeps_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)), \
+                 mock.patch.object(profiles, "config_dir",
+                                   return_value=Path(tmp)):
+                self.client.post("/api/profiles", json={
+                    "name": "pf", "host": "imap.gmail.com", "user": "u",
+                    "password": "pw", "provider": "Gmail"})
+
+                def mk(nm):
+                    return self.client.post("/api/jobs", json={
+                        "name": nm, "profile": "pf", "match_mode": "rule",
+                        "rule_tree": _RULE, "kind": "daily",
+                        "time": "03:00"}).json()["saved"]
+                jid = mk("old")
+                r = self.client.post(f"/api/jobs/{jid}/rename",
+                                     json={"label": "new"})
+                self.assertEqual(r.status_code, 200)
+                jobs = self.client.get("/api/jobs").json()["jobs"]
+                self.assertEqual(len(jobs), 1)
+                self.assertEqual(jobs[0]["name"], jid)      # id unchanged
+                self.assertEqual(jobs[0]["label"], "new")   # label changed
+                # renaming to a label another job already uses is rejected
+                jid2 = mk("other")
+                clash = self.client.post(f"/api/jobs/{jid2}/rename",
+                                         json={"label": "new"})
+                self.assertEqual(clash.status_code, 400)
+
     def test_move_job_builds_args(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(scheduler, "config_dir",

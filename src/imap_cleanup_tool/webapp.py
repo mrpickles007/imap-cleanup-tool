@@ -467,6 +467,9 @@ def create_app():
     class ReportNamesIn(BaseModel):
         names: list[str] = []
 
+    class JobRenameIn(BaseModel):
+        label: str
+
     class ProfileSaveIn(BaseModel):
         name: str
         host: str
@@ -1777,7 +1780,28 @@ def create_app():
     def save_job(body: JobIn) -> dict[str, Any]:
         job = _job_from(body)
         scheduler.upsert_job(job)
-        return {"saved": job.name, "command": scheduler.export_system(job)}
+        return {"saved": job.name, "label": job.label,
+                "command": scheduler.export_system(job)}
+
+    @app.post("/api/jobs/{name}/rename")
+    def rename_job(name: str, body: JobRenameIn) -> dict[str, Any]:
+        """Rename a job in place: only its display label changes (its id, OS task,
+        cron marker and log file stay the same, so nothing needs re-installing)."""
+        label = _safe_job_name(body.label)
+        jobs = scheduler.load_jobs()
+        job = next((j for j in jobs if j.name == name), None)
+        if job is None:
+            raise HTTPException(404, f"No saved job {name!r}.")
+        prof = scheduler._job_profile(job.args)
+        clash = next((j for j in jobs if j.name != name
+                      and (getattr(j, "label", "") or j.name) == label
+                      and scheduler._job_profile(j.args) == prof), None)
+        if clash is not None:
+            raise HTTPException(
+                400, f"This profile already has a job named {label!r}.")
+        job.label = label
+        scheduler.save_jobs(jobs)
+        return {"renamed": name, "label": label}
 
     @app.delete("/api/jobs/{name}")
     def delete_job(name: str) -> dict[str, Any]:

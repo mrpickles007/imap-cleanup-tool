@@ -873,10 +873,12 @@ Scheduling tab says so. On the CLI these map to `--ai-cleanup --ai-report-only` 
 omitting `--ai-model`.
 
 **Saved jobs.** Each saved-job row has: **install** / **uninstall** (register or
-remove the OS task), **details** (a plain-English recap of exactly what the job
-does - profile, schedule, folders, action, match and AI settings - the same view
-the Job summary showed when you saved it), **source** (the raw CLI + system
-command), **logs** (run history), and **delete**. If you delete a **connection
+remove the OS task), **rename** (change the display name in place - the job's id,
+OS task, log and history stay, so nothing is re-registered), **details** (a
+plain-English recap of exactly what the job does - its **id**, profile, schedule,
+folders, action, match and AI settings - the same view the Job summary showed when
+you saved it), **source** (the raw CLI + system command), **logs** (run history),
+and **delete**. If you delete a **connection
 profile** that one or more jobs use, the app **warns you and lists them**, and lets
 you either remove those now-orphaned jobs too or keep them (orphaned jobs fail at
 run time with *"No profile named ..."*).

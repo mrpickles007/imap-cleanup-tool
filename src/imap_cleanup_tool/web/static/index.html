@@ -1082,11 +1082,13 @@ function promptDialog(opts){
     ov.innerHTML='<div class="bg-panel border border-line rounded-xl p-5 w-full max-w-sm">'
       +'<h3 class="font-display font-semibold text-brand-light mb-2">'+escapeHtml(opts.title||'Enter value')+'</h3>'
       +'<p class="text-muted text-sm mb-3">'+escapeHtml(opts.message||'')+'</p>'
-      +'<div class="flex gap-2"><input type="'+(opts.type||'password')+'" class="field" placeholder="'+escapeHtml(opts.placeholder||'')+'"><button data-x="eye" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream text-sm">show</button></div>'
+      +'<div class="flex gap-2"><input type="'+(opts.type||'password')+'" class="field" placeholder="'+escapeHtml(opts.placeholder||'')+'">'
+      +((opts.type||'password')==='password' ? '<button data-x="eye" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream text-sm">show</button>' : '')
+      +'</div>'
       +'<div class="flex justify-end gap-2 mt-4"><button data-x="c" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Cancel</button>'
       +'<button data-x="o" class="px-4 py-2 rounded-lg font-semibold bg-brand text-ink hover:bg-brand-light">OK</button></div></div>';
     document.body.appendChild(ov);
-    const inp=ov.querySelector('input'); setTimeout(()=>inp.focus(),50);
+    const inp=ov.querySelector('input'); inp.value=opts.value||''; setTimeout(()=>{ inp.focus(); inp.select(); },50);
     const eye=ov.querySelector('[data-x=eye]'); if(eye) eye.onclick=()=>{ inp.type=inp.type==='password'?'text':'password'; eye.textContent=inp.type==='password'?'show':'hide'; };
     const done=(v)=>{ ov.remove(); resolve(v); };
     ov.querySelector('[data-x=o]').onclick=()=>done(inp.value);
@@ -1707,6 +1709,8 @@ function parseJobArgs(args){
 /* Human-readable details of a saved job (what the Job summary showed when you saved it). */
 function jobDetailsHtml(j){
   const o=parseJobArgs(j.args); const rows=[]; let disc;
+  rows.push(_recapRow('Name', '<b>'+escapeHtml(j.label||j.name)+'</b>'));
+  rows.push(_recapRow('Job id', '<span class="font-mono text-[12px]">'+escapeHtml(j.name)+'</span>'));
   rows.push(_recapRow('Profile', '<b>'+escapeHtml(o.profile||'?')+'</b>'));
   rows.push(_recapRow('Schedule', '<b>'+escapeHtml(describeSchedule(j.schedule))+'</b>'));
   rows.push(_recapRow('Folders', '<b>'+escapeHtml((o.folders.length?o.folders:['INBOX']).join(', '))+'</b>'));
@@ -1763,6 +1767,14 @@ async function loadJobs(){
         toggle.className='text-brand-light text-xs hover:underline'; toggle.textContent='install';
         toggle.onclick=async()=>{ try{ const r=await api('/api/jobs/install-saved',{name:j.name}); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=r.message+'\n\n'+r.command; loadJobs(); }catch(e){ toastErr(e.message); } };
       }
+      const ren=document.createElement('button'); ren.className='text-muted text-xs hover:text-cream'; ren.textContent='rename';
+      ren.onclick=async()=>{
+        const nv=await promptDialog({title:'Rename job', type:'text', value:(j.label||j.name),
+          message:'New name for this job (only the display name changes; its schedule, settings and history stay).'});
+        if(nv===null) return; const label=(nv||'').trim(); if(!label || label===(j.label||j.name)) return;
+        try{ const r=await api('/api/jobs/'+encodeURIComponent(j.name)+'/rename',{label}); toast('Renamed to "'+r.label+'".','border-ok/50 bg-ok/15 text-ok'); loadJobs(); }
+        catch(e){ toastErr(e.message); }
+      };
       const det=document.createElement('button'); det.className='text-brand-light text-xs hover:underline'; det.textContent='details';
       det.onclick=()=>infoDialog('Job details - '+(j.label||j.name), jobDetailsHtml(j));
       const src=document.createElement('button'); src.className='text-muted text-xs hover:text-cream'; src.textContent='source';
@@ -1777,7 +1789,7 @@ async function loadJobs(){
       logs.onclick=()=>openJobLog(j.name);
       const del=document.createElement('button'); del.className='text-danger text-xs hover:underline'; del.textContent='delete';
       del.onclick=async()=>{ if(!(await confirmDialog({title:'Delete job', message:'Delete job "'+j.name+'" and remove its system task?', okText:'Delete', danger:true}))) return; await api('/api/jobs/'+encodeURIComponent(j.name),null,'DELETE'); loadJobs(); };
-      actions.append(toggle, det, src, logs, del); row.appendChild(actions); box.appendChild(row);
+      actions.append(toggle, ren, det, src, logs, del); row.appendChild(actions); box.appendChild(row);
     });
   }catch(e){ $('jobsList').innerHTML='<p class="text-danger text-xs">'+e.message+'</p>'; }
 }
