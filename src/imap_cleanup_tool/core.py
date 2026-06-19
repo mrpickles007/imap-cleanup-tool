@@ -952,17 +952,23 @@ def _per_week(date_headers: list[str], count: int) -> float:
 # --------------------------------------------------------------------------- #
 
 def _apply_exclude(conn: imaplib.IMAP4_SSL, uids, exclude, should_stop=None):
-    """Drop UIDs whose sender matches any address in ``exclude`` (SEARCH FROM)."""
-    ex = {a for a in (exclude or set()) if a}
-    if not ex or not uids:
+    """Drop UIDs whose sender is in ``exclude`` (one SEARCH FROM per address).
+
+    Logs the **net** effect on the matched set (not the folder-wide From count),
+    so the output reads clearly.
+    """
+    addrs = sorted({a for a in (exclude or set()) if a})
+    if not addrs or not uids:
         return uids
-    logger.info("Excluding messages from: %s", ", ".join(sorted(ex)))
-    drop = search_targets(conn, ex, set(), should_stop=should_stop)
-    if not drop:
-        logger.info("=> excluded 0 message(s) (none matched the exclude list).")
-        return uids
+    logger.info("Exclude list (%d address(es)): %s", len(addrs), ", ".join(addrs))
+    drop: set[bytes] = set()
+    for addr in addrs:
+        _check_stop(should_stop)
+        status, data = conn.uid("SEARCH", None, "FROM", f'"{addr}"')
+        if status == "OK" and data and data[0]:
+            drop.update(data[0].split())
     kept = [u for u in uids if u not in drop]
-    logger.info("=> excluded %d message(s) (%d -> %d).",
+    logger.info("=> exclude removed %d of %d matched message(s) (%d kept).",
                 len(uids) - len(kept), len(uids), len(kept))
     return kept
 

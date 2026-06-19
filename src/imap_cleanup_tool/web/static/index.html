@@ -354,21 +354,7 @@ tailwind.config = { theme: { extend: {
       </div>
       </div><!-- /matchSection -->
 
-      <div id="countGroup" class="mt-4 pt-3 border-t border-line">
-        <p class="text-[11px] text-muted mb-1.5">Counts how many emails match the current filter in the selected folders - makes no changes.</p>
-        <button id="btnCount" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>Count matching emails</button>
-      </div>
-
-      <!-- Export / import the matching messages (full content) -->
-      <p class="text-[11px] text-muted mt-3 mb-1.5">These also follow your filter: <b>Export</b> downloads the matching messages - or the <b>whole selected folder(s)</b> if no filter is set; <b>Import</b> appends into the <b>single</b> selected folder (one only, not more).</p>
-      <div class="flex items-center gap-2 flex-wrap">
-        <button id="btnExportMessages" type="button" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2" title="Download the matching messages (full content) as a .mbox file"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7"/><polyline points="22 7 12 13 2 7"/><path d="M19 15v6"/><path d="m16 18 3 3 3-3"/></svg>Export messages</button>
-        <button id="btnImportMessages" type="button" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2" title="Import messages from a .mbox / .eml file into the selected folder"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7"/><polyline points="22 7 12 13 2 7"/><path d="M19 21v-6"/><path d="m16 18 3-3 3 3"/></svg>Import messages</button>
-        <input id="importFileMsg" type="file" accept=".mbox,.eml,message/rfc822" class="hidden">
-        <span class="tip"><span class="ic">i</span><span class="bub"><b>Export</b> downloads the <b>full</b> matching messages (headers + body) from the selected folders as a single <code>.mbox</code> file - same matching as <b>Count</b> (targets/rule, "search" or "full"), or the <b>whole folder</b> when no filter is set. Read-only: it does <b>not</b> mark anything as read. <b>Import</b> appends the messages from a <code>.mbox</code> (or single <code>.eml</code>) file into the <b>one</b> folder you have selected.</span></span>
-      </div>
-
-      <!-- Manual-mode options (after Count) -->
+      <!-- Options (separated from the What-to-match block above) -->
       <div class="border-t border-line mt-4 pt-3 pb-1">
         <p class="text-sm font-bold uppercase tracking-wider text-cream flex items-center">Options
           <span class="tip"><span class="ic">i</span><span class="bub">These shape a <b>Target list / Rule</b> run. <b>AI Cleanup</b> decides what to delete on its own and <b>ignores</b> all of them (it always scans server-side, never moves/empties, and handles Gmail Trash automatically). <b>Expunge</b> (in the Run section below) is the exception - it applies to AI Cleanup too.</span></span>
@@ -425,6 +411,20 @@ tailwind.config = { theme: { extend: {
         <input id="emptyFolder" type="checkbox">
       </label>
       <p id="emptyNote" class="hidden text-[11px] text-warn -mt-1 mb-1">⚠️ Will delete <b>all</b> messages in the <b>selected</b> folders (the ones ticked under <b>Folders</b>), not just matches.</p>
+
+      <div id="countGroup" class="mt-4 pt-3 border-t border-line">
+        <p class="text-[11px] text-muted mb-1.5">Counts how many emails match the current filter in the selected folders - makes no changes.</p>
+        <button id="btnCount" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>Count matching emails</button>
+      </div>
+
+      <!-- Export / import the matching messages (full content) -->
+      <p class="text-[11px] text-muted mt-3 mb-1.5">These also follow your filter: <b>Export</b> downloads the matching messages - or the <b>whole selected folder(s)</b> if no filter is set; <b>Import</b> appends into the <b>single</b> selected folder (one only, not more).</p>
+      <div class="flex items-center gap-2 flex-wrap">
+        <button id="btnExportMessages" type="button" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2" title="Download the matching messages (full content) as a .mbox file"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7"/><polyline points="22 7 12 13 2 7"/><path d="M19 15v6"/><path d="m16 18 3 3 3-3"/></svg>Export messages</button>
+        <button id="btnImportMessages" type="button" class="px-4 py-2 rounded-lg bg-panel2 border border-brand/60 text-cream hover:border-brand text-sm font-semibold flex items-center gap-2" title="Import messages from a .mbox / .eml file into the selected folder"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7"/><polyline points="22 7 12 13 2 7"/><path d="M19 21v-6"/><path d="m16 18 3-3 3 3"/></svg>Import messages</button>
+        <input id="importFileMsg" type="file" accept=".mbox,.eml,message/rfc822" class="hidden">
+        <span class="tip"><span class="ic">i</span><span class="bub"><b>Export</b> downloads the <b>full</b> matching messages (headers + body) from the selected folders as a single <code>.mbox</code> file - same matching as <b>Count</b> (targets/rule, "search" or "full"), or the <b>whole folder</b> when no filter is set. Read-only: it does <b>not</b> mark anything as read. <b>Import</b> appends the messages from a <code>.mbox</code> (or single <code>.eml</code>) file into the <b>one</b> folder you have selected.</span></span>
+      </div>
     </section>
 
     <!-- AI Cleanup (visually on the LEFT via order-1; mode chosen by the toggle above) -->
@@ -1208,14 +1208,16 @@ function gmailHost(){ const h=($('host').value||'').trim().toLowerCase(); if(!h)
 // AI card (between Check-spam and Generate report); under Manual it sits back in
 // the Manual Cleanup card. Same DOM node is moved - no content/handlers lost.
 function placeMatchSection(ai){
-  const sec=$('matchSection'), slot=$('matchSlotAi'), cg=$('countGroup'), sm=$('secMatch');
-  if(!sec||!slot||!cg||!sm) return;
+  const sec=$('matchSection'), slot=$('matchSlotAi'), sm=$('secMatch');
+  if(!sec||!slot||!sm) return;
   if(ai){
     if(sec.parentElement!==slot) slot.appendChild(sec);
     slot.classList.remove('hidden');
   } else {
     slot.classList.add('hidden');
-    if(sec.parentElement!==sm) sm.insertBefore(sec, cg);
+    // back into the Manual card at the TOP (just under the h2), above Options/Count
+    const h2=sm.querySelector('h2');
+    if(sec.parentElement!==sm) sm.insertBefore(sec, h2 ? h2.nextElementSibling : sm.firstChild);
   }
 }
 // Dry-run is the safety switch: highlight it green when ON (preview only) and
