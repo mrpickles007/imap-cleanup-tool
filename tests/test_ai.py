@@ -193,21 +193,17 @@ class AiReportTests(unittest.TestCase):
 
 
 class LLMHelpersTests(unittest.TestCase):
-    def test_parse_verdicts_plain(self):
-        out = ai.parse_verdicts(
+    def test_validate_verdicts_plain(self):
+        out = ai.validate_verdicts(
             '{"verdicts":[{"sender":"A@B.com","delete":true,"reason":"junk",'
             '"confidence":0.9},{"sender":"c@d.com","delete":false}]}')
         self.assertTrue(out["a@b.com"]["delete"])      # lowercased key
         self.assertFalse(out["c@d.com"]["delete"])
 
-    def test_parse_verdicts_tolerates_fences_and_prose(self):
-        out = ai.parse_verdicts(
+    def test_validate_verdicts_tolerates_fences_and_prose(self):
+        out = ai.validate_verdicts(
             'Sure!\n```json\n{"verdicts":[{"sender":"x@y.com","delete":true}]}\n```')
         self.assertTrue(out["x@y.com"]["delete"])
-
-    def test_parse_verdicts_bad_input(self):
-        self.assertEqual(ai.parse_verdicts(""), {})
-        self.assertEqual(ai.parse_verdicts("not json"), {})
 
     def test_validate_verdicts_rejects_bad_json(self):
         with self.assertRaises(ValueError):

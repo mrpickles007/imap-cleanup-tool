@@ -111,14 +111,6 @@ def validate_verdicts(content: str) -> dict:
     return out
 
 
-def parse_verdicts(content: str) -> dict:
-    """Lenient parse: returns {} on any problem (no retry)."""
-    try:
-        return validate_verdicts(content)
-    except ValueError:
-        return {}
-
-
 def _call_once(litellm, kwargs: dict):
     """One LLM call, preferring strict JSON mode but tolerating models without it."""
     try:
