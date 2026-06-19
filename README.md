@@ -847,8 +847,11 @@ Each job runs with the **connection profile you are connected with** - there is 
 profile picker in the Scheduling tab. **Connect via a saved, non-encrypted profile**
 in the Cleanup tab, and that profile is used for the job. Jobs are **scoped to that
 profile**: the *Saved jobs* list shows the connected profile's jobs, so different
-accounts keep their own jobs. The scheduled task runs the job by name
-(`imap-cleanup-tool --run-job NAME`) via the current interpreter (so it works inside
+accounts keep their own jobs. Each saved job gets a **unique internal id** (your
+name plus a short random suffix), so the same job name under two different profiles
+stays independent (separate OS task, log and `--run-job` id); re-saving the same
+name for the same profile updates that job. The scheduled task runs the job by its
+id (`imap-cleanup-tool --run-job NAME`) via the current interpreter (so it works inside
 your virtualenv without relying on `PATH`); at run time the CLI loads host / user /
 password from the profile's local SQLite DB. Only **non-encrypted** profiles can be
 scheduled - a cron has no way to type the password to decrypt an encrypted one (the

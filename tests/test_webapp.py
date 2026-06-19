@@ -133,20 +133,50 @@ class WebApiTests(unittest.TestCase):
                 self.assertIn("--run-job", save.json()["command"])
                 self.assertIn("t1", save.json()["command"])
                 jobs = self.client.get("/api/jobs").json()["jobs"]
-                t1 = next(j for j in jobs if j["name"] == "t1")
+                t1 = next(j for j in jobs if j["label"] == "t1")
+                jid = t1["name"]                       # unique id (label + suffix)
+                self.assertTrue(jid.startswith("t1_"))
                 self.assertIn("--profile", t1["args"])
                 self.assertIn("prof1", t1["args"])
                 self.assertIn("--rule", t1["args"])
                 # the job's log can be fetched (empty until it runs)
-                log = self.client.get("/api/jobs/t1/log")
+                log = self.client.get(f"/api/jobs/{jid}/log")
                 self.assertEqual(log.status_code, 200)
                 self.assertEqual(log.json()["log"], "")
-                self.client.delete("/api/jobs/t1")
-                self.assertNotIn("t1", [j["name"]
+                self.client.delete(f"/api/jobs/{jid}")
+                self.assertNotIn("t1", [j["label"]
                                         for j in self.client.get("/api/jobs").json()["jobs"]])
                 # log endpoint for a missing job is a 404
                 self.assertEqual(
-                    self.client.get("/api/jobs/t1/log").status_code, 404)
+                    self.client.get(f"/api/jobs/{jid}/log").status_code, 404)
+
+    def test_same_label_distinct_per_profile_and_updates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)), \
+                 mock.patch.object(profiles, "config_dir",
+                                   return_value=Path(tmp)):
+                for p in ("pa", "pb"):
+                    self.client.post("/api/profiles", json={
+                        "name": p, "host": "imap.gmail.com", "user": "u",
+                        "password": "pw", "provider": "Gmail"})
+
+                def body(prof):
+                    return {"name": "nightly", "profile": prof,
+                            "match_mode": "rule", "rule_tree": _RULE,
+                            "kind": "daily", "time": "03:00"}
+                a1 = self.client.post("/api/jobs", json=body("pa")).json()["saved"]
+                b1 = self.client.post("/api/jobs", json=body("pb")).json()["saved"]
+                # same label on two profiles -> two distinct ids, both kept
+                self.assertNotEqual(a1, b1)
+                jobs = self.client.get("/api/jobs").json()["jobs"]
+                self.assertEqual(
+                    sum(1 for j in jobs if j["label"] == "nightly"), 2)
+                # re-saving the same label for the same profile UPDATES (no dup)
+                a2 = self.client.post("/api/jobs", json=body("pa")).json()["saved"]
+                self.assertEqual(a2, a1)
+                self.assertEqual(
+                    len(self.client.get("/api/jobs").json()["jobs"]), 2)
 
     def test_move_job_builds_args(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -163,7 +193,7 @@ class WebApiTests(unittest.TestCase):
                     "kind": "daily", "time": "03:00"})
                 self.assertEqual(r.status_code, 200)
                 mv = next(j for j in self.client.get("/api/jobs").json()["jobs"]
-                          if j["name"] == "mv")
+                          if j["label"] == "mv")
                 self.assertIn("--move", mv["args"])
                 self.assertIn("--dest-folder", mv["args"])
                 self.assertIn("Archive", mv["args"])
@@ -198,7 +228,7 @@ class WebApiTests(unittest.TestCase):
                     "kind": "daily", "time": "03:00"})
                 self.assertEqual(r.status_code, 200)
                 j = next(x for x in self.client.get("/api/jobs").json()["jobs"]
-                         if x["name"] == "mvall")
+                         if x["label"] == "mvall")
                 self.assertIn("--move", j["args"])
                 self.assertIn("Archive", j["args"])
                 self.assertNotIn("--targets", j["args"])
@@ -294,7 +324,7 @@ class WebApiTests(unittest.TestCase):
                     "kind": "daily", "time": "03:00"})
                 self.assertEqual(r.status_code, 200)
                 j = next(x for x in self.client.get("/api/jobs").json()["jobs"]
-                         if x["name"] == "aij")
+                         if x["label"] == "aij")
                 self.assertIn("--ai-cleanup", j["args"])
                 self.assertIn("--ai-model", j["args"])
                 self.assertIn("gpt", j["args"])
@@ -307,7 +337,7 @@ class WebApiTests(unittest.TestCase):
                     "kind": "daily", "time": "03:00"})
                 self.assertEqual(r2.status_code, 200)
                 j2 = next(x for x in self.client.get("/api/jobs").json()["jobs"]
-                          if x["name"] == "aij2")
+                          if x["label"] == "aij2")
                 self.assertIn("--ai-report-only", j2["args"])
                 self.assertNotIn("--ai-model", j2["args"])
 

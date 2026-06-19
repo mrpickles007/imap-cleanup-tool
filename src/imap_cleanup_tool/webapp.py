@@ -1651,7 +1651,7 @@ def create_app():
 
     # ----- scheduling ------------------------------------------------------ #
     def _job_from(body: JobIn) -> scheduler.Job:
-        name = _safe_job_name(body.name)
+        label = _safe_job_name(body.name)
         prof = (body.profile or "").strip()
         if not prof:
             raise HTTPException(400, "Choose a (non-encrypted) connection "
@@ -1664,6 +1664,13 @@ def create_app():
             raise HTTPException(400, "Encrypted profiles can't run unattended - "
                                      "use a non-encrypted profile for scheduled "
                                      "jobs.")
+        # Each saved job has a unique id (label + random suffix) so jobs that share a
+        # display name across profiles never collide (OS task / cron marker / log /
+        # --run-job). Re-saving the same label for the same profile updates that job.
+        existing = next((j for j in scheduler.load_jobs()
+                         if (getattr(j, "label", "") or j.name) == label
+                         and scheduler._job_profile(j.args) == prof), None)
+        name = existing.name if existing else f"{label}_{uuid.uuid4().hex[:6]}"
         args: list[str] = ["--profile", prof]
         nprof = (body.notify_profile or "").strip()
         if nprof:
@@ -1712,7 +1719,7 @@ def create_app():
                     minutes=body.minutes, day=body.day)
             except ValueError as exc:
                 raise HTTPException(400, str(exc)) from exc
-            return scheduler.Job(name=name, args=args, schedule=sched)
+            return scheduler.Job(name=name, args=args, schedule=sched, label=label)
         if body.empty_folder:
             args.append("--empty-folder")
         elif body.match_mode == "rule" and body.rule_tree:
@@ -1753,12 +1760,14 @@ def create_app():
                 minutes=body.minutes, day=body.day)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
-        return scheduler.Job(name=name, args=args, schedule=sched)
+        return scheduler.Job(name=name, args=args, schedule=sched, label=label)
 
     @app.get("/api/jobs")
     def list_jobs() -> dict[str, Any]:
         installed = scheduler.installed_job_names()
-        return {"jobs": [{"name": j.name, "schedule": j.schedule,
+        return {"jobs": [{"name": j.name,
+                          "label": getattr(j, "label", "") or j.name,
+                          "schedule": j.schedule,
                           "args": j.args, "last_run": j.last_run,
                           "installed": j.name in installed,
                           "command": scheduler.export_system(j)}

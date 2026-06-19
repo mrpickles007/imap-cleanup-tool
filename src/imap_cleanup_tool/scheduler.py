@@ -57,12 +57,14 @@ class Job:
     "time": "03:00"}`` or ``{"kind": "interval", "minutes": 60}``.
     """
 
-    name: str
+    name: str                  # unique id (display label + random suffix); used by
+                               # --run-job, the OS task/cron marker and the log path
     args: list[str] = field(default_factory=list)
     schedule: dict = field(default_factory=dict)
     enabled: bool = True
     last_run: str | None = None
     at_id: int | None = None   # POSIX `at` job number, set when a one-shot is installed
+    label: str = ""            # the user-facing name (defaults to `name` for old jobs)
 
     def to_dict(self) -> dict:
         """Return the job as a plain dict."""

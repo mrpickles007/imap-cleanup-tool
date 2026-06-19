@@ -1753,7 +1753,7 @@ async function loadJobs(){
       const row=document.createElement('div'); row.className='flex items-center justify-between bg-ink border border-line rounded-lg px-3 py-2';
       const freq=describeSchedule(j.schedule);
       const status = j.installed ? '<span class="text-ok text-xs">· installed</span>' : '<span class="text-muted text-xs">· saved</span>';
-      row.innerHTML=`<span class="truncate"><b>${j.name}</b> <span class="text-muted text-xs">· ${freq}</span> ${status}</span>`;
+      row.innerHTML=`<span class="truncate"><b>${escapeHtml(j.label||j.name)}</b> <span class="text-muted text-xs">· ${freq}</span> ${status}</span>`;
       const actions=document.createElement('span'); actions.className='flex gap-3 flex-none ml-2';
       const toggle=document.createElement('button');
       if(j.installed){
@@ -1764,7 +1764,7 @@ async function loadJobs(){
         toggle.onclick=async()=>{ try{ const r=await api('/api/jobs/install-saved',{name:j.name}); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=r.message+'\n\n'+r.command; loadJobs(); }catch(e){ toastErr(e.message); } };
       }
       const det=document.createElement('button'); det.className='text-brand-light text-xs hover:underline'; det.textContent='details';
-      det.onclick=()=>infoDialog('Job details - '+j.name, jobDetailsHtml(j));
+      det.onclick=()=>infoDialog('Job details - '+(j.label||j.name), jobDetailsHtml(j));
       const src=document.createElement('button'); src.className='text-muted text-xs hover:text-cream'; src.textContent='source';
       src.onclick=()=>{ const cmd=(j.args||[]).join(' ');
         sourceDialog('Source - '+j.name,
@@ -2690,8 +2690,10 @@ $('btnRun').onclick=async ()=>{
 };
 async function confirmJobOverwrite(){
   const safe=($('jobName').value.trim()||'job').replace(/[^A-Za-z0-9_-]+/g,'_')||'job';
-  if(JOBS.some(j=>j.name===safe)){
-    return await confirmDialog({title:'Overwrite job', message:'A scheduled job named "'+safe+'" already exists. Overwrite it (and re-register its system task)?', okText:'Overwrite', danger:true});
+  // A job is identified by (label, profile): re-saving the same name for the same
+  // profile updates that job. Other profiles' same-named jobs are independent.
+  if(JOBS.some(j=>(j.label||j.name)===safe && parseJobArgs(j.args).profile===connectedProfile)){
+    return await confirmDialog({title:'Update job', message:'You already have a job named "'+safe+'" for this profile. Save will update it (and re-register its system task). Continue?', okText:'Update', danger:false});
   }
   return true;
 }
