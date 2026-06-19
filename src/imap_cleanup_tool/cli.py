@@ -431,9 +431,11 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
 def _run_saved_job(job) -> int:
     """Execute a saved job, mirroring all output to its rolling log file."""
     from logging.handlers import RotatingFileHandler
-    from .scheduler import job_log_path
+    from .scheduler import job_log_path, _job_profile
 
-    handler = RotatingFileHandler(job_log_path(job.name), maxBytes=512_000,
+    log_path = job_log_path(job.name, _job_profile(job.args))
+    log_path.parent.mkdir(parents=True, exist_ok=True)   # ensure the profile subfolder
+    handler = RotatingFileHandler(log_path, maxBytes=512_000,
                                   backupCount=2, encoding="utf-8")
     handler.setFormatter(logging.Formatter(
         "%(asctime)s %(levelname)-7s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))

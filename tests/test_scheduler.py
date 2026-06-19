@@ -152,6 +152,40 @@ class JobLogTests(unittest.TestCase):
                                                        encoding="utf-8")
                 self.assertIn("hello", scheduler.read_job_log("j"))
 
+    def test_log_is_under_per_profile_subfolder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)):
+                p = scheduler.job_log_path("nightly", profile="my gmail")
+                self.assertEqual(p.parent.name, "my_gmail")   # slugged profile dir
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text("ran\n", encoding="utf-8")
+                self.assertIn("ran", scheduler.read_job_log(
+                    "nightly", profile="my gmail"))
+
+    def test_read_falls_back_to_legacy_flat_log(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)):
+                scheduler.job_log_path("old").write_text("legacy\n",
+                                                         encoding="utf-8")
+                # asked with a profile but only the flat log exists -> still found
+                self.assertIn("legacy", scheduler.read_job_log(
+                    "old", profile="acct"))
+
+    def test_delete_job_removes_its_log(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(scheduler, "config_dir",
+                                   return_value=Path(tmp)):
+                scheduler.upsert_job(Job("nightly", args=["--profile", "acct"],
+                                         schedule={"kind": "daily"}))
+                p = scheduler.job_log_path("nightly", profile="acct")
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text("logged\n", encoding="utf-8")
+                self.assertTrue(p.exists())
+                scheduler.delete_job("nightly")
+                self.assertFalse(p.exists())   # log gone with the job
+
     def test_describe_schedule(self):
         self.assertIn("Weekly", scheduler.describe_schedule(
             {"kind": "weekly", "day": "MON", "time": "07:30"}))

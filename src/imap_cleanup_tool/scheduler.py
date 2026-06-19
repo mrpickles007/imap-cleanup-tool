@@ -97,8 +97,11 @@ def upsert_job(job: Job) -> None:
 
 
 def delete_job(name: str) -> None:
-    """Remove a job by name."""
-    save_jobs([j for j in load_jobs() if j.name != name])
+    """Remove a job by name, and its run-log file(s) (per-profile + legacy)."""
+    jobs = load_jobs()
+    victim = next((j for j in jobs if j.name == name), None)
+    save_jobs([j for j in jobs if j.name != name])
+    delete_job_log(name, _job_profile(victim.args) if victim else "")
 
 
 # --------------------------------------------------------------------------- #
@@ -111,9 +114,54 @@ def logs_dir() -> Path:
     return path
 
 
-def job_log_path(name: str) -> Path:
-    """Path to the rolling log file for a job."""
-    return logs_dir() / f"{name}.log"
+def _safe_dir(name: str) -> str:
+    """Filesystem-safe subfolder name from a profile name."""
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", (name or "").strip()) or "_"
+
+
+def _job_profile(args) -> str:
+    """The ``--profile`` value in a job's args ('' if none)."""
+    a = args or []
+    for i in range(len(a) - 1):
+        if a[i] == "--profile":
+            return a[i + 1]
+    return ""
+
+
+def job_log_path(name: str, profile: str = "") -> Path:
+    """Path to a job's rolling log file.
+
+    When the job's connection ``profile`` is known the log lives under a
+    per-profile subfolder (``logs/<profile>/<name>.log``), so logs are tied to the
+    profile; legacy jobs with no profile use the flat ``logs/<name>.log``.
+    """
+    base = logs_dir()
+    if profile:
+        base = base / _safe_dir(profile)
+    return base / f"{name}.log"
+
+
+def delete_job_log(name: str, profile: str = "") -> None:
+    """Delete a job's log file and its rotated backups (per-profile + legacy flat)."""
+    bases = []
+    if profile:
+        bases.append(logs_dir() / _safe_dir(profile) / f"{name}.log")
+    bases.append(logs_dir() / f"{name}.log")           # legacy flat location
+    for base in bases:
+        for suffix in ("", ".1", ".2"):                 # backupCount=2 rotations
+            p = base.with_name(base.name + suffix)
+            try:
+                if p.exists():
+                    p.unlink()
+            except OSError:
+                pass
+    if profile:                                         # tidy an empty profile dir
+        d = logs_dir() / _safe_dir(profile)
+        try:
+            if d.is_dir() and not any(d.iterdir()):
+                d.rmdir()
+        except OSError:
+            pass
 
 
 def ai_reports_dir() -> Path:
@@ -152,9 +200,13 @@ def save_ai_report(csv_text: str, account: str = "",
     return path
 
 
-def read_job_log(name: str, max_bytes: int = 200_000) -> str:
+def read_job_log(name: str, max_bytes: int = 200_000, profile: str = "") -> str:
     """Return the tail of a job's log file (empty string if it never ran)."""
-    path = job_log_path(name)
+    path = job_log_path(name, profile)
+    if not path.exists() and profile:                  # fall back to a pre-0.35.2 flat log
+        legacy = logs_dir() / f"{name}.log"
+        if legacy.exists():
+            path = legacy
     if not path.exists():
         return ""
     data = path.read_text(encoding="utf-8", errors="replace")

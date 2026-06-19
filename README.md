@@ -879,8 +879,10 @@ you either remove those now-orphaned jobs too or keep them (orphaned jobs fail a
 run time with *"No profile named ..."*).
 
 **Logs** - every scheduled run appends to a rolling log file under
-`<config dir>/logs/<job>.log`. In the *Scheduling* tab, click **logs** on any
-saved job to view (or download) its run history.
+`<config dir>/logs/<profile>/<job>.log` (tied to the job's connection profile). In
+the *Scheduling* tab, click **logs** on any saved job to view (or download) its run
+history. **Deleting a job also deletes its log files** (like removing a model
+clears its cost log).
 
 ---
 

@@ -1826,9 +1826,11 @@ def create_app():
 
     @app.get("/api/jobs/{name}/log")
     def job_log(name: str) -> dict[str, Any]:
-        if not any(j.name == name for j in scheduler.load_jobs()):
+        job = next((j for j in scheduler.load_jobs() if j.name == name), None)
+        if job is None:
             raise HTTPException(404, f"No saved job named {name!r}.")
-        return {"name": name, "log": scheduler.read_job_log(name)}
+        return {"name": name, "log": scheduler.read_job_log(
+            name, profile=scheduler._job_profile(job.args))}
 
     # ----- static ---------------------------------------------------------- #
     @app.get("/")
