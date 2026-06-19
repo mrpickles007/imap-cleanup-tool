@@ -198,5 +198,51 @@ class CliOAuthLoginTests(unittest.TestCase):
         self.assertEqual(rc, 2)
 
 
+class _Args:
+    user = "me@x.com"
+    host = "h"
+    profile = "p"
+    notify_profile = ""
+    dry_run = True
+
+
+class CliJobFailureNotifyTests(unittest.TestCase):
+    def test_failure_emails_and_hints_reauth_in_job_mode(self):
+        from imap_cleanup_tool import cli, notifications
+        captured = {}
+
+        def fake_send(subject, body, when=None, profile="", attachments=None):
+            captured.update(subject=subject, body=body, when=when)
+            return True
+
+        with mock.patch.object(cli, "_NOTIFY_WHEN", "job"):
+            with mock.patch.object(notifications, "send_notification",
+                                   side_effect=fake_send):
+                cli._notify_job_failure(_Args(), "OAuth sign-in failed: bad",
+                                        oauth=True)
+        self.assertEqual(captured.get("when"), "job")
+        self.assertIn("FAILED", captured["subject"])
+        self.assertIn("re-authenticate", captured["body"].lower())
+
+    def test_failure_silent_in_interactive_run_mode(self):
+        from imap_cleanup_tool import cli, notifications
+        calls = []
+        with mock.patch.object(cli, "_NOTIFY_WHEN", "run"):
+            with mock.patch.object(notifications, "send_notification",
+                                   side_effect=lambda *a, **k: calls.append(1)):
+                cli._notify_job_failure(_Args(), "x", oauth=True)
+        self.assertEqual(calls, [])     # no email when a human is at the keyboard
+
+    def test_failure_email_best_effort_when_smtp_also_down(self):
+        # IMAP+SMTP failing together: the email can't go out, but it must not raise
+        # (so the job log still records everything and the job exits cleanly).
+        from imap_cleanup_tool import cli, notifications
+        with mock.patch.object(cli, "_NOTIFY_WHEN", "job"):
+            with mock.patch.object(notifications, "send_notification",
+                                   side_effect=RuntimeError("SMTP OAuth rejected")):
+                cli._notify_job_failure(_Args(), "OAuth sign-in failed", oauth=True)
+        # reaching here without an exception is the assertion
+
+
 if __name__ == "__main__":
     unittest.main()

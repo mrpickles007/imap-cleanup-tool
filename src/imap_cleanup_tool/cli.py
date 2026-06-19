@@ -263,6 +263,31 @@ def _notify_cli(args, folders: list[str], total: int, *, gmail: bool,
         core.logger.warning("Notification email not sent: %s", exc)
 
 
+def _notify_job_failure(args, reason: str, *, oauth: bool) -> None:
+    """A scheduled (unattended) job failed to connect. The reason is already logged;
+    here we also try to email a 'job failed - re-authenticate' alert.
+
+    Best-effort: if SMTP notifications are off, or SMTP itself is broken (e.g. its
+    OAuth token also expired - rare, but IMAP+SMTP can fail together), the email
+    can't go out. That's fine: ``_notify_cli`` logs that too, so the full story is
+    always written to the job log regardless of whether any email is sent.
+    """
+    if _NOTIFY_WHEN != "job":
+        return                      # interactive run: the user is right here
+    account = getattr(args, "user", None) or getattr(args, "host", "")
+    hint = ("This is an OAuth2 (modern auth) account: the sign-in has likely expired "
+            "or been revoked. Re-authenticate in the web UI ('Sign in with Microsoft') "
+            "or via the CLI ('imap-cleanup-tool --oauth-login <provider> --user "
+            "<email> --oauth-profile <name>'). Until then this job keeps failing."
+            if oauth else
+            "Check the account credentials / mail server, then run the job again.")
+    subject = f"[imap-cleanup-tool] Scheduled job FAILED on {account}"
+    body = (f"A scheduled cleanup job could not run.\n\nAccount: {account}\n"
+            f"Reason: {reason}\n\n{hint}\n\n- imap-cleanup-tool")
+    _notify_cli(args, [], 0, gmail=False, kind="job failure",
+                subject=subject, body=body)
+
+
 def _cli_cache(args):
     """A HeaderCache when --local-cache (or a profile) enabled it, else None."""
     if not getattr(args, "local_cache", False):
@@ -589,10 +614,15 @@ def main(argv: list[str] | None = None) -> int:
             token = _oauth.access_token_for(oauth_prof, persist=_persist)
             conn = core.connect_oauth(host, args.port, user, token, args.timeout)
         except _oauth.OAuthError as exc:
-            print(f"[ERROR] OAuth sign-in failed: {exc}")
+            # logger (not print) so the reason lands in the scheduled-job log file.
+            core.logger.error("OAuth sign-in failed for profile %r: %s",
+                              args.profile, exc)
+            _notify_job_failure(args, f"OAuth sign-in failed: {exc}", oauth=True)
             return 2
         except (OSError, core.imaplib.IMAP4.error) as exc:
-            print(f"[ERROR] Connection failed: {exc}")
+            core.logger.error("Connection failed for profile %r: %s",
+                              args.profile, exc)
+            _notify_job_failure(args, f"Connection failed: {exc}", oauth=True)
             return 2
     else:
         host, user, password = _resolve_credentials(args)
@@ -600,7 +630,8 @@ def main(argv: list[str] | None = None) -> int:
         try:
             conn = core.connect(host, args.port, user, password, args.timeout)
         except (OSError, core.imaplib.IMAP4.error) as exc:
-            print(f"[ERROR] Connection/login failed: {exc}")
+            core.logger.error("Connection/login failed: %s", exc)
+            _notify_job_failure(args, f"Connection/login failed: {exc}", oauth=False)
             return 2
 
     folders = args.folder or ["INBOX"]
