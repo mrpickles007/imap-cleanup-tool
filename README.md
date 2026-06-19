@@ -166,9 +166,10 @@ Then, in the browser:
    count); use *Select all* / *Deselect all* as needed.
 3. 🤖 **Let AI clean it (the easy path)** - tick **AI Cleanup**, pick a model: a
    free local **Ollama** model keeps everything on your machine, or paste your own
-   cloud API key in the **LLM** tab. Click **Generate report** to see exactly what
-   it *would* delete, then **Run**. Only subjects + stats are ever sent to the
-   model, never message bodies. See [AI Cleanup](#ai-cleanup).
+   cloud API key in the **LLM** tab. Tick **Report only** and click **Run** to see
+   exactly what it *would* delete (deletes nothing); untick Report only and **Run**
+   again to clean for real. Only subjects + stats are ever sent to the model, never
+   message bodies. Saved reports live in the **Reports** tab. See [AI Cleanup](#ai-cleanup).
 4. **Or match it yourself** - either paste a **target list** (one sender or domain
    per line) or build a **rule** visually (field ▸ operator ▸ value, with AND/OR
    groups). Click **Count matching emails** to see how many would be hit.
@@ -256,7 +257,8 @@ does the bulk of the work**, and only a small shortlist of borderline **senders*
    personal mail - only obvious bulk (newsletters, promotions, notifications) is
    marked deletable. The reply is **validated with pydantic**, and the model is
    **retried up to 3 times** before giving up.
-3. **Verdict to action** - see the two buttons below.
+3. **Verdict to action** - press **Run**: with **Report only** it just saves the
+   report, without it the confirmed senders are deleted (see below).
 
 > 💸 **Real-world cost & speed.** In our testing, running AI Cleanup with
 > **`gpt-4o-mini`** over a **~40,000-message** Gmail mailbox cost about **€0.03**
@@ -271,47 +273,55 @@ does the bulk of the work**, and only a small shortlist of borderline **senders*
 > cleanup sends **fewer addresses to the model** than the last. It gets cheaper
 > the more you use it.
 
-### Generate report vs Run
+### Run, with "Report only"
 
-- **Generate report** - builds the report and **changes nothing**. By default it
-  also asks the LLM for a verdict on each flagged sender (so the report shows what
-  *would* be deleted); download it as **CSV** (Excel-friendly), and the log shows
-  how many emails are potentially deletable. CLI: `--ai-cleanup --ai-report-only`.
-- **Skip LLM (heuristic only)** - a small checkbox next to the buttons. When
-  ticked, **Generate report uses only the local heuristic score** - **no LLM call**,
-  so it is free, much faster, and nothing leaves your machine; the report simply
-  has no per-sender AI verdicts. CLI: `--ai-report-only` *without* `--ai-model`.
-- **Run** - builds the report **and deletes** the senders the LLM confirms
-  (dry-run simulates). **Run always calls the chosen LLM model, even if "Skip LLM"
-  is ticked** - deleting is driven by the LLM verdict, so a model is required for
-  Run. "Skip LLM" only affects *Generate report*, never *Run*. CLI: `--ai-cleanup
+AI Cleanup has a **single Run button**; the **Report only** checkbox decides
+whether it actually deletes:
+
+- **Report only ON** - Run **builds the report and deletes nothing** (this is what
+  a separate "Generate report" button used to do). It scores senders, asks the LLM
+  for a verdict on each flagged one, saves the CSV (and emails it if notifications
+  are on) and records flagged senders to your Spam list. CLI: `--ai-cleanup
+  --ai-report-only`.
+- **Skip LLM (heuristic only)** - build the report from the local heuristic score
+  only, **no LLM call** (free, fast, nothing leaves your machine; no per-sender AI
+  verdicts). The heuristic alone can't decide deletions, so it **requires Report
+  only** and ticking it **auto-enables Report only**. CLI: `--ai-report-only`
+  *without* `--ai-model`.
+- **Report only OFF** - Run **deletes** the senders the LLM confirms (dry-run
+  simulates). This needs a model. With **Flag senders as spam**, one message per
+  confirmed sender is first moved to Junk (see below). CLI: `--ai-cleanup
   --ai-model NAME` (omit `--dry-run` to actually delete).
 
-Every report (from Generate report or Run) is **auto-saved to disk as a
-timestamped CSV** in your config directory (`ai_reports/`), so reports stay
-available after other runs or a restart. Reports are saved **per account** (the
-account is in the file name), and the **dropdown** next to the buttons lists only
-the **connected mailbox's** reports, newest-first - it refreshes automatically
-when you connect or switch account. Pick one and click **Download CSV**, or
-**Delete** to remove that saved report (the CSV file only - it does not touch any
-email). If **email notifications for interactive runs** are enabled
-(see [Email notifications](#email-notifications)), *Generate report* also **emails
-you the CSV** as an attachment (named like the saved file).
+> Before a **real** Run (dry-run off), a confirmation popup recaps exactly what
+> will happen - the action, folders, filter, engine and options - for both AI and
+> manual runs. Dry-runs launch without it.
 
-**Flag senders as spam (on Run).** Optionally, when **Run** deletes a confirmed
-sender, first move **one** of their messages to the **Junk/Spam** folder - the
-standard "report spam" signal that trains the server to route that sender's
-**future** mail to spam - then delete the rest. This also works in scheduled AI
-jobs (a checkbox) and on the CLI (`--ai-flag-spam`). It needs a Junk/Spam folder
-on the server.
+Every report (report-only **or** a real run) is **auto-saved to disk as a
+timestamped CSV** in your config directory (`ai_reports/`), **per account** (the
+account is in the file name), so they stay available after other runs or a
+restart. They all live in the **Reports** tab - a table of every saved report with
+its date and time, where you can **download** or **delete** one, or select several
+(this page, or all pages across the list) and **download them as a zip** or delete
+them in bulk (the CSV files only - never any email). If **email notifications for
+interactive runs** are enabled (see [Email notifications](#email-notifications)), a
+report-only Run also **emails you the CSV** as an attachment.
+
+**Flag senders as spam (on Run).** Optionally, when a **real** Run (Report only
+off) deletes a confirmed sender, first move **one** of their messages to the
+**Junk/Spam** folder - the standard "report spam" signal that trains the server to
+route that sender's **future** mail to spam - then delete the rest. It is a
+checkbox in the AI panel (disabled under **Report only**, since nothing is
+deleted), so scheduled jobs pick it up from there too, and on the CLI it is
+`--ai-flag-spam`. It needs a Junk/Spam folder on the server.
 
 **Check spam addresses (saves LLM tokens, on by default).** Flagged senders that
 are **already in this account's [Spam addresses](#spam-addresses) list** (from
 earlier reports/runs) are accepted as spam **without asking the model again**, so
 fewer addresses are sent to the LLM - real token savings on repeat runs. They are
 treated as confirmed for deletion with a synthetic verdict ("already in saved spam
-list"). It is a checkbox in the AI panel and in scheduled AI jobs (CLI:
-`--ai-no-check-spam` to turn it off). **Edge case:** an important email from a
+list"). It is a checkbox in the AI panel (scheduled jobs read it from there too;
+CLI: `--ai-no-check-spam` to turn it off). **Edge case:** an important email from a
 sender already on the list would be treated as spam - this is rare, and avoided by
 running with the option **off** (then every flagged sender is re-evaluated by the
 LLM).
@@ -355,8 +365,11 @@ the tool seeds two ready-to-use defaults you can edit or delete: **`gpt-4o-mini`
 - Optional **cost tracking**: set the price per million tokens and get a
   per-model cost log.
 
-AI Cleanup can also be **scheduled** (Scheduling tab -> "AI Cleanup job") with a
-non-encrypted model; the scheduled CLI runs `--ai-cleanup --ai-model NAME`.
+AI Cleanup can also be **scheduled**: set it up here in the **Cleanup** tab (model,
+threshold, Report only, Skip LLM, ...), then use the **Scheduling** tab to pick a
+connection profile and a frequency - the job mirrors these settings. A
+non-encrypted model is required to run unattended; the scheduled CLI runs
+`--ai-cleanup --ai-model NAME`.
 
 Everything the web panel offers is available on the CLI too - threshold, sample
 size, exclusions, heuristic weights, report-only, and CSV export:
@@ -380,6 +393,15 @@ imap-cleanup-tool --host HOST --user USER \
 
 > If you run an `--ai-cleanup` command without the `[ai]` extra installed, the CLI
 > stops with a clear message telling you to `pip install "imap-cleanup-tool[ai]"`.
+
+### Reports tab
+
+Every AI report or run saves a timestamped CSV (**per account**, in `ai_reports/`).
+The **Reports** tab lists them in a table - the file name, the **date** and the
+**time** - newest first, with a search box to filter by name. For each row you can
+**Download** the CSV or **Delete** it (this removes the file only, never any email).
+Tick several rows - use the header checkbox to take the whole page, or **Select all
+N across pages** - and **Download as a zip** or **Delete** them in bulk.
 
 ### Local header cache (faster repeat reports)
 
@@ -626,7 +648,7 @@ after a period of inactivity. Your password is never stored.
 Highlights:
 
 - 🤖 **AI Cleanup** with a model dropdown (local Ollama or your own cloud key),
-  a threshold slider, Generate report / Run, and per-model cost tracking - see
+  a threshold slider, a single **Run** with a **Report only** checkbox, and per-model cost tracking - see
   [AI Cleanup](#ai-cleanup). The **LLM** tab has a **model picker** (presets per
   provider, an **✎ edit** toggle to type any custom litellm id, and the option to
   save or remove your own presets); the **API key is optional** - you can set the
@@ -656,9 +678,10 @@ Highlights:
 - Context-aware options with tooltips (e.g. *Include subdomains* only in
   `"full"` scan mode; *Gmail: move to Trash* only for Gmail).
 - Background runs with a **Stop** button and a persistent, live log panel.
-- **List senders** with counts (export to CSV), a **Spam addresses** tab, an
-  **Email notifications** tab, and a **Scheduling** tab to create jobs and install
-  them into the OS scheduler.
+- **List senders** with counts (export to CSV), a **Spam addresses** tab, a
+  **Reports** tab (a sortable table of every saved AI report - download/delete one,
+  or bulk **zip**/delete a selection), an **Email notifications** tab, and a
+  **Scheduling** tab to create jobs and install them into the OS scheduler.
 - A **light / dark theme** toggle (top bar on desktop, in the menu on mobile); your
   choice is remembered. The brand colors stay the same in both.
 
@@ -820,26 +843,40 @@ to *saved* (it is no longer queued).
 > `sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.atrun.plist`.)
 > Recurring jobs use cron instead and have no such requirement.
 
-Each job connects with a saved **connection profile** (chosen in the Scheduling
-tab), so different jobs can target different accounts. The scheduled task runs
-the job by name (`imap-cleanup-tool --run-job NAME`) via the current interpreter
-(so it works inside your virtualenv without relying on `PATH`); at run time the
-CLI loads host / user / password from the profile's local SQLite DB. Only
-**non-encrypted** profiles can be scheduled - a cron has no way to type the
-password to decrypt an encrypted one.
+Each job runs with the **connection profile you are connected with** - there is no
+profile picker in the Scheduling tab. **Connect via a saved, non-encrypted profile**
+in the Cleanup tab, and that profile is used for the job. Jobs are **scoped to that
+profile**: the *Saved jobs* list shows the connected profile's jobs, so different
+accounts keep their own jobs. The scheduled task runs the job by name
+(`imap-cleanup-tool --run-job NAME`) via the current interpreter (so it works inside
+your virtualenv without relying on `PATH`); at run time the CLI loads host / user /
+password from the profile's local SQLite DB. Only **non-encrypted** profiles can be
+scheduled - a cron has no way to type the password to decrypt an encrypted one (the
+tab tells you and disables saving if you connected manually or with an encrypted
+profile).
 
-**AI Cleanup jobs** - tick *AI Cleanup* in the Scheduling tab to schedule the AI
-flow. Two extra options:
+**What a job runs is set in the Cleanup tab.** The Scheduling tab only chooses the
+**notification (SMTP) profile** and the **schedule** - *everything else* (whether
+it's an **AI** or **Manual** job via the AI/Manual toggle, the Target list / Rule,
+the exclude list, the options, the folders, and the connection account itself)
+comes from the **Cleanup** tab, and the live **Job summary** shows exactly what will
+run. So to schedule an AI report-only job, connect via a saved profile, set up
+**AI Cleanup** with **Report only** (and optionally **Skip LLM**) in the Cleanup
+tab, then come here to pick the SMTP profile and frequency.
 
-- **Report only** - the job builds the report and **deletes nothing**. The report
-  is saved on disk (and listed in the *Download* dropdown), and if **email
-  notifications for jobs** are enabled it is sent as a **CSV attachment**.
-- **Skip LLM (heuristic only)** - build the report from the local heuristic only,
-  with **no LLM call** (no API cost). It requires *Report only* (the heuristic
-  alone can't decide what to delete). Both options can be combined.
+A non-report-only **AI** job needs a **non-encrypted** LLM model (to run
+unattended); if the model selected in the Cleanup tab is encrypted or missing, the
+Scheduling tab says so. On the CLI these map to `--ai-cleanup --ai-report-only` and
+omitting `--ai-model`.
 
-A non-report-only AI job needs a **non-encrypted** LLM model (to run unattended).
-On the CLI these map to `--ai-cleanup --ai-report-only` and omitting `--ai-model`.
+**Saved jobs.** Each saved-job row has: **install** / **uninstall** (register or
+remove the OS task), **details** (a plain-English recap of exactly what the job
+does - profile, schedule, folders, action, match and AI settings - the same view
+the Job summary showed when you saved it), **source** (the raw CLI + system
+command), **logs** (run history), and **delete**. If you delete a **connection
+profile** that one or more jobs use, the app **warns you and lists them**, and lets
+you either remove those now-orphaned jobs too or keep them (orphaned jobs fail at
+run time with *"No profile named ..."*).
 
 **Logs** - every scheduled run appends to a rolling log file under
 `<config dir>/logs/<job>.log`. In the *Scheduling* tab, click **logs** on any
@@ -863,8 +900,8 @@ Get an email when a cleanup finishes. Configure it in the **Notifications** tab:
 - **One active profile** + a recipient address. Toggle notifications for
   **scheduled jobs** (default) and/or **interactive runs**. A **Send test email**
   button confirms it all works. With **interactive runs** on, you get an email
-  when a cleanup or AI run finishes - and *Generate report* emails you the **AI
-  report CSV** as an attachment.
+  when a cleanup or AI run finishes - and a **report-only** AI Run emails you the
+  **AI report CSV** as an attachment.
 - For a **Gmail** account, the email reminds you that the messages were moved to
   the Trash and must be emptied to delete them for good (e.g. schedule an
   *Empty folder* job on `[Gmail]/Trash`).
@@ -878,7 +915,8 @@ provide it:
 
 - **Send test email** (and a `mailto:` **bulk unsubscribe**) prompt for the
   passphrase **at send time**.
-- **Interactive runs** - **Run**, **AI Cleanup**, and **Generate report** - with
+- **Interactive runs** - a manual **Run** or an **AI** Run (including a
+  **Report only** one) - with
   *notifications for interactive runs* enabled ask for the passphrase **up front,
   before the run starts**, with three choices: **OK** (the passphrase is
   **required** and **verified** - a wrong or empty one shows an error and asks
@@ -1005,6 +1043,14 @@ then **filters itself to the manual ones** so they are the only rows left - open
 each with its per-row **`link ↗`**. You can reach that view any time with the
 **Unsub filter** at the top of the tab (`all` / `auto` / `manual` / `none` /
 `done` = already unsubscribed).
+
+**Mail-server send limits.** All the `mailto:` unsubscribes are sent over a
+**single reused SMTP connection** (gentler on provider rate limits than a fresh
+login per message), each **retried** on a transient error and **paced** slightly.
+If your provider starts **throttling** (a 4xx "rate limit / too many messages /
+quota"), the tool **stops emailing** and reports the rest as pending instead of
+hammering the server - a **toast** tells you, so you just wait a bit and run it
+again on the leftovers.
 
 > ⚠️ This makes **outbound requests** (an email and/or web POST/GET), so it's a
 > deliberate step. Use it for **newsletters** (legitimate senders with a

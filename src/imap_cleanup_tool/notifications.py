@@ -21,6 +21,7 @@ import os
 import smtplib
 import sqlite3
 import ssl
+import time
 from datetime import datetime
 from email.message import EmailMessage
 from pathlib import Path
@@ -30,6 +31,93 @@ from .scheduler import config_dir
 
 class NotifyError(Exception):
     """A problem worth showing the user (bad password, SMTP failure, …)."""
+
+
+class RateLimitError(NotifyError):
+    """The SMTP server is throttling / over quota (a transient 4xx)."""
+
+
+# SMTP reply codes that mean "temporary - back off and retry" (RFC 5321 4xx),
+# typically rate limiting / greylisting / over quota for this window.
+_TRANSIENT_SMTP_CODES = {421, 450, 451, 452, 454, 471}
+_RATE_LIMIT_HINTS = ("rate", "too many", "quota", "limit", "throttl",
+                     "try again", "temporarily")
+
+
+def _classify_smtp_error(exc: Exception) -> tuple[bool, bool]:
+    """Return (is_transient, is_rate_limit) for an SMTP/connection error."""
+    if isinstance(exc, smtplib.SMTPResponseException):
+        code = int(getattr(exc, "smtp_code", 0) or 0)
+        text = str(getattr(exc, "smtp_error", b"") or b"").lower()
+        transient = 400 <= code < 500
+        rate = (code in _TRANSIENT_SMTP_CODES
+                or any(h in text for h in _RATE_LIMIT_HINTS))
+        return transient, rate
+    # A dropped/timed-out connection is transient (worth one reconnect+retry).
+    if isinstance(exc, (smtplib.SMTPServerDisconnected, ConnectionError,
+                        TimeoutError, OSError)):
+        return True, False
+    return False, False
+
+
+class BatchSender:
+    """Send several emails over ONE authenticated SMTP connection.
+
+    Reusing the connection (instead of connect+login+quit per message) is far
+    gentler on provider rate limits. Each :meth:`send` retries transient (4xx /
+    dropped-connection) failures with backoff, reconnecting as needed, and raises
+    :class:`RateLimitError` when the server keeps throttling.
+    """
+
+    def __init__(self, cfg: dict, *, retries: int = 3, backoff: float = 2.0,
+                 sleep=time.sleep):
+        self.cfg = cfg
+        self.retries = max(1, retries)
+        self.backoff = backoff
+        self._sleep = sleep
+        self.srv: smtplib.SMTP | None = None
+
+    def _ensure(self) -> None:
+        if self.srv is None:
+            self.srv = _server(self.cfg)      # NotifyError on connect/login failure
+
+    def close(self) -> None:
+        if self.srv is not None:
+            try:
+                self.srv.quit()
+            except Exception:  # pylint: disable=broad-exception-caught
+                pass
+            self.srv = None
+
+    def send(self, to_addr: str, subject: str, body: str) -> None:
+        """Send one message, retrying transient failures. Raises NotifyError /
+        RateLimitError on a final failure."""
+        from_addr = (self.cfg.get("from_addr") or self.cfg.get("user") or "").strip()
+        if not from_addr:
+            raise NotifyError("No From address (set it on the SMTP profile).")
+        msg = EmailMessage()
+        msg["From"] = from_addr
+        msg["To"] = (to_addr or "").strip()
+        msg["Subject"] = subject
+        msg.set_content(body)
+        last: Exception | None = None
+        for attempt in range(self.retries):
+            try:
+                self._ensure()
+                self.srv.send_message(msg)
+                return
+            except (smtplib.SMTPException, OSError, ssl.SSLError) as exc:
+                last = exc
+                self.close()                  # drop a possibly-broken connection
+                transient, rate = _classify_smtp_error(exc)
+                if transient and attempt < self.retries - 1:
+                    self._sleep(self.backoff * (attempt + 1))
+                    continue
+                if rate:
+                    raise RateLimitError(
+                        f"SMTP rate limit / quota: {exc}") from exc
+                raise NotifyError(f"Could not send email: {exc}") from exc
+        raise NotifyError(f"Could not send email: {last}")
 
 
 def db_path() -> Path:
@@ -340,6 +428,19 @@ def send_from_active(to_addr: str, subject: str, body: str,
     if cfg["encrypted"] and not secret:
         raise NotifyError("The active SMTP profile is encrypted - unlock it first.")
     send_email(cfg, to_addr, subject, body)
+
+
+def open_active_sender(secret: str = "") -> "BatchSender":
+    """A :class:`BatchSender` bound to the active SMTP profile - for sending many
+    one-off emails (e.g. bulk unsubscribe) over a single connection, with retry."""
+    s = get_settings()
+    if not s["active"]:
+        raise NotifyError("No active SMTP profile - set one in the Notifications "
+                          "tab to send unsubscribe emails.")
+    cfg = load_profile(s["active"], secret)
+    if cfg["encrypted"] and not secret:
+        raise NotifyError("The active SMTP profile is encrypted - unlock it first.")
+    return BatchSender(cfg)
 
 
 def has_active_profile() -> bool:

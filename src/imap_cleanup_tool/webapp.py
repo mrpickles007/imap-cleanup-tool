@@ -29,6 +29,7 @@ import re
 import threading
 import time
 import uuid
+import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -211,6 +212,7 @@ class Session:
         self.host = host
         self.port = port
         self.user = user
+        self.profile = ""                # saved profile name used to connect (for scheduling)
         self.local_cache = False         # opt-in header cache (per profile)
         self.folders: list[dict] = []    # [{name, count}]
         self.lock = threading.Lock()     # serialises IMAP use
@@ -343,6 +345,7 @@ def create_app():
         password: str = ""
         timeout: int = 120
         local_cache: bool = False
+        profile: str = ""                # saved profile name, if connecting via one
 
     class Match(BaseModel):
         match_mode: str = "targets"          # "targets" | "rule"
@@ -380,6 +383,8 @@ def create_app():
         batch_size: int = core.UID_CHUNK_SIZE
         model: str = ""                      # LLM config name (optional)
         secret: str = ""                     # password for an encrypted model
+        skip_llm: bool = False               # True = heuristic-only report on purpose
+        report_only: bool = False            # interactive report-only run (no delete)
         dry_run: bool = True                 # used by /api/ai-run
         expunge: bool = False                # used by /api/ai-run
         flag_spam: bool = False              # move 1 msg/confirmed sender to Junk
@@ -458,6 +463,9 @@ def create_app():
 
     class JobNameIn(BaseModel):
         name: str
+
+    class ReportNamesIn(BaseModel):
+        names: list[str] = []
 
     class ProfileSaveIn(BaseModel):
         name: str
@@ -555,13 +563,19 @@ def create_app():
         sid = uuid.uuid4().hex
         sess = Session(sid, conn, body.host, body.port, body.user)
         sess.local_cache = bool(body.local_cache)
+        # Remember the saved profile used to connect (jobs are scheduled with it,
+        # and the Scheduling tab scopes its job list to it). Only if it really
+        # names a saved profile.
+        prof = (body.profile or "").strip()
+        if prof and any(p["name"] == prof for p in profiles.list_profiles()):
+            sess.profile = prof
         try:
             sess.folders = _folder_dicts(conn)
         except (OSError, core.imaplib.IMAP4.error):
             sess.folders = []
         _SESSIONS[sid] = sess
         return {"sid": sid, "host": sess.host, "user": sess.user,
-                "folders": sess.folders}
+                "folders": sess.folders, "profile": sess.profile}
 
     @app.get("/api/session/{sid}")
     def session_info(sid: str) -> dict[str, Any]:
@@ -571,7 +585,7 @@ def create_app():
         sess.touch()
         running = bool(sess.run and sess.run.status == "running")
         return {"connected": True, "host": sess.host, "user": sess.user,
-                "folders": sess.folders,
+                "profile": sess.profile, "folders": sess.folders,
                 "log_cursor": sess.log_base + len(sess.log),
                 "run_id": sess.run.run_id if running else None}
 
@@ -677,10 +691,40 @@ def create_app():
         except profiles.ProfileError as exc:
             raise HTTPException(400, str(exc)) from exc
 
+    def _jobs_using_profile(name: str) -> list[str]:
+        """Names of saved jobs whose --profile is this connection profile."""
+        out: list[str] = []
+        for job in scheduler.load_jobs():
+            a = job.args
+            for i in range(len(a) - 1):
+                if a[i] == "--profile" and a[i + 1] == name:
+                    out.append(job.name)
+                    break
+        return out
+
+    @app.get("/api/profiles/{name}/jobs")
+    def profile_jobs(name: str) -> dict[str, Any]:
+        """List the scheduled jobs that would be orphaned if this profile is deleted."""
+        return {"jobs": _jobs_using_profile(name)}
+
     @app.delete("/api/profiles/{name}")
-    def delete_profile(name: str) -> dict[str, Any]:
+    def delete_profile(name: str, delete_orphans: bool = False) -> dict[str, Any]:
+        """Delete a connection profile. Jobs that use it are left orphaned unless
+        ``delete_orphans`` is set, in which case they (and their system tasks) are
+        removed too."""
+        orphans = _jobs_using_profile(name)
+        removed = 0
+        if delete_orphans:
+            for jname in orphans:
+                try:
+                    scheduler.uninstall_system(
+                        scheduler.Job(name=jname, args=[], schedule={}))
+                except (RuntimeError, OSError):
+                    pass
+                scheduler.delete_job(jname)
+                removed += 1
         profiles.delete_profile(name)
-        return {"deleted": name}
+        return {"deleted": name, "orphan_jobs": orphans, "removed_jobs": removed}
 
     # ----- SMTP profiles + email notifications ----------------------------- #
     @app.get("/api/smtp-profiles")
@@ -1053,6 +1097,9 @@ def create_app():
                              sum(1 for v in ev["verdicts"].values() if v["delete"]),
                              ev["prompt_tokens"], ev["completion_tokens"],
                              ev["cost"])
+        else:
+            core.logger.info("Heuristic-only report (Skip LLM): no per-sender AI "
+                             "verdicts in this report.")
         return report
 
     def _log_llm_total(report) -> None:
@@ -1126,6 +1173,13 @@ def create_app():
         # address on connect, so it is excluded by default but can be removed).
         exclude = set((body.exclude or "").splitlines())
         model_cfg = _load_ai_model(body)
+        # No model resolved but the user did NOT ask for a heuristic-only report:
+        # fail loudly instead of silently producing a report with no AI verdicts.
+        if model_cfg is None and not body.skip_llm:
+            raise HTTPException(
+                400, "No usable LLM model selected for the report. Pick a "
+                     "model in the LLM tab, or tick Skip LLM for a "
+                     "heuristic-only report.")
         scope = _ai_scope(body)        # resolve here so 400s reach the client
 
         def work(rs: RunState) -> None:
@@ -1264,6 +1318,35 @@ def create_app():
             path.unlink()
         return {"deleted": name}
 
+    @app.post("/api/ai-reports/zip")
+    def ai_reports_zip(body: ReportNamesIn) -> Response:
+        """Bundle the named saved reports into a single .zip for download."""
+        names = [n for n in (body.names or []) if _valid_report_name(n)]
+        if not names:
+            raise HTTPException(400, "No valid report names given.")
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for name in names:
+                path = _ai_reports_dir() / name
+                if path.is_file():
+                    zf.write(path, arcname=name)
+        return Response(
+            content=buf.getvalue(), media_type="application/zip",
+            headers={"Content-Disposition": "attachment; filename=ai_reports.zip"})
+
+    @app.post("/api/ai-reports/delete")
+    def ai_reports_bulk_delete(body: ReportNamesIn) -> dict[str, Any]:
+        """Delete several saved report CSVs at once."""
+        deleted = 0
+        for name in (body.names or []):
+            if not _valid_report_name(name):
+                continue
+            path = _ai_reports_dir() / name
+            if path.is_file():
+                path.unlink()
+                deleted += 1
+        return {"deleted": deleted}
+
     # ----- Spam addresses (per-account list from AI Cleanup) --------------- #
     @app.get("/api/spam/{sid}")
     def spam_list(sid: str, offset: int = 0, limit: int = 25, q: str = "",
@@ -1323,6 +1406,13 @@ def create_app():
             skipped = before - len(targets)
         smtp_ok = notifications.has_active_profile()
         done, manual, failed = [], [], []
+        # Send all the mailto unsubscribes over ONE reused SMTP connection (gentler
+        # on provider rate limits than connect+login per message), with retry on
+        # transient errors. If the server starts throttling we stop emailing and
+        # report the rest as rate-limited (rather than hammering it).
+        sender = None
+        sender_err = ""        # set once if opening the SMTP connection fails
+        rate_limited = False
         for t in targets:
             addr = t["address"]
             done_it = False
@@ -1330,21 +1420,35 @@ def create_app():
             # 1) prefer the mailto path (most senders identify you by the To token)
             if t["mailto"]:
                 if not smtp_ok:
-                    # missing SMTP is already flagged upstream by the spam-tab
-                    # banner, so just report it - no silent fall back to a link
                     failed.append({"address": addr, "reason":
                                    "no active SMTP profile (set one in "
                                    "Notifications to send unsubscribe emails)"})
                     continue
-                try:
-                    to, subj, bod = unsub.parse_mailto(t["mailto"])
-                    notifications.send_from_active(to, subj, bod)
-                    done.append(addr)
-                    spamstore.mark_unsubscribed(sess.user, addr, "email",
-                                                "unsubscribe email sent", now)
-                    done_it = True
-                except Exception as exc:  # pylint: disable=broad-exception-caught
-                    reason = str(exc)     # the send errored -> try the link below
+                if rate_limited:
+                    reason = "SMTP rate limit reached - try again later"
+                elif sender_err:
+                    reason = sender_err
+                else:
+                    if sender is None:
+                        try:
+                            sender = notifications.open_active_sender()
+                        except notifications.NotifyError as exc:
+                            sender_err = str(exc)
+                            reason = sender_err
+                    if sender is not None and not reason:
+                        try:
+                            to, subj, bod = unsub.parse_mailto(t["mailto"])
+                            sender.send(to, subj, bod)
+                            done.append(addr)
+                            spamstore.mark_unsubscribed(sess.user, addr, "email",
+                                                        "unsubscribe email sent", now)
+                            done_it = True
+                            time.sleep(0.2)        # gentle pacing between sends
+                        except notifications.RateLimitError as exc:
+                            rate_limited = True
+                            reason = str(exc)      # stop emailing; report the rest
+                        except notifications.NotifyError as exc:
+                            reason = str(exc)      # try the link below
             # 2) no mailto, or the email send errored: use the https link if any
             #    (RFC 8058 one-click if advertised, else a manual confirmation page)
             if not done_it and t["http"]:
@@ -1361,12 +1465,18 @@ def create_app():
                 failed.append({"address": addr,
                                "reason": reason or "no usable unsubscribe method",
                                "url": t["http"] or ""})
+        if sender is not None:
+            sender.close()
+        if rate_limited:
+            core.logger.warning("Unsubscribe: the SMTP server started rate-limiting; "
+                                "stopped sending and reported the rest as pending.")
         core.logger.info("Unsubscribe: %d auto, %d to open by hand, %d failed, "
                          "%d skipped (already done).",
                          len(done), len(manual), len(failed), skipped)
         return {"unsubscribed": done, "manual": manual, "failed": failed,
                 "skipped": skipped, "requested": len(body.addresses or []),
-                "with_method": len(targets) + skipped}
+                "with_method": len(targets) + skipped,
+                "rate_limited": rate_limited}
 
     @app.post("/api/spam-unsub-precheck")
     def spam_unsub_precheck(body: SpamActionIn) -> dict[str, Any]:

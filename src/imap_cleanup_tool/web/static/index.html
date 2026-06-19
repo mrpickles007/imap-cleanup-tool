@@ -153,6 +153,7 @@ tailwind.config = { theme: { extend: {
   <div class="hidden sm:flex max-w-[1600px] mx-auto px-4 sm:px-6 pt-1.5 pb-3 gap-2">
     <div class="tab active" data-tab="cleanup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Cleanup</div>
     <div class="tab" data-tab="scheduling"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>Scheduling</div>
+    <div class="tab" data-tab="report"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>Reports</div>
     <div class="tab" data-tab="llm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="15" x2="4" y2="15"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="15" x2="23" y2="15"/></svg>LLM</div>
     <div class="tab" data-tab="notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifications</div>
     <div class="tab" data-tab="spam"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Spam addresses</div>
@@ -174,6 +175,7 @@ tailwind.config = { theme: { extend: {
     <nav class="flex flex-col gap-1">
       <button class="navitem active" data-tab="cleanup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Cleanup</button>
       <button class="navitem" data-tab="scheduling"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>Scheduling</button>
+      <button class="navitem" data-tab="report"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>Reports</button>
       <button class="navitem" data-tab="llm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="15" x2="4" y2="15"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="15" x2="23" y2="15"/></svg>LLM</button>
       <button class="navitem" data-tab="notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifications</button>
       <button class="navitem" data-tab="spam"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Spam addresses</button>
@@ -430,7 +432,7 @@ tailwind.config = { theme: { extend: {
     <!-- AI Cleanup (visually on the LEFT via order-1; mode chosen by the toggle above) -->
     <section id="secAi" class="order-1 bg-panel border border-line rounded-xl p-5">
       <h2 class="font-display font-semibold text-brand-light flex items-center mb-3">✨ AI Cleanup
-        <span class="tip"><span class="ic">i</span><span class="bub">Scores every sender with a <b>heuristic spam score</b> (List-Unsubscribe, unread ratio, send frequency, sender pattern, bulk), then - with a configured model - asks an LLM to judge the senders above your threshold. <b>Generate report</b> only analyzes; later, <b>Run</b> will also delete the confirmed ones. Selecting this disables the other actions and the match list (it looks at all senders).</span></span>
+        <span class="tip"><span class="ic">i</span><span class="bub">Scores every sender with a <b>heuristic spam score</b> (List-Unsubscribe, unread ratio, send frequency, sender pattern, bulk), then - with a configured model - asks an LLM to judge the senders above your threshold. Press <b>Run</b> to act: with <b>Report only</b> ticked it just builds the report (<b>deletes nothing</b>); without it, Run deletes the senders the LLM confirms. It honors your <b>Target list / Rule</b> as a filter, or scans the <b>whole folder</b> when empty.</span></span>
       </h2>
       <div id="aiExtraBanner" class="hidden rounded-lg border border-warn/40 bg-warn/10 text-warn text-xs px-3 py-2 mb-3">
         ⚠️ AI features are disabled: the optional <b>[ai]</b> extra isn't installed. Install it where the app runs:
@@ -442,7 +444,7 @@ tailwind.config = { theme: { extend: {
           <span class="tip"><span class="ic">i</span><span class="bub">The LLM that judges the flagged senders. Configure models in the <b>LLM</b> tab. The local heuristic report works even without a model.</span></span>
           <select id="aiModel" class="field mt-1"></select>
         </label>
-        <p id="aiNoModelNote" class="hidden text-[11px] text-warn -mt-1">No LLM model configured. You can still <b>Generate report</b> heuristic-only (tick <b>Skip LLM</b> below); <b>Run</b> (which deletes) needs a model. <b>Tip:</b> add a model in the <b>LLM</b> tab for a more precise, LLM-verified analysis.</p>
+        <p id="aiNoModelNote" class="hidden text-[11px] text-warn -mt-1">No LLM model configured. You can still run a heuristic-only report - tick <b>Report only</b> + <b>Skip LLM</b> below, then <b>Run</b>. Deleting for real (Report only off) needs a model. <b>Tip:</b> add a model in the <b>LLM</b> tab for a more precise, LLM-verified analysis.</p>
         <div id="aiSecretRow" class="hidden flex flex-col gap-1">
           <label for="aiSecret" class="text-[11px] text-warn font-semibold">🔒 encrypted model - use password to decrypt</label>
           <div class="flex gap-2">
@@ -470,14 +472,19 @@ tailwind.config = { theme: { extend: {
           </div>
         </details>
         <label class="flex items-center gap-1.5 text-[11px] text-muted pt-1 cursor-pointer">
+          <input id="aiReportOnly" type="checkbox" class="scale-90">
+          <span>Report only (build the report, delete nothing)</span>
+          <span class="tip"><span class="ic">i</span><span class="bub">Press <b>Run</b> and it just <b>builds the report</b> - scores senders, asks the model (unless <b>Skip LLM</b>), saves the CSV (and emails it if notifications are on) and records flagged senders to your Spam list - but <b>deletes nothing</b>. Untick it to actually delete the confirmed senders. This is also what a <b>scheduled AI job</b> uses for a report-only run. With it on, <b>Flag senders as spam</b> and <b>dry-run</b> don't apply (nothing is deleted).</span></span>
+        </label>
+        <label class="flex items-center gap-1.5 text-[11px] text-muted pt-1 cursor-pointer">
           <input id="aiSkipLlm" type="checkbox" class="scale-90">
           <span>Skip LLM (heuristic only)</span>
-          <span class="tip"><span class="ic">i</span><span class="bub"><b>Generate report</b> using only the <b>local heuristic</b> spam score - <b>no LLM call</b>, so it is <b>free and much faster</b> and nothing leaves your machine. The report just won't have per-sender AI verdicts. The chosen model is still used if you press <b>Run</b> (deleting needs the LLM).</span></span>
+          <span class="tip"><span class="ic">i</span><span class="bub">Build the report from the <b>local heuristic</b> spam score only - <b>no LLM call</b>, so it is <b>free and much faster</b> and nothing leaves your machine (no per-sender AI verdicts). The heuristic alone can't decide deletions, so this <b>requires Report only</b> and ticking it <b>auto-enables Report only</b>. Use it for a quick, free, private report - interactive or scheduled.</span></span>
         </label>
         <label class="flex items-center gap-1.5 text-[11px] text-muted pt-1 cursor-pointer">
           <input id="aiFlagSpam" type="checkbox" class="scale-90">
           <span>Flag senders as spam (on Run)</span>
-          <span class="tip"><span class="ic">i</span><span class="bub">Only affects <b>Run</b>. For each sender the AI confirms for deletion, <b>one</b> of their messages is moved to the <b>Junk/Spam</b> folder (the "report spam" signal that trains the server to send their <b>future</b> mail to spam) and the rest are deleted. Needs a Junk/Spam folder on the server.</span></span>
+          <span class="tip"><span class="ic">i</span><span class="bub">Only affects a <b>real</b> Run (Report only off). For each sender the AI confirms for deletion, <b>one</b> of their messages is moved to the <b>Junk/Spam</b> folder (the "report spam" signal that trains the server to send their <b>future</b> mail to spam) and the rest are deleted. Disabled with <b>Report only</b> (nothing is deleted). Needs a Junk/Spam folder on the server.</span></span>
         </label>
         <label class="flex items-center gap-1.5 text-[11px] text-muted pt-1 cursor-pointer">
           <input id="aiCheckSpam" type="checkbox" class="scale-90" checked>
@@ -485,15 +492,7 @@ tailwind.config = { theme: { extend: {
           <span class="tip"><span class="ic">i</span><span class="bub">Saves LLM tokens: flagged senders that are <b>already in your Spam addresses</b> list (from earlier reports/runs) are accepted as spam <b>without asking the model again</b>, so fewer addresses are sent to the LLM. Edge case: an important email from a sender already on the list would be treated as spam - rare, and avoided by running with this <b>unchecked</b> (then every flagged sender is re-evaluated by the LLM).</span></span>
         </label>
         <div id="matchSlotAi" class="hidden my-3 py-3 border-t border-b border-line"></div>
-        <div class="flex gap-2 pt-1 flex-wrap items-center">
-          <button id="btnAiReport" type="button" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-brand hover:bg-brand-light text-ink font-semibold text-sm inline-flex items-center justify-center gap-1.5">Generate report<span class="tip"><span class="ic" style="border-color:rgba(0,0,0,.35);background:rgba(0,0,0,.18);color:rgba(0,0,0,.7)">i</span><span class="bub">Builds the report <b>only</b>: it scores senders, asks the model, <b>saves the CSV</b> (and <b>emails it</b> if notifications are enabled) and records flagged senders to your Spam list. It <b>does not delete anything</b>. To actually clean up - delete the confirmed senders - click <b>Run</b> (with AI Cleanup ticked).</span></span></button>
-          <div class="flex gap-2 items-center flex-wrap sm:flex-nowrap min-w-0 basis-full grow">
-            <select id="aiReportList" class="field text-sm min-w-0 w-full sm:w-auto sm:flex-1" title="Saved reports for this account (newest first)"></select>
-            <button id="btnAiDownload" type="button" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream text-sm whitespace-nowrap">Download CSV</button>
-            <button id="btnAiDeleteReport" type="button" class="px-3 py-2 rounded-lg border border-line text-danger hover:underline text-sm whitespace-nowrap" title="Delete the selected saved report">Delete</button>
-            <span class="tip"><span class="ic">i</span><span class="bub">Each report is auto-saved with a timestamp, <b>per account</b> (the file name includes the account; the list shows only this mailbox's reports). Pick one to download or delete.</span></span>
-          </div>
-        </div>
+        <p class="text-[11px] text-muted pt-1">Press <b>Run</b> (below) to launch: with <b>Report only</b> it just builds the report; without it, it deletes the confirmed senders. Saved reports live in the <b>Report</b> tab (download / delete there).</p>
       </div>
     </section>
   </div>
@@ -534,10 +533,10 @@ tailwind.config = { theme: { extend: {
       </div>
 
       <label class="text-xs text-muted block mt-2 flex items-center">Batch size
-        <span class="tip"><span class="ic">i</span><span class="bub">Messages per IMAP request. It applies to <b>every bulk operation here</b>: <b>List senders</b> and <b>Count</b> (header fetch), <b>Delete</b> (flag \Deleted), <b>Expunge</b> (permanent removal, done in batches), <b>Move</b> to another folder, <b>Empty folder</b>, <b>Gmail: move to Trash</b>, <b>Export messages</b> (fetching the message bodies) and the <b>Import</b> duplicate-check (fetching Message-IDs). It also drives <b>AI Cleanup</b> - the sender header fetch (capped at <b>50</b> there for visible progress) and deleting the confirmed senders. Higher = fewer round-trips but heavier requests. Default <b>500</b>. On <b>Gmail</b>, delete/trash STORE is auto-capped at <b>200</b> (Gmail rejects larger commands). <i>Note: importing the messages themselves is one APPEND per message (not batched); the Spam tab's "Flag senders as spam" uses a fixed internal batch, independent of this.</i></span></span>
+        <span class="tip"><span class="ic">i</span><span class="bub">Messages per IMAP request. It is used at <b>full size</b> by most bulk operations: <b>Count / Run / Export</b> matching in <b>"full"</b> mode (From-header fetch), <b>Delete</b> (flag \Deleted), <b>Expunge</b> (permanent removal, in batches), <b>Move</b> to another folder, <b>Empty folder</b>, <b>Export messages</b> (the message bodies) and the <b>Import</b> duplicate-check (Message-IDs). <b>Three things cap it</b>, so a higher number won't change them: <b>AI Cleanup</b> and <b>List senders</b> fetch sender headers at <b>max 50</b> per request (for visible progress and cancellability); on <b>Gmail</b>, <b>"move to Trash"</b> STORE is auto-capped at <b>200</b> (Gmail rejects larger commands); and the cheap <code>\Seen</code> re-read uses a fixed internal batch. The server-side <b>"search"</b> mode does a single SEARCH, so batch size doesn't apply there. Higher = fewer round-trips but heavier requests. Default <b>500</b>. <i>Note: importing the messages themselves is one APPEND per message (not batched); the Spam tab's "Flag senders as spam" uses a fixed internal batch, independent of this.</i></span></span>
       </label>
       <input id="batch" class="field mt-1" value="500">
-      <p class="text-[11px] text-muted mb-1">How many messages each IMAP request handles, for the <b>bulk</b> operations: <b>Count</b> / <b>List senders</b> (header fetch), <b>Delete</b> / <b>Expunge</b> / <b>Move</b> / <b>Empty</b> / <b>Gmail-trash</b>, <b>Export</b> (message bodies), <b>AI Cleanup</b>, and the <b>Import</b> duplicate-check (Message-IDs). Higher = fewer round-trips, heavier requests. <i>The import itself is one message at a time (IMAP APPEND), so it isn't batched.</i></p>
+      <p class="text-[11px] text-muted mb-1">How many messages each IMAP request handles. Used at <b>full size</b> by: <b>Count / Run / Export</b> matching in <b>"full"</b> mode (header fetch), <b>Export</b> (message bodies), the <b>Import</b> duplicate-check (Message-IDs), and <b>Delete</b> / <b>Expunge</b> / <b>Move</b> / <b>Empty</b>. <b>Capped</b> for a few: <b>AI Cleanup</b> and <b>List senders</b> fetch headers at <b>max 50</b>/request, and on <b>Gmail</b> <b>"move to Trash"</b> is auto-capped at <b>200</b> (so these ignore a larger batch size). The <b>"search"</b> mode does one server-side SEARCH, so batch size doesn't apply there. <i>The import itself is one message at a time (IMAP APPEND), so it isn't batched.</i></p>
 
       <div class="flex gap-2 mt-3">
         <button id="btnRun" class="flex-1 bg-brand hover:bg-brand-light text-ink font-bold rounded-lg px-4 py-2.5 transition">▶ Run</button>
@@ -567,12 +566,12 @@ tailwind.config = { theme: { extend: {
 <div id="tab-scheduling" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-5">
   <section class="bg-panel border border-line rounded-xl p-5">
     <h2 class="font-display font-semibold text-brand-light mb-3">New scheduled job</h2>
-    <p class="text-xs text-muted mb-3">The job connects with a saved <b>profile</b>; folders, match and options come from the <b>Cleanup</b> tab. It runs the CLI on a schedule - different jobs can use different profiles (different accounts).</p>
+    <p class="text-xs text-muted mb-3">A job runs the <b>profile you're connected with</b>: <b>connect via a saved (non-encrypted) profile</b> in the Cleanup tab, then here you set the SMTP profile and <b>when</b> it runs. Jobs are <b>scoped to that profile</b> - the Saved jobs list shows the connected profile's jobs. Configure <b>what</b> the job does (AI or Manual, match, options, folders) in the Cleanup tab.</p>
     <div class="grid grid-cols-2 gap-3">
-      <label class="text-xs text-muted col-span-2">Connection profile
-        <select id="jobProfile" class="field mt-1"></select>
-        <span class="block text-[11px] text-muted mt-1">Only non-encrypted profiles appear here - a cron can't type a password to decrypt one.</span>
-      </label>
+      <div class="col-span-2 text-xs text-muted">Connection profile
+        <div id="jobProfileBox" class="field mt-1 flex items-center" style="min-height:2.5rem"></div>
+        <p id="jobProfileNote" class="hidden text-[11px] text-warn mt-1"></p>
+      </div>
       <label class="text-xs text-muted col-span-2">Notification SMTP profile
         <div class="flex gap-2 mt-1">
           <select id="jobSmtpProfile" class="field"></select>
@@ -606,36 +605,13 @@ tailwind.config = { theme: { extend: {
       </label>
       <label id="wrapDom" class="text-xs text-muted hidden">Day of month (1-28) <input id="jobDom" type="number" min="1" max="28" class="field mt-1" value="1"></label>
       <span id="schedHint" class="col-span-2 text-[11px] text-muted"></span>
-      <div class="col-span-2 mt-1 rounded-lg p-2" style="background:rgba(24,144,216,.08);border:1px solid rgba(24,144,216,.35)">
-        <label class="flex items-center justify-between text-sm cursor-pointer">
-          <span class="flex items-center font-semibold text-brand-light">✨ AI Cleanup job
-            <span class="tip"><span class="ic">i</span><span class="bub">Make this a scheduled <b>AI Cleanup</b> instead of a filter job: it scores senders, asks the model, then deletes the confirmed ones. Needs a <b>non-encrypted</b> model and the <code>[ai]</code> extra installed where the job runs.</span></span>
-          </span>
-          <input id="jobAI" type="checkbox">
-        </label>
-        <div id="jobAiExtraBanner" class="hidden rounded-lg border border-warn/40 bg-warn/10 text-warn text-[11px] px-3 py-2 mt-2">
-          ⚠️ The optional <b>[ai]</b> extra isn't installed, so an AI Cleanup job can't run here. Install it where the app (and the scheduled task) runs:
-          <code class="block mt-1 text-cream">pip install "imap-cleanup-tool[ai]"</code> then restart the web UI.
+      <div class="col-span-2 mt-1 rounded-lg p-3" style="background:rgba(24,144,216,.08);border:1px solid rgba(24,144,216,.35)">
+        <div class="text-sm font-semibold text-brand-light flex items-center">What this job runs
+          <span class="tip"><span class="ic">i</span><span class="bub">A scheduled job runs <b>exactly what you set up in the Cleanup tab</b>: whether the <b>AI/Manual</b> toggle is on AI or Manual, the <b>Target list / Rule</b>, the <b>Exclude</b> list, all the <b>Options</b> (move/delete, Gmail-trash, expunge, empty folder) and the <b>folders</b> you ticked. Here you only choose the <b>connection profile</b> and <b>when</b> it runs.</span></span>
         </div>
-        <p id="jobAiOffNote" class="text-[11px] text-muted mt-1">When <b>off</b>, this job runs a normal cleanup using the <b>match (targets/rule) and options you set in the Cleanup tab</b> (folders, move/delete, gmail-trash, expunge…). Turn it on for an AI Cleanup job instead.</p>
-        <div id="jobAIRow" class="hidden grid grid-cols-2 gap-2 mt-2">
-          <label class="text-xs text-muted col-span-2">Model <select id="jobAiModel" class="field mt-1"></select></label>
-          <p id="jobAiNoModelNote" class="hidden text-[11px] text-warn col-span-2 -mt-1">No non-encrypted model configured. Tick <b>Report only</b> + <b>Skip LLM</b> for a heuristic-only job; for an LLM-verified job add a <b>non-encrypted</b> model in the <b>LLM</b> tab (scheduled jobs can't use encrypted models).</p>
-          <label class="text-xs text-muted">Threshold <input id="jobAiThreshold" type="number" step="0.1" min="0" max="10" value="6" class="field mt-1"></label>
-          <label class="text-xs text-muted">Sample <input id="jobAiSample" type="number" min="1" max="50" value="5" class="field mt-1"></label>
-          <label class="flex items-center gap-1.5 text-xs text-muted col-span-2 cursor-pointer"><input id="jobAiReportOnly" type="checkbox"> Report only (save the report, delete nothing)
-            <span class="tip"><span class="ic">i</span><span class="bub">The job builds the report and <b>deletes nothing</b>. The report is saved on disk and, if <b>email notifications for jobs</b> are enabled, sent as a <b>CSV attachment</b>.</span></span>
-          </label>
-          <label class="flex items-center gap-1.5 text-xs text-muted col-span-2 cursor-pointer"><input id="jobAiSkipLlm" type="checkbox"> Skip LLM (heuristic only, no model)
-            <span class="tip"><span class="ic">i</span><span class="bub">Build the report from the <b>local heuristic only</b> - no LLM call, no API cost. Requires <b>Report only</b> (heuristic alone can't decide what to delete).</span></span>
-          </label>
-          <label class="flex items-center gap-1.5 text-xs text-muted col-span-2 cursor-pointer"><input id="jobAiFlagSpam" type="checkbox"> Flag senders as spam
-            <span class="tip"><span class="ic">i</span><span class="bub">When the job deletes a confirmed sender, first move <b>one</b> of their messages to the <b>Junk/Spam</b> folder (the "report spam" signal that trains the server to send their <b>future</b> mail to spam), then delete the rest. Ignored with <b>Report only</b> (nothing is deleted). Needs a Junk/Spam folder.</span></span>
-          </label>
-          <label class="flex items-center gap-1.5 text-xs text-muted col-span-2 cursor-pointer"><input id="jobAiCheckSpam" type="checkbox" checked> Check spam addresses
-            <span class="tip"><span class="ic">i</span><span class="bub">Saves LLM tokens: flagged senders <b>already in this account's Spam addresses</b> list are accepted as spam <b>without asking the model again</b>. Edge case: an important email from such a sender would be treated as spam (rare) - uncheck to re-evaluate every flagged sender with the LLM.</span></span>
-          </label>
-        </div>
+        <p class="text-[11px] text-muted mt-1">Everything this job does - <b>AI or Manual</b>, the match, the exclude list, the options and the folders - is taken from the <b>Cleanup</b> tab. Change the behaviour there; the <b>Job summary</b> below updates live. The connection account is the <b>profile you're connected with</b>; here you set the <b>SMTP profile</b> and the <b>schedule</b>.</p>
+        <p id="jobAiExtraBanner" class="hidden text-[11px] text-warn mt-2">⚠️ The optional <b>[ai]</b> extra isn't installed where this app runs, so an <b>AI</b> job can't run here. Install it where the app (and the scheduled task) runs: <code class="text-cream">pip install "imap-cleanup-tool[ai]"</code>, then restart. A <b>Manual</b> job still works.</p>
+        <p id="jobAiWarn" class="hidden text-[11px] text-warn mt-2"></p>
       </div>
     </div>
     <div class="mt-4 rounded-lg border border-line bg-ink/40 p-3">
@@ -661,6 +637,52 @@ tailwind.config = { theme: { extend: {
       <span class="text-[11px] text-muted">Runs via the system scheduler (Task Scheduler / cron) - even when this app is closed.</span>
     </div>
     <div id="jobsList" class="space-y-2 text-sm"></div>
+  </section>
+</div>
+
+<!-- ============================ REPORTS TAB ============================ -->
+<div id="tab-report" class="hidden">
+  <section class="bg-panel border border-line rounded-xl p-5">
+    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+      <h2 class="font-display font-semibold text-brand-light flex items-center">AI Cleanup reports
+        <span class="tip"><span class="ic">i</span><span class="bub">Every <b>AI Cleanup</b> report or run auto-saves a timestamped <b>CSV</b>, <b>per account</b>. This table lists the connected mailbox's reports - newest first. Download or delete one, or select several (this page, or all pages) and <b>download as a zip</b> or <b>delete</b> in bulk. Deleting only removes the CSV file, never any email.</span></span>
+      </h2>
+      <div class="flex items-center gap-2 flex-wrap">
+        <input id="reportSearch" class="field text-sm" placeholder="search…" style="max-width:11rem">
+        <button id="btnReportRefresh" type="button" class="px-3 py-2 rounded-lg border border-line text-muted hover:text-cream text-sm">Refresh</button>
+      </div>
+    </div>
+    <p id="reportConnect" class="hidden text-muted text-sm">Connect in the <b>Cleanup</b> tab to see this account's saved reports.</p>
+    <p id="reportEmpty" class="hidden text-muted text-sm">No saved reports for this account yet. Run an <b>AI Cleanup</b> (or Report only) from the Cleanup tab and it will appear here.</p>
+    <div id="reportBulk" class="hidden flex items-center gap-2 flex-wrap mb-2 text-sm">
+      <span id="reportSelInfo" class="text-cream"></span>
+      <button id="btnReportSelAll" type="button" class="text-brand-light hover:underline text-xs"></button>
+      <span class="flex-1"></span>
+      <button id="btnReportZip" type="button" class="px-3 py-1.5 rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand text-sm">⬇ Download zip</button>
+      <button id="btnReportDelete" type="button" class="px-3 py-1.5 rounded-lg border border-line text-danger hover:underline text-sm">Delete</button>
+    </div>
+    <div id="reportTableWrap" class="hidden overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-muted text-left border-b border-line">
+          <th class="py-2 pr-2 w-8"><input id="reportSelPage" type="checkbox" title="Select all on this page"></th>
+          <th class="py-2 pr-2">Report file</th>
+          <th class="py-2 pr-2 whitespace-nowrap">Date</th>
+          <th class="py-2 pr-2 whitespace-nowrap">Time</th>
+          <th class="py-2 pr-2 text-right">Actions</th>
+        </tr></thead>
+        <tbody id="reportRows"></tbody>
+      </table>
+    </div>
+    <div id="reportPager" class="hidden flex items-center justify-between mt-3 text-sm flex-wrap gap-2">
+      <span id="reportPageInfo" class="text-muted"></span>
+      <div class="flex items-center gap-2">
+        <label class="text-muted text-xs flex items-center gap-1">per page
+          <select id="reportPageSize" class="field text-xs" style="max-width:4.5rem"><option>25</option><option>50</option><option>100</option></select>
+        </label>
+        <button id="reportPrev" type="button" class="px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream text-sm">‹ Prev</button>
+        <button id="reportNext" type="button" class="px-3 py-1.5 rounded-lg border border-line text-muted hover:text-cream text-sm">Next ›</button>
+      </div>
+    </div>
   </section>
 </div>
 
@@ -1012,7 +1034,10 @@ function setStatus(ok, text){
   ['dot','dot2','dotMini'].forEach(id=>{ const e=$(id); if(e) e.className=dotCls; });
   ['status','status2'].forEach(id=>{ const e=$(id); if(e){ e.textContent=text; e.className=ok?'text-ok':'text-muted'; } });
 }
-function connParams(){ return {host:$('host').value.trim(),port:parseInt($('port').value)||993,user:$('user').value.trim(),password:$('password').value,timeout:parseInt($('timeout').value)||120,local_cache:$('localCache')?$('localCache').checked:false}; }
+function connParams(){ return {host:$('host').value.trim(),port:parseInt($('port').value)||993,user:$('user').value.trim(),password:$('password').value,timeout:parseInt($('timeout').value)||120,local_cache:$('localCache')?$('localCache').checked:false,profile:selectedProfile||''}; }
+/* The saved profile the current IMAP session was connected with ('' if connected
+   manually). Scheduled jobs use it, and the Saved-jobs list is scoped to it. */
+let connectedProfile='';
 
 function errText(data, status){
   const d = data && data.detail;
@@ -1037,7 +1062,8 @@ function confirmDialog(opts){
   opts = opts || {};
   return new Promise(resolve=>{
     $('confirmTitle').textContent = opts.title || 'Confirm';
-    $('confirmMsg').textContent = opts.message || '';
+    if(opts.html!=null){ $('confirmMsg').innerHTML = opts.html; }
+    else { $('confirmMsg').textContent = opts.message || ''; }
     const ok=$('confirmOk'); ok.textContent = opts.okText || 'OK';
     ok.className = 'px-4 py-2 rounded-lg font-semibold ' + (opts.danger
       ? 'bg-danger text-ink hover:brightness-110' : 'bg-brand text-ink hover:bg-brand-light');
@@ -1100,6 +1126,21 @@ function choiceDialog(opts){
     const done=(v)=>{ ov.remove(); resolve(v); };
     ov.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{ const k=b.dataset.k; done(k==='c'?null:(opts.choices[parseInt(k)].key)); });
     ov.onclick=(e)=>{ if(e.target===ov) done(null); };
+  });
+}
+/* Read-only info dialog (HTML body + a single Close button). */
+function infoDialog(title, html){
+  return new Promise(resolve=>{
+    const ov=document.createElement('div');
+    ov.className='fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4';
+    ov.innerHTML='<div class="bg-panel border border-line rounded-xl p-5 w-full max-w-lg max-h-[80vh] overflow-auto">'
+      +'<h3 class="font-display font-semibold text-brand-light mb-3">'+escapeHtml(title)+'</h3>'
+      +'<div>'+html+'</div>'
+      +'<div class="flex justify-end mt-4"><button data-x="c" class="px-4 py-2 rounded-lg font-semibold bg-brand text-ink hover:bg-brand-light">Close</button></div></div>';
+    document.body.appendChild(ov);
+    const done=()=>{ ov.remove(); resolve(); };
+    ov.querySelector('[data-x=c]').onclick=done;
+    ov.onclick=(e)=>{ if(e.target===ov) done(); };
   });
 }
 /* Import dialog: confirm + optional Message-ID de-dup (search/full). Resolves to
@@ -1169,18 +1210,15 @@ function applyAiAvailability(){
   // LLM tab banner
   if($('llmExtraBanner')) $('llmExtraBanner').classList.toggle('hidden', ok);
   // Scheduling tab: disable the AI Cleanup job toggle + show banner
+  // Scheduling: AI follows the Cleanup toggle now; just show the [ai]-missing note.
   if($('jobAiExtraBanner')) $('jobAiExtraBanner').classList.toggle('hidden', ok);
-  if($('jobAI')){
-    $('jobAI').disabled=!ok;
-    if(!ok && $('jobAI').checked){ $('jobAI').checked=false; $('jobAI').onchange && $('jobAI').onchange(); }
-  }
 }
 async function restore(){
   if(!SID) return;
   try{
     const s = await (await fetch('/api/session/'+SID)).json();
     if(s.connected){
-      $('host').value=s.host||''; $('user').value=s.user||'';
+      $('host').value=s.host||''; $('user').value=s.user||''; connectedProfile=s.profile||'';
       const pi=(META.providers||[]).findIndex(pr=>pr.host && pr.host===s.host);
       if(pi>=0) $('provider').value=String(pi);
       applyProviderTips();
@@ -1224,6 +1262,15 @@ function placeMatchSection(ai){
 // warning when OFF (real run that deletes/moves per the criteria).
 function updateDryRun(){
   const box=$('dryRunBox'); if(!box) return;
+  // Disabled by Report only: report-only builds the report and deletes nothing,
+  // so there is nothing to simulate - grey it out and explain why.
+  if($('dryRun').disabled){
+    box.className='rounded-lg border -mx-2 px-2 py-2.5 my-3 border-line bg-ink/40 opacity-60';
+    $('dryRunLabel').className='flex items-center font-semibold text-muted';
+    $('dryRunNote').className='text-[11px] mt-1 text-muted';
+    $('dryRunNote').innerHTML='Disabled with <b>Report only</b>: the report is built and <b>nothing is deleted</b>, so there is nothing to simulate.';
+    return;
+  }
   const on=$('dryRun').checked;
   box.className='rounded-lg border -mx-2 px-2 py-2.5 my-3 '+(on?'border-ok/50 bg-ok/10':'border-danger/60 bg-danger/15');
   $('dryRunLabel').className='flex items-center font-semibold '+(on?'text-ok':'text-danger');
@@ -1238,6 +1285,13 @@ function refreshConditional(){
   if(!aiOk) $('aiCleanup').checked=false;   // [ai] extra missing -> can't use AI
   const ai=$('aiCleanup').checked;
   $('aiPanel').classList.remove('hidden');   // AI Cleanup is its own always-expanded card
+  // AI report-mode mutual exclusion (same rule for interactive runs AND scheduled jobs):
+  // Skip LLM (heuristic only) can't decide deletions, so it forces Report only;
+  // Report only deletes nothing, so Flag-as-spam is disabled.
+  const _rep=$('aiReportOnly'), _skp=$('aiSkipLlm'), _flg=$('aiFlagSpam');
+  if(_rep && _skp && _skp.checked) _rep.checked=true;
+  const aiReportOnly = !!(_rep && _rep.checked);
+  if(_flg){ _flg.disabled = aiReportOnly; if(aiReportOnly) _flg.checked=false; }
   if(ai)$('emptyFolder').checked=false;
   $('emptyFolder').disabled = ai;
   const empty=$('emptyFolder').checked;
@@ -1278,6 +1332,7 @@ function refreshConditional(){
   // Plain delete on Gmail (no Trash) just archives to All Mail - warn the user.
   // (AI Cleanup on Gmail always uses Trash, so it's never the archive-only case.)
   $('gmailDeleteNote').classList.toggle('hidden', !(gmail && !gtrash && !move && !empty && !ai));
+  $('dryRun').disabled = ai && aiReportOnly;   // report-only deletes nothing -> dry-run is moot
   $('paneTargets').classList.toggle('dim',matchOff); $('paneRule').classList.toggle('dim',matchOff);
   // Under AI Cleanup, Run does the AI flow (report + LLM + delete); Count is N/A.
   $('btnRun').title = ai ? 'AI Cleanup: heuristic + LLM, then delete the confirmed senders (dry-run simulates)' : '';
@@ -1297,6 +1352,8 @@ function refreshConditional(){
   if($('btnSaveSenders')) $('btnSaveSenders').disabled = ai;
   if($('sendersName')) $('sendersName').disabled = ai;
   updateAiSecret();
+  if(typeof populateJobProfiles==='function') populateJobProfiles();   // sync the job's profile box + enable/disable scheduling
+  if(typeof updateJobSummary==='function') updateJobSummary();   // keep the scheduled-job summary in sync with Cleanup
 }
 
 /* ---------- folders ---------- */
@@ -1483,46 +1540,29 @@ function jobPayload(){
   let day='';
   if(kind==='weekly') day=$('jobWeekday').value;
   else if(kind==='monthly') day=$('jobDom').value;
+  // The job mirrors the Cleanup tab: AI vs Manual (the toggle), the match, the
+  // options, the folders - plus the AI controls in the AI card. Here we only add
+  // the profile and the schedule.
+  const ai=$('aiCleanup').checked;
+  const skip=!!($('aiSkipLlm') && $('aiSkipLlm').checked);
+  const reportOnly=!!(($('aiReportOnly') && $('aiReportOnly').checked) || skip);
   return Object.assign({}, matchPayload(), optionsPayload(), {
     name:$('jobName').value.trim()||'job',
-    profile:$('jobProfile').value,
+    profile:connectedProfile,
     notify_profile:$('jobSmtpProfile')?$('jobSmtpProfile').value:'',
     kind:kind, time:$('jobTime').value.trim()||'03:00',
     date:$('jobDate').value, minutes:parseInt($('jobMinutes').value)||60,
     day:day,
-    ai_cleanup:$('jobAI').checked, ai_model:$('jobAiModel').value||'',
-    ai_threshold:parseFloat($('jobAiThreshold').value)||6,
-    ai_sample:parseInt($('jobAiSample').value)||5,
-    ai_report_only:$('jobAiReportOnly').checked,
-    ai_skip_llm:$('jobAiSkipLlm').checked,
-    ai_flag_spam:$('jobAiFlagSpam').checked,
-    ai_check_spam:$('jobAiCheckSpam')?$('jobAiCheckSpam').checked:true });
+    ai_cleanup:ai, ai_model: skip ? '' : ($('aiModel').value||''),
+    ai_threshold:parseFloat($('aiThreshold').value)||6,
+    ai_sample:parseInt($('aiSample').value)||5,
+    ai_report_only:reportOnly,
+    ai_skip_llm:skip,
+    ai_flag_spam:$('aiFlagSpam')?$('aiFlagSpam').checked:false,
+    ai_check_spam:$('aiCheckSpam')?$('aiCheckSpam').checked:true });
 }
-function syncJobAi(){
-  // Skip LLM requires Report only (heuristic alone can't decide deletions).
-  if($('jobAiSkipLlm').checked && !$('jobAiReportOnly').checked) $('jobAiReportOnly').checked=true;
-  const skip=$('jobAiSkipLlm').checked, reportOnly=$('jobAiReportOnly').checked;
-  // model is irrelevant when skipping the LLM
-  $('jobAiModel').disabled=skip; $('jobAiModel').parentElement.classList.toggle('opacity-50', skip);
-  $('jobAiSample').disabled=skip;
-  // Report only deletes nothing -> flagging as spam makes no sense.
-  if(reportOnly) $('jobAiFlagSpam').checked=false;
-  $('jobAiFlagSpam').disabled=reportOnly;
-  $('jobAiFlagSpam').parentElement.classList.toggle('opacity-50', reportOnly);
-  updateJobSummary();
-}
-function populateJobAiModels(){
-  const sel=$('jobAiModel'); if(!sel) return;
-  const cur=sel.value; const plain=LLM_MODELS.filter(m=>!m.encrypted);
-  sel.innerHTML='';
-  if(!plain.length){ const o=document.createElement('option'); o.value=''; o.textContent='- no non-encrypted model -'; sel.appendChild(o); }
-  plain.forEach(m=>{ const o=document.createElement('option'); o.value=m.name; o.textContent=m.name+' ('+m.model+')'; sel.appendChild(o); });
-  if(cur && plain.some(m=>m.name===cur)) sel.value=cur;
-  if($('jobAiNoModelNote')) $('jobAiNoModelNote').classList.toggle('hidden', plain.length>0);
-}
-if($('jobAI')) $('jobAI').onchange=()=>{ const on=$('jobAI').checked; $('jobAIRow').classList.toggle('hidden', !on); $('jobAiOffNote').classList.toggle('hidden', on); populateJobAiModels(); syncJobAi(); };
-if($('jobAiReportOnly')) $('jobAiReportOnly').onchange=()=>{ if(!$('jobAiReportOnly').checked) $('jobAiSkipLlm').checked=false; syncJobAi(); };
-if($('jobAiSkipLlm')) $('jobAiSkipLlm').onchange=syncJobAi;
+// (The AI job controls were removed from the Scheduling tab: a job now mirrors the
+// Cleanup tab's AI/Manual toggle and AI settings. jobPayload reads them from there.)
 /* Show only the inputs relevant to the chosen frequency. */
 function updateSchedInputs(){
   const kind=$('jobKind').value;
@@ -1543,16 +1583,32 @@ function updateSchedInputs(){
   $('schedHint').textContent=hints[kind]||'';
   updateJobSummary();
 }
-/* Mirror of scheduler.describe_schedule for the saved-jobs list. */
+/* Human-readable schedule built from the LIVE form inputs (the ones that show for
+   the chosen frequency - sometimes one, sometimes two). Used in the Job summary. */
+function describeScheduleForm(){
+  const kind=$('jobKind').value;
+  const time=($('jobTime').value||'').trim()||'03:00';
+  const date=($('jobDate').value||'').trim();
+  switch(kind){
+    case 'once': return 'once'+(date?(' on '+date):' (pick a date)')+' at '+time;
+    case 'interval': { const m=parseInt($('jobMinutes').value)||60; return 'every '+m+' minute'+(m===1?'':'s'); }
+    case 'hourly': return 'hourly at minute :'+((time.split(':')[1]||'00'));
+    case 'daily': return 'daily at '+time;
+    case 'weekly': { const wd=$('jobWeekday'); const nm=(wd&&wd.options[wd.selectedIndex])?wd.options[wd.selectedIndex].textContent:(WEEKDAY_NAMES[wd&&wd.value]||(wd&&wd.value)||''); return 'weekly on '+nm+' at '+time; }
+    case 'monthly': { const d=parseInt($('jobDom').value)||1; return 'monthly on day '+d+' at '+time; }
+    default: return kind||'';
+  }
+}
+/* Human-readable schedule for a SAVED job (same wording as the Job summary). */
 function describeSchedule(s){
   if(!s) return '';
   switch(s.kind){
     case 'once': return 'once on '+(s.date||'?')+' at '+(s.time||'?');
-    case 'interval': return 'every '+(s.minutes||'?')+' min';
-    case 'hourly': return 'hourly at :'+String(s.minute||0).padStart(2,'0');
-    case 'daily': return 'daily '+(s.time||'');
-    case 'weekly': return 'weekly '+(WEEKDAY_NAMES[s.day]||s.day||'')+' '+(s.time||'');
-    case 'monthly': return 'monthly day '+(s.day||'?')+' '+(s.time||'');
+    case 'interval': { const m=s.minutes||'?'; return 'every '+m+' minute'+(m===1?'':'s'); }
+    case 'hourly': return 'hourly at minute :'+String(s.minute||0).padStart(2,'0');
+    case 'daily': return 'daily at '+(s.time||'');
+    case 'weekly': return 'weekly on '+(WEEKDAY_NAMES[s.day]||s.day||'')+' at '+(s.time||'');
+    case 'monthly': return 'monthly on day '+(s.day||'?')+' at '+(s.time||'');
     default: return s.kind||'';
   }
 }
@@ -1578,68 +1634,122 @@ if($('btnJobSmtpTest')) $('btnJobSmtpTest').onclick=async()=>{
   try{ const r=await api('/api/smtp-test',{name, secret:''}); show((r.ok?'✓ ':'✗ ')+r.message, r.ok?'text-ok':'text-danger'); }
   catch(e){ show('✗ '+e.message,'text-danger'); }
 };
+function jobProfileEncrypted(){ const p=PROFILES.find(x=>x.name===connectedProfile); return !!(p && p.encrypted); }
+function jobProfileOk(){ return !!SID && !!connectedProfile && !jobProfileEncrypted(); }
+/* The job's connection profile is the one the session is connected with (no
+   picker). Render it read-only and enable/disable scheduling accordingly. */
 function populateJobProfiles(){
-  const sel=$('jobProfile'); if(!sel) return;
-  const cur=sel.value;
-  const plain=PROFILES.filter(p=>!p.encrypted);
-  sel.innerHTML='';
-  if(!plain.length){ const o=document.createElement('option'); o.value=''; o.textContent='- no non-encrypted profile -'; sel.appendChild(o); return; }
-  plain.forEach(p=>{ const o=document.createElement('option'); o.value=p.name; o.textContent=p.name; sel.appendChild(o); });
-  if(cur && plain.some(p=>p.name===cur)) sel.value=cur;
+  const box=$('jobProfileBox'); if(!box) return;
+  const ok=jobProfileOk();
+  if(ok){
+    box.innerHTML='<span class="text-cream"><b>'+escapeHtml(connectedProfile)+'</b> <span class="text-muted text-[11px]">- the profile you\'re connected with</span></span>';
+  } else {
+    box.innerHTML='<span class="text-warn text-[11px]">'+(
+      !SID ? 'Not connected - connect via a saved profile in the Cleanup tab'
+      : (!connectedProfile ? 'Connected manually (no saved profile)'
+      : '<b>'+escapeHtml(connectedProfile)+'</b> is encrypted'))+'</span>';
+  }
+  const note=$('jobProfileNote');
+  if(note){
+    let w='';
+    if(!ok){
+      w = !SID ? 'Scheduling needs a live connection via a <b>saved, non-encrypted</b> profile (the cron loads its credentials).'
+        : (!connectedProfile ? 'You connected by typing credentials. <b>Save them as a profile</b> and connect via it to schedule jobs.'
+        : 'Encrypted profiles can\'t run unattended (a cron can\'t type the passphrase). Use a <b>non-encrypted</b> profile.');
+    }
+    note.innerHTML=w; note.classList.toggle('hidden', !w);
+  }
+  ['btnSaveJob','btnInstallJob','btnExportJob','btnJobSource'].forEach(id=>{ const b=$(id); if(b) b.disabled=!ok; });
 }
 function updateJobSummary(){
   const el=$('jobSummary'); if(!el) return;
   const connected=!!SID;
-  const folders=(selectedFolders.length?selectedFolders:['INBOX']).join(', ');
-  const empty=$('emptyFolder').checked;
-  const mode=document.querySelector('input[name=mode]:checked').value;
-  const prof=$('jobProfile').value;
-  const moveOn=$('moveMode').checked && !empty;
-  let warn=false, match;
-  if(empty){ match='every message (empty folder)'; }
-  else if(mode==='rule'){ match='messages matching the rule'; }
-  else { const n=($('targets').value||'').split('\n').filter(l=>l.trim()&&!l.trim().startsWith('#')).length;
-    if(n){ match='messages from '+n+' target line(s)'; }
-    else if(moveOn){ match='every message (move all)'; }
-    else { match='no targets set'; warn=true; } }
-  const aiJob=$('jobAI') && $('jobAI').checked;
-  let action;
-  if(aiJob){
-    const reportOnly=$('jobAiReportOnly').checked, skip=$('jobAiSkipLlm').checked;
-    const eng = skip?'heuristic only':('LLM '+($('jobAiModel').value||'no model'));
-    action = reportOnly ? ('AI report only ('+eng+', emailed if notifications on)')
-                        : ('AI Cleanup ('+eng+')');
-    match = reportOnly ? ('flagged senders, score ≥ '+(parseFloat($('jobAiThreshold').value)||6)+' (nothing deleted)')
-                       : ('senders the model confirms (score ≥ '+(parseFloat($('jobAiThreshold').value)||6)+')');
-    warn=false; }
-  else if(empty) action='Delete EVERYTHING';
-  else if($('moveMode').checked) action='Move to '+(moveDestValue()||'(no destination set)');
-  else if($('gmailTrash').checked) action='Move to Gmail Trash';
-  else if($('expunge').checked) action='Permanently delete (expunge)';
-  else action='Flag as deleted';
-  const profTxt = prof ? ('<b>'+escapeHtml(prof)+'</b>') : '<span class="text-warn">⚠️ none selected</span>';
-  const matchTxt = warn ? ('<span class="text-warn">⚠️ '+escapeHtml(match)+'</span>') : ('<b>'+escapeHtml(match)+'</b>');
-  const foldersTxt = connected ? ('<b>'+escapeHtml(folders)+'</b>')
-                               : '<b>INBOX</b> <span class="text-warn">(default)</span>';
-  const notConnectedNote = connected ? '' :
-    '<br><span class="text-warn">⚠️ IMAP account not connected, so only <b>INBOX</b> will be used. '+
-    'To target other folders, <b>connect from the Cleanup tab</b> and pick them in the folder list first - they\'ll then appear here.</span>';
+  const ai=$('aiCleanup').checked;
+  const prof=connectedProfile;
+  // The action description (AI or manual) is the SAME discursive recap shown in the
+  // Run confirm popup - so the job summary reads exactly like what an interactive run does.
+  const r=actionRecap();
+  const profHtml = prof ? ('<b>'+escapeHtml(prof)+'</b>') : '<span class="text-warn">⚠️ none selected</span>';
+  const head=[ _recapRow('Profile', profHtml), _recapRow('Schedule', '<b>'+escapeHtml(describeScheduleForm())+'</b>') ];
   el.innerHTML =
-    '<b>'+escapeHtml(action)+'</b> · '+matchTxt+
-    '<br>Profile: '+profTxt+' · Folders: '+foldersTxt+
-    (empty?'':' · Scan: <b>'+escapeHtml(mode)+'</b>')+
-    notConnectedNote+
-    '<br><span class="text-warn">Runs for real - dry-run does not apply to scheduled jobs.</span>'+
-    (aiJob ? '' : ' Set connection profile here; folders/match/options in the <b>Cleanup</b> tab.');
+    '<div class="space-y-1 text-[13px]">'+head.join('')+r.rows.join('')+'</div>'+
+    '<p class="text-[12.5px] text-muted mt-3 leading-relaxed">'+r.discursive+'</p>'+
+    '<p class="text-[12px] text-warn mt-2">Runs for real - dry-run does not apply to scheduled jobs. Set the behaviour in the <b>Cleanup</b> tab; here you only choose the profile and schedule.</p>'+
+    (connected?'':'<p class="text-[12px] text-warn mt-1">⚠️ Not connected, so only <b>INBOX</b> will be used. Connect in the <b>Cleanup</b> tab and tick the folders you want there.</p>');
+  // Validations -> the jobAiWarn line in the controls box above.
+  const warnEl=$('jobAiWarn'); if(!warnEl) return;
+  let w='';
+  if(!prof){ w='⚠️ Pick a non-encrypted connection <b>profile</b> above - a cron can\'t type a password to decrypt one.'; }
+  else if(ai){
+    const skip=$('aiSkipLlm')&&$('aiSkipLlm').checked;
+    const m=(typeof LLM_MODELS!=='undefined'?LLM_MODELS:[]).find(x=>x.name===($('aiModel').value||''));
+    if(!skip){   // a real LLM call is needed -> a non-encrypted model is required to run unattended
+      if(!m) w='⚠️ This AI job needs a saved <b>LLM model</b> (pick one in the Cleanup/LLM tab) - or tick <b>Report only</b> + <b>Skip LLM</b> in the Cleanup tab for a heuristic-only job.';
+      else if(m.encrypted) w='⚠️ The selected model <b>'+escapeHtml(m.name)+'</b> is <b>encrypted</b>; scheduled jobs can\'t decrypt it. Choose a <b>non-encrypted</b> model, or tick <b>Report only</b> + <b>Skip LLM</b> for a heuristic-only job.';
+    }
+  }
+  warnEl.innerHTML=w; warnEl.classList.toggle('hidden', !w);
 }
 let JOBS = [];
+/* Parse a saved job's CLI args back into a structured object (reverse of _job_from). */
+function parseJobArgs(args){
+  const a=args||[]; const has=f=>a.indexOf(f)>=0;
+  const val=f=>{ const i=a.indexOf(f); return (i>=0 && i+1<a.length)?a[i+1]:''; };
+  const folders=[]; for(let i=0;i<a.length;i++){ if(a[i]==='--folder' && i+1<a.length) folders.push(a[i+1]); }
+  return { profile:val('--profile'), notify_profile:val('--notify-profile'), folders,
+    ai:has('--ai-cleanup'), ai_report_only:has('--ai-report-only'), ai_flag_spam:has('--ai-flag-spam'),
+    ai_no_check_spam:has('--ai-no-check-spam'), ai_model:val('--ai-model'),
+    ai_threshold:val('--ai-threshold'), ai_sample:val('--ai-sample'),
+    empty:has('--empty-folder'), rule:val('--rule'), targets:val('--targets'),
+    move:has('--move'), dest:val('--dest-folder'), gmail_trash:has('--gmail-trash'),
+    expunge:has('--expunge'), scan_mode:val('--scan-mode')||'search' };
+}
+/* Human-readable details of a saved job (what the Job summary showed when you saved it). */
+function jobDetailsHtml(j){
+  const o=parseJobArgs(j.args); const rows=[]; let disc;
+  rows.push(_recapRow('Profile', '<b>'+escapeHtml(o.profile||'?')+'</b>'));
+  rows.push(_recapRow('Schedule', '<b>'+escapeHtml(describeSchedule(j.schedule))+'</b>'));
+  rows.push(_recapRow('Folders', '<b>'+escapeHtml((o.folders.length?o.folders:['INBOX']).join(', '))+'</b>'));
+  if(o.ai){
+    const skip=!o.ai_model;
+    rows.push(_recapRow('Action', o.ai_report_only?'AI report only - <b>deletes nothing</b>':'AI Cleanup - <b>deletes</b> the confirmed senders'));
+    rows.push(_recapRow('Matches', o.rule?'messages matching a <b>Rule</b>':(o.targets?'messages from a <b>Target list</b>':'<b>every</b> sender in the folder')));
+    rows.push(_recapRow('Engine', skip?'local <b>heuristic only</b> (no LLM)':('LLM <b>'+escapeHtml(o.ai_model)+'</b>')));
+    rows.push(_recapRow('Threshold', escapeHtml(o.ai_threshold||'6')+' / 10'));
+    rows.push(_recapRow('Sample', escapeHtml(o.ai_sample||'5')+' subjects/sender'));
+    if(!o.ai_report_only) rows.push(_recapRow('Flag as spam', o.ai_flag_spam?'yes':'no'));
+    rows.push(_recapRow('Check saved spam', o.ai_no_check_spam?'no':'yes'));
+    disc = o.ai_report_only ? 'Builds an AI report (CSV) and <b>deletes nothing</b>.'
+      : 'Scores senders, asks '+(skip?'the heuristic':'the model')+', then <b>deletes</b> the confirmed ones.';
+  } else {
+    let verb;
+    if(o.empty){ verb='Delete EVERY message (empty folder)'; }
+    else if(o.move){ verb='Move matched messages to <b>'+escapeHtml(o.dest||'?')+'</b>'; }
+    else if(o.gmail_trash){ verb='Move matched messages to Gmail Trash'; }
+    else if(o.expunge){ verb='PERMANENTLY delete (expunge) matched messages'; }
+    else { verb='Flag matched messages as deleted'; }
+    rows.push(_recapRow('Action', verb));
+    if(!o.empty) rows.push(_recapRow('Matches', o.rule?'messages matching a <b>Rule</b>':(o.targets?'messages from a <b>Target list</b>':'<b>every</b> message (move all)')));
+    rows.push(_recapRow('Scan mode', o.empty?'n/a (whole folder)':escapeHtml(o.scan_mode)));
+    disc = o.empty?'Deletes <b>every</b> message in the selected folders.':'Acts on the messages matching the saved filter.';
+  }
+  if(o.notify_profile) rows.push(_recapRow('Notify via', '<b>'+escapeHtml(o.notify_profile)+'</b>'));
+  rows.push(_recapRow('Status', j.installed?'<span class="text-ok">installed in the system scheduler</span>':'saved (not installed)'));
+  return '<div class="space-y-1 text-[13px]">'+rows.join('')+'</div>'
+    +'<p class="text-[12.5px] text-muted mt-3 leading-relaxed">'+disc+' Runs <b>for real</b> - dry-run does not apply to scheduled jobs.</p>';
+}
 async function loadJobs(){
   try{
     const d=await (await fetch('/api/jobs')).json();
-    JOBS = d.jobs || [];
+    JOBS = d.jobs || [];                         // full list (used for name-overwrite checks)
     const box=$('jobsList'); box.innerHTML='';
-    if(!d.jobs.length){ box.innerHTML='<p class="text-muted text-xs">No saved jobs.</p>'; return; }
-    d.jobs.forEach(j=>{
+    // Scope the list to the connected profile (jobs are per profile).
+    if(!connectedProfile){
+      box.innerHTML='<p class="text-muted text-xs">Connect via a saved profile in the Cleanup tab to see and create its scheduled jobs.</p>'; return;
+    }
+    const mine=JOBS.filter(j=>parseJobArgs(j.args).profile===connectedProfile);
+    if(!mine.length){ box.innerHTML='<p class="text-muted text-xs">No saved jobs for profile <b>'+escapeHtml(connectedProfile)+'</b> yet.</p>'; return; }
+    mine.forEach(j=>{
       const row=document.createElement('div'); row.className='flex items-center justify-between bg-ink border border-line rounded-lg px-3 py-2';
       const freq=describeSchedule(j.schedule);
       const status = j.installed ? '<span class="text-ok text-xs">· installed</span>' : '<span class="text-muted text-xs">· saved</span>';
@@ -1653,6 +1763,8 @@ async function loadJobs(){
         toggle.className='text-brand-light text-xs hover:underline'; toggle.textContent='install';
         toggle.onclick=async()=>{ try{ const r=await api('/api/jobs/install-saved',{name:j.name}); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=r.message+'\n\n'+r.command; loadJobs(); }catch(e){ toastErr(e.message); } };
       }
+      const det=document.createElement('button'); det.className='text-brand-light text-xs hover:underline'; det.textContent='details';
+      det.onclick=()=>infoDialog('Job details - '+j.name, jobDetailsHtml(j));
       const src=document.createElement('button'); src.className='text-muted text-xs hover:text-cream'; src.textContent='source';
       src.onclick=()=>{ const cmd=(j.args||[]).join(' ');
         sourceDialog('Source - '+j.name,
@@ -1665,19 +1777,20 @@ async function loadJobs(){
       logs.onclick=()=>openJobLog(j.name);
       const del=document.createElement('button'); del.className='text-danger text-xs hover:underline'; del.textContent='delete';
       del.onclick=async()=>{ if(!(await confirmDialog({title:'Delete job', message:'Delete job "'+j.name+'" and remove its system task?', okText:'Delete', danger:true}))) return; await api('/api/jobs/'+encodeURIComponent(j.name),null,'DELETE'); loadJobs(); };
-      actions.append(toggle, src, logs, del); row.appendChild(actions); box.appendChild(row);
+      actions.append(toggle, det, src, logs, del); row.appendChild(actions); box.appendChild(row);
     });
   }catch(e){ $('jobsList').innerHTML='<p class="text-danger text-xs">'+e.message+'</p>'; }
 }
 
 /* ---------- events ---------- */
-const TABS=['cleanup','scheduling','llm','notifications','spam'];
+const TABS=['cleanup','scheduling','report','llm','notifications','spam'];
 function switchTab(name){
   if(!TABS.includes(name)) name='cleanup';
   try{ localStorage.setItem('icw_tab', name); }catch(_){}
   document.querySelectorAll('.tab,.navitem').forEach(x=>{ if(x.dataset.tab) x.classList.toggle('active', x.dataset.tab===name); });
   TABS.forEach(t=>{ const el=$('tab-'+t); if(el) el.classList.toggle('hidden', t!==name); });
-  if(name==='scheduling'){ populateJobProfiles(); updateSchedInputs(); loadJobs(); loadLLMModels().then(populateJobAiModels); loadSmtp().then(populateJobSmtp); }
+  if(name==='scheduling'){ populateJobProfiles(); updateSchedInputs(); loadJobs(); loadLLMModels(); loadSmtp().then(populateJobSmtp); updateJobSummary(); }
+  if(name==='report'){ loadAiReports(); }
   if(name==='llm'){ loadLLMModels(); }
   if(name==='notifications'){ loadSmtp(); }
   if(name==='spam'){ spamState.offset=0; loadSpam(); }
@@ -1724,19 +1837,98 @@ $('moveDestNew').oninput=updateJobSummary;
 $('aiCleanup').onchange=refreshConditional;
 if($('dryRun')) $('dryRun').onchange=updateDryRun;
 if($('modeToggle')) $('modeToggle').onclick=()=>{ if($('aiCleanup').disabled) return; $('aiCleanup').checked=!$('aiCleanup').checked; refreshConditional(); };
-$('aiThreshold').oninput=()=>{ $('thrVal').textContent=parseFloat($('aiThreshold').value).toFixed(1); };
-$('aiModel').onchange=updateAiSecret;
+$('aiThreshold').oninput=()=>{ $('thrVal').textContent=parseFloat($('aiThreshold').value).toFixed(1); updateJobSummary(); };
+$('aiModel').onchange=()=>{ updateAiSecret(); updateJobSummary(); };
+if($('aiSample')) $('aiSample').addEventListener('input', updateJobSummary);
+// AI report-mode checkboxes: keep the Skip LLM -> Report only invariant and refresh state.
+if($('aiReportOnly')) $('aiReportOnly').onchange=()=>{ if(!$('aiReportOnly').checked && $('aiSkipLlm')) $('aiSkipLlm').checked=false; refreshConditional(); updateJobSummary(); };
+if($('aiSkipLlm')) $('aiSkipLlm').onchange=()=>{ refreshConditional(); updateJobSummary(); };
+if($('aiFlagSpam')) $('aiFlagSpam').onchange=updateJobSummary;
+if($('aiCheckSpam')) $('aiCheckSpam').onchange=updateJobSummary;
 function aiPayload(){
   // Like Move: AI honors the active filter (targets/rule), or the whole folder.
+  const skip=$('aiSkipLlm') && $('aiSkipLlm').checked;
+  const reportOnly=$('aiReportOnly') && $('aiReportOnly').checked;
   return { sid:SID, ...matchPayload(), folders:selectedFolders.length?selectedFolders:['INBOX'],
     threshold:parseFloat($('aiThreshold').value)||6, sample_size:parseInt($('aiSample').value)||5,
     exclude:$('aiExclude').value, batch_size:parseInt($('batch').value)||500,
-    model:$('aiModel').value||'', secret:$('aiSecret').value||'',
+    model: skip ? '' : ($('aiModel').value||''), secret:$('aiSecret').value||'',
+    report_only:!!reportOnly, skip_llm:!!skip,
     dry_run:$('dryRun').checked, expunge:$('expunge').checked, flag_spam:$('aiFlagSpam')?$('aiFlagSpam').checked:false,
     check_spam:$('aiCheckSpam')?$('aiCheckSpam').checked:true,
     weights:{ list_unsubscribe:parseFloat($('wUnsub').value)||0, unread_ratio:parseFloat($('wUnread').value)||0,
       bulk:parseFloat($('wBulk').value)||0, sender_pattern:parseFloat($('wPattern').value)||0, frequency:parseFloat($('wFreq').value)||0 } };
 }
+/* ===== Action recap: shared by the Run confirm popup and the Scheduling job summary ===== */
+function _entryCount(text){ return (text||'').split(/\r?\n/).filter(l=>l.trim()&&!l.trim().startsWith('#')).length; }
+function _filterDesc(mp){
+  if(mp.match_mode==='rule') return mp.rule_tree ? 'messages matching your <b>Rule</b>' : '<b>every</b> message (no rule set)';
+  const n=_entryCount(mp.targets_text);
+  return n ? ('messages from your <b>Target list</b> ('+n+' entr'+(n===1?'y':'ies')+')') : '<b>every</b> message (no filter set)';
+}
+function _recapRow(k,v){ return '<div class="flex gap-2"><span class="text-muted shrink-0 w-36">'+k+'</span><span class="text-cream">'+v+'</span></div>'; }
+/* Describe the action currently configured in the Cleanup tab (AI or manual).
+   Returns {title, rows:[html], discursive, danger}. Used live for the Run popup
+   and (with a scheduling preamble) for the Job summary. */
+function actionRecap(){
+  const ai=$('aiCleanup').checked;
+  const folders=(selectedFolders.length?selectedFolders:['INBOX']);
+  const folHtml='<b>'+escapeHtml(folders.join(', '))+'</b>';
+  const mp=matchPayload();
+  const exN=_entryCount($('aiExclude')?$('aiExclude').value:'');
+  const exHtml=exN?(', excluding '+exN+' sender'+(exN===1?'':'s')):'';
+  const rows=[];
+  if(ai){
+    const reportOnly=$('aiReportOnly')&&$('aiReportOnly').checked;
+    const skip=$('aiSkipLlm')&&$('aiSkipLlm').checked;
+    const model=skip?'':($('aiModel').value||'');
+    rows.push(_recapRow('Action', reportOnly?'AI report only - <b>deletes nothing</b>':'AI Cleanup - <b>deletes</b> the confirmed senders'));
+    rows.push(_recapRow('Folders', folHtml));
+    rows.push(_recapRow('Matches', _filterDesc(mp)+exHtml));
+    rows.push(_recapRow('AI then', reportOnly
+      ? 'analyzes those senders and saves a report (<b>deletes nothing</b>)'
+      : 'analyzes those senders and <b>deletes</b> only the ones it confirms as junk'));
+    rows.push(_recapRow('Engine', skip?'local <b>heuristic only</b> (no LLM, no cost)':(model?('LLM <b>'+escapeHtml(model)+'</b>'):'<b>heuristic only</b> (no model selected)')));
+    rows.push(_recapRow('Threshold', escapeHtml($('aiThreshold').value)+' / 10'));
+    rows.push(_recapRow('Sample', escapeHtml($('aiSample').value)+' subjects/sender'));
+    if(!reportOnly) rows.push(_recapRow('Flag as spam', ($('aiFlagSpam')&&$('aiFlagSpam').checked)?'yes - move 1 message to Junk, then delete the rest':'no'));
+    rows.push(_recapRow('Check saved spam', ($('aiCheckSpam')&&$('aiCheckSpam').checked)?'yes - accept already-known senders without re-asking the LLM':'no'));
+    const disc = reportOnly
+      ? 'This <b>builds the report</b> for the senders scoring at or above the threshold and saves it as CSV - it <b>never deletes</b> a single email. '+(skip?'No LLM is called, so it is free and nothing leaves your machine.':'The model judges each flagged sender; only subjects and stats are sent, never message bodies.')
+      : 'The '+(model?'model':'heuristic')+' decides which flagged senders are junk, and the confirmed ones are <b>deleted</b> from '+folHtml+(gmailHost()?' (moved to Gmail Trash)':'')+'. Only senders above the threshold are judged'+exHtml+'.'+(gmailHost()?' <b>On Gmail this only moves them to the Trash</b> - to actually free the space, afterwards run an <b>Empty folder</b> on <code>[Gmail]/Trash</code> (by hand, or schedule a separate Empty-folder job on the Trash).':'');
+    return { title: reportOnly?'AI report - nothing will be deleted':'AI Cleanup - this will delete mail', rows, discursive:disc, danger:!reportOnly };
+  }
+  const op=optionsPayload();
+  let verb, disc;
+  if(op.empty_folder){ verb='Delete EVERY message'; disc='Every message in '+folHtml+' will be <b>deleted</b>, ignoring the Target list / Rule. Other folders are left untouched.'; }
+  else if(op.move){ const moveAll=mp.match_mode!=='rule' && !(($('targets').value||'').trim());
+    verb=(moveAll?'Move EVERY message':'Move matched messages')+' to <b>'+escapeHtml(op.dest_folder||'?')+'</b>';
+    disc=(moveAll?'Every message':'The matched messages')+' will be <b>moved</b> to <b>'+escapeHtml(op.dest_folder||'?')+'</b> (on Gmail this relabels them, leaving the copy in All Mail).'; }
+  else if(op.gmail_trash){ verb='Move matched messages to Gmail Trash'; disc='Matched messages are moved to <b>[Gmail]/Trash</b> - the only way to really delete on Gmail. Empty the Trash afterwards to free space.'; }
+  else if(op.expunge){ verb='PERMANENTLY delete (expunge) matched messages'; disc='Matched messages are flagged and <b>expunged immediately</b>: permanent removal, not recoverable.'; }
+  else { verb='Flag matched messages as deleted';
+    disc = gmailHost()
+      ? 'Matched messages would be flagged <code>\\Deleted</code>, but <b>on Gmail this does not actually delete them</b> - it only removes the label, archiving them to All Mail. To really delete them, enable <b>Gmail: move to Trash</b> (then empty the Trash afterwards).'
+      : 'Matched messages are flagged <code>\\Deleted</code> (hidden by most clients but <b>recoverable</b> until expunged). Tick <b>Expunge</b> to remove them for good.'; }
+  const hasFilter = mp.match_mode==='rule' ? !!mp.rule_tree : _entryCount(mp.targets_text)>0;
+  rows.push(_recapRow('Action', verb));
+  rows.push(_recapRow('Folders', folHtml));
+  if(!op.empty_folder){
+    let matchTxt;
+    if(op.move && !hasFilter) matchTxt='<b>every</b> message (move all)';
+    else if(!hasFilter && !op.move) matchTxt='<span class="text-warn">no filter set - nothing will match</span>';
+    else matchTxt=_filterDesc(mp)+exHtml;
+    rows.push(_recapRow('Matches', matchTxt));
+  }
+  rows.push(_recapRow('Scan mode', op.empty_folder?'n/a (whole folder)':escapeHtml(op.scan_mode)+(op.include_subdomains?' + subdomains':'')));
+  return { title:'This is not a dry-run', rows, discursive:disc, danger:true };
+}
+function recapBodyHtml(r){
+  return '<div class="space-y-1 text-[13px]">'+r.rows.join('')+'</div>'
+    +'<p class="text-[12.5px] text-muted mt-3 leading-relaxed">'+r.discursive+'</p>';
+}
+function confirmRunRecap(){ const r=actionRecap();
+  return confirmDialog({ title:r.title, html:recapBodyHtml(r), okText:(r.danger?'Run for real':'Proceed'), danger:r.danger }); }
 function updateAiSecret(){
   const sel=$('aiModel'); const m=LLM_MODELS.find(x=>x.name===(sel?sel.value:''));
   if($('aiSecretRow')) $('aiSecretRow').classList.toggle('hidden', !(m && m.encrypted));
@@ -1746,42 +1938,89 @@ if($('aiSecretEye')) $('aiSecretEye').onclick=()=>{ const i=$('aiSecret'); i.typ
 // the cache. When OFF, an existing cache is simply left untouched (it self-heals
 // when re-enabled - only missing UIDs are fetched), so there is nothing to delete
 // here. Use the explicit "Clear cache" button to wipe it on purpose.
-$('btnAiReport').onclick=async()=>{ if(!SID){ toastErr('Not connected.'); return; } if(!(await ensureFolderChosen())) return;
-  const p=aiPayload();
-  // No LLM configured and Skip LLM not explicitly ticked -> confirm heuristic-only.
-  if((typeof LLM_MODELS!=='undefined'?LLM_MODELS:[]).length===0 && !($('aiSkipLlm') && $('aiSkipLlm').checked)){
-    const ch=await choiceDialog({title:'No LLM configured', message:'No LLM model is configured, so the report will use the local HEURISTIC engine only (spam score, no AI verdicts) - exactly as if you had ticked "Skip LLM". It is free and private, but less precise.\n\nProceed heuristic-only, or open the LLM tab to configure a model?', choices:[{key:'go', label:'Proceed (heuristic only)'},{key:'llm', label:'Open LLM tab'}]});
-    if(!ch){ log('Report cancelled.'); return; }
-    if(ch==='llm'){ switchTab('llm'); return; }
-  }
-  if(!(await ensureSmtpNotifySecret())){ log('Run cancelled.'); return; } p.notify_secret=smtpNotifySecret;
-  if($('aiSkipLlm') && $('aiSkipLlm').checked){ p.model=''; log('Generating heuristic-only report (LLM skipped) on: '+p.folders.join(', ')+' …'); }
-  else log('Generating AI report on: '+p.folders.join(', ')+' …');
-  startJob('/api/ai-report', p); };
-async function loadAiReports(){
-  const sel=$('aiReportList'); if(!sel) return;
-  const cur=sel.value;
-  if(!SID){ sel.innerHTML='<option value="">— connect to see saved reports —</option>'; $('btnAiDownload').disabled=true; $('btnAiDeleteReport').disabled=true; return; }
-  try{ const d=await (await fetch('/api/ai-reports/list/'+SID)).json(); const files=d.reports||[];
-    sel.innerHTML='';
-    if(!files.length){ const o=document.createElement('option'); o.value=''; o.textContent='— no saved reports for this account —'; sel.appendChild(o); }
-    files.forEach(f=>{ const o=document.createElement('option'); o.value=f.name; o.textContent=f.label; sel.appendChild(o); });
-    if(cur && files.some(f=>f.name===cur)) sel.value=cur;   // keep selection
-    $('btnAiDownload').disabled = !files.length; $('btnAiDeleteReport').disabled = !files.length;
-  }catch(e){ /* leave as-is */ }
+// (The old "Generate report" button was removed: its job is now the single Run
+// button with "Report only" ticked - see $('btnRun').onclick.)
+/* ---------- Reports tab (saved AI report CSVs) ---------- */
+let REPORTS=[]; const reportSel=new Set(); let reportPage=0; let reportPageSize=25; let reportQuery='';
+function parseReportLabel(label){ const p=String(label||'').split('_'); return { date:p[0]||label||'', time:(p[1]||'').replace(/-/g,':') }; }
+async function loadAiReports(){   // (name kept: called on connect/disconnect/after a run/on load)
+  if(!$('reportRows')) return;
+  if(!SID){ REPORTS=[]; reportSel.clear(); renderReports(); return; }
+  try{ const d=await (await fetch('/api/ai-reports/list/'+SID)).json(); REPORTS=d.reports||[]; }
+  catch(e){ REPORTS=[]; }
+  const have=new Set(REPORTS.map(r=>r.name));
+  Array.from(reportSel).forEach(n=>{ if(!have.has(n)) reportSel.delete(n); });
+  renderReports();
 }
-$('btnAiDownload').onclick=async()=>{
-  const name=$('aiReportList') ? $('aiReportList').value : '';
-  if(!name){ log('[ERROR] No saved report to download yet - generate one first.'); return; }
+function filteredReports(){ const q=reportQuery.trim().toLowerCase();
+  return q ? REPORTS.filter(r=>r.name.toLowerCase().includes(q)||(r.label||'').toLowerCase().includes(q)) : REPORTS; }
+function renderReports(){
+  const body=$('reportRows'); if(!body) return;
+  const connected=!!SID;
+  $('reportConnect').classList.toggle('hidden', connected);
+  const list=filteredReports();
+  $('reportEmpty').classList.toggle('hidden', !(connected && REPORTS.length===0));
+  $('reportTableWrap').classList.toggle('hidden', !connected || REPORTS.length===0);
+  const pages=Math.max(1, Math.ceil(list.length/reportPageSize));
+  if(reportPage>=pages) reportPage=pages-1; if(reportPage<0) reportPage=0;
+  const start=reportPage*reportPageSize; const pageItems=list.slice(start, start+reportPageSize);
+  body.innerHTML='';
+  pageItems.forEach(r=>{
+    const dt=parseReportLabel(r.label);
+    const tr=document.createElement('tr'); tr.className='border-b border-line/60';
+    tr.innerHTML='<td class="py-2 pr-2"><input type="checkbox" data-n="'+escapeHtml(r.name)+'"'+(reportSel.has(r.name)?' checked':'')+'></td>'
+      +'<td class="py-2 pr-2 font-mono text-[12px] text-cream break-all">'+escapeHtml(r.name)+'</td>'
+      +'<td class="py-2 pr-2 whitespace-nowrap text-muted">'+escapeHtml(dt.date)+'</td>'
+      +'<td class="py-2 pr-2 whitespace-nowrap text-muted">'+escapeHtml(dt.time)+'</td>'
+      +'<td class="py-2 pr-2 text-right whitespace-nowrap"><button data-dl="'+escapeHtml(r.name)+'" class="text-brand-light hover:underline text-xs mr-3">download</button>'
+      +'<button data-del="'+escapeHtml(r.name)+'" class="text-danger hover:underline text-xs">delete</button></td>';
+    body.appendChild(tr);
+  });
+  body.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.onchange=()=>{ if(cb.checked) reportSel.add(cb.dataset.n); else reportSel.delete(cb.dataset.n); renderReportsToolbar(); syncReportPageCb(pageItems); });
+  body.querySelectorAll('[data-dl]').forEach(b=>b.onclick=()=>downloadReport(b.dataset.dl));
+  body.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>deleteReports([b.dataset.del]));
+  syncReportPageCb(pageItems);
+  $('reportPager').classList.toggle('hidden', !connected || list.length<=reportPageSize);
+  $('reportPageInfo').textContent=list.length?('Showing '+(start+1)+'-'+(start+pageItems.length)+' of '+list.length):'';
+  renderReportsToolbar();
+}
+function syncReportPageCb(pageItems){ const names=pageItems.map(r=>r.name);
+  if($('reportSelPage')) $('reportSelPage').checked = names.length>0 && names.every(n=>reportSel.has(n)); }
+function renderReportsToolbar(){
+  const n=reportSel.size; const list=filteredReports();
+  $('reportBulk').classList.toggle('hidden', n===0);
+  $('reportSelInfo').textContent=n+' selected';
+  const all=list.length>0 && list.every(r=>reportSel.has(r.name));
+  const btn=$('btnReportSelAll'); if(!btn) return;
+  if(all){ btn.textContent='Clear selection'; btn.onclick=()=>{ reportSel.clear(); renderReports(); }; }
+  else { btn.textContent='Select all '+list.length+' across pages'; btn.onclick=()=>{ list.forEach(r=>reportSel.add(r.name)); renderReports(); }; }
+}
+async function downloadReport(name){
   try{ const r=await fetch('/api/ai-reports/'+encodeURIComponent(name)); if(!r.ok){ const d=await r.json().catch(()=>({})); throw new Error(errText(d,r.status)); }
     download(name, await r.text()); log('Report downloaded: '+name); }
-  catch(e){ log('[ERROR] '+e.message); } };
-if($('btnAiDeleteReport')) $('btnAiDeleteReport').onclick=async()=>{
-  const sel=$('aiReportList'); const name=sel?sel.value:''; if(!name){ return; }
-  const label=sel.options[sel.selectedIndex]?sel.options[sel.selectedIndex].textContent:name;
-  if(!(await confirmDialog({title:'Delete report', message:'Delete the saved report "'+label+'"? This only removes the CSV file, not any email.', okText:'Delete', danger:true}))) return;
-  try{ await api('/api/ai-reports/'+encodeURIComponent(name),null,'DELETE'); log('Report deleted: '+name); loadAiReports(); }
-  catch(e){ log('[ERROR] '+e.message); } };
+  catch(e){ toastErr(e.message); } }
+async function deleteReports(names){
+  if(!names.length) return;
+  const msg = names.length===1 ? ('Delete the saved report "'+names[0]+'"? This only removes the CSV file, not any email.')
+    : ('Delete '+names.length+' saved reports? This only removes the CSV files, not any email.');
+  if(!(await confirmDialog({title:'Delete report'+(names.length>1?'s':''), message:msg, okText:'Delete', danger:true}))) return;
+  try{ await api('/api/ai-reports/delete',{names}); names.forEach(n=>reportSel.delete(n)); log('Deleted '+names.length+' report(s).'); loadAiReports(); }
+  catch(e){ toastErr(e.message); } }
+async function downloadReportsZip(names){
+  if(!names.length) return;
+  try{ const r=await fetch('/api/ai-reports/zip',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({names})});
+    if(!r.ok){ const d=await r.json().catch(()=>({})); throw new Error(errText(d,r.status)); }
+    const blob=await r.blob(); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='ai_reports.zip'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+    log('Downloaded '+names.length+' report(s) as ai_reports.zip'); }
+  catch(e){ toastErr(e.message); } }
+if($('btnReportRefresh')) $('btnReportRefresh').onclick=loadAiReports;
+if($('reportSearch')) $('reportSearch').addEventListener('input', ()=>{ reportQuery=$('reportSearch').value; reportPage=0; renderReports(); });
+if($('reportSelPage')) $('reportSelPage').onchange=()=>{ const list=filteredReports(); const start=reportPage*reportPageSize; const pageItems=list.slice(start,start+reportPageSize); if($('reportSelPage').checked) pageItems.forEach(r=>reportSel.add(r.name)); else pageItems.forEach(r=>reportSel.delete(r.name)); renderReports(); };
+if($('reportPageSize')) $('reportPageSize').onchange=()=>{ reportPageSize=parseInt($('reportPageSize').value)||25; reportPage=0; renderReports(); };
+if($('reportPrev')) $('reportPrev').onclick=()=>{ if(reportPage>0){ reportPage--; renderReports(); } };
+if($('reportNext')) $('reportNext').onclick=()=>{ const pages=Math.ceil(filteredReports().length/reportPageSize); if(reportPage<pages-1){ reportPage++; renderReports(); } };
+if($('btnReportZip')) $('btnReportZip').onclick=()=>downloadReportsZip(Array.from(reportSel));
+if($('btnReportDelete')) $('btnReportDelete').onclick=()=>deleteReports(Array.from(reportSel));
 
 /* ---------- LLM model configs (LLM tab) ---------- */
 let LLM_MODELS=[];
@@ -2286,18 +2525,29 @@ if($('spamUnsub')) $('spamUnsub').onclick=async()=>{
       msg+='; '+failed+' failed'+(reasons.length?(' ('+reasons.join('; ')+')'):'');
     }
     if(noMethod) msg+='; '+noMethod+' had no unsubscribe info (run a fresh AI report to detect it)';
+    if(r.rate_limited) msg+='. ⚠️ Your mail server hit a sending limit, so the remaining unsubscribe emails were not sent';
+    const warn = !!(failed || r.rate_limited);
+    // The rate-limited leftovers were NOT marked done, so they're still "auto".
+    // Keep them selected and show the "auto" filter, so after a short wait the
+    // user just clicks Unsubscribe again - no need to re-find/re-select them.
+    const rateLeft=(r.failed||[]).filter(f=>/rate limit/i.test(f.reason||'')).map(f=>f.address);
     spamState.sel.clear();
-    // No tab-blasting (popup blockers eat dozens of window.open at once). Instead
-    // jump the list to the "manual" filter so the leftovers are the only rows
-    // shown - the user opens each via its per-row "link ↗".
-    if(manual){
+    if(rateLeft.length){
+      rateLeft.forEach(a=>spamState.sel.add(a));
+      spamState.unsub='auto';
+      if($('spamUnsubFilter')) $('spamUnsubFilter').value='auto';
+      msg+='. The '+rateLeft.length+' leftover'+(rateLeft.length===1?'':'s')+' are kept selected - wait a minute, then click Unsubscribe again';
+    } else if(manual){
+      // No tab-blasting (pop-up blockers eat dozens of window.open at once):
+      // jump the list to the "manual" filter so the leftovers are the only rows.
       spamState.unsub='manual';
       if($('spamUnsubFilter')) $('spamUnsubFilter').value='manual';
       msg+='. Showing the '+manual+' manual one'+(manual===1?'':'s')+' below - open each with its "link ↗"';
     }
-    spamMsg(msg+'.', failed?'text-warn':'text-ok');
+    toast(msg+'.', warn?'border-warn/50 bg-warn/15 text-warn':'border-ok/50 bg-ok/15 text-ok');
+    spamMsg(msg+'.', warn?'text-warn':'text-ok');
     spamState.offset=0; loadSpam();
-  }catch(e){ spamMsg('Error: '+e.message,'text-danger'); }
+  }catch(e){ spamMsg('Error: '+e.message,'text-danger'); toastErr(e.message); }
 };
 if($('spamFlag')) $('spamFlag').onclick=async()=>{
   const addrs=[...spamState.sel]; if(!addrs.length) return;
@@ -2321,7 +2571,8 @@ if($('spamFlag')) $('spamFlag').onclick=async()=>{
 };
 $('togglePass').onclick=()=>{ const p=$('password'); p.type=p.type==='password'?'text':'password'; $('togglePass').textContent=p.type==='password'?'show':'hide'; };
 document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const mode=document.querySelector('input[name=mode]:checked').value; try{localStorage.setItem('icw_mode',mode);}catch(_){} const rule=mode==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); refreshConditional(); });
-$('targets').addEventListener('input', ()=>{ try{localStorage.setItem('icw_targets',$('targets').value);}catch(_){} });
+$('targets').addEventListener('input', ()=>{ try{localStorage.setItem('icw_targets',$('targets').value);}catch(_){} updateJobSummary(); });
+if($('aiExclude')) $('aiExclude').addEventListener('input', updateJobSummary);
 $('btnAddFolder').onclick=()=>{ const v=$('manualFolder').value.trim(); if(!v){ toastErr('Enter a folder / label name first.'); return; } if(!selectedFolders.includes(v))selectedFolders.push(v); if(!knownFolders.some(f=>f.name===v))knownFolders.push({name:v,count:null}); $('manualFolder').value=''; renderFolders(); };
 async function createServerFolder(name){
   if(!SID){ log('[ERROR] Connect first to create a folder on the server.'); return false; }
@@ -2340,6 +2591,7 @@ $('btnConnect').onclick=async()=>{
   if(!$('password').value){ if(!(await confirmDialog({title:'No password', message:'No password entered - try connecting anyway?', okText:'Connect'}))) return; }
   try{ setStatus(false,'connecting…'); $('btnConnect').disabled=true; log('Connecting to '+$('host').value+' …');
     const d=await api('/api/connect',connParams()); SID=d.sid; localStorage.setItem('icw_sid',SID);
+    connectedProfile=d.profile||'';
     logCursor=0; persistLog();   // fresh session log
     knownFolders=d.folders||[]; renderFolders(); setStatus(true,'connected · '+knownFolders.length+' folders'); setConnectedUI(true);
     prefillSelfExclude();
@@ -2347,6 +2599,7 @@ $('btnConnect').onclick=async()=>{
     refreshLoadSpam(); // show the "Load saved Spam addresses" box if any exist
     refreshCacheInfo(); // show cached-header count + Clear cache control
     log('Connected. Loaded '+knownFolders.length+' folder(s).'); toast('Connected - '+knownFolders.length+' folder(s) loaded.', 'border-ok/50 bg-ok/15 text-ok'); refreshConditional();
+    if($('tab-scheduling') && !$('tab-scheduling').classList.contains('hidden')) loadJobs();
   }catch(e){ setStatus(false,'failed'); setConnectedUI(false); log('[ERROR] '+e.message); }
 };
 // Pre-fill the AI exclude box with the connected mailbox so self-sent mail is
@@ -2379,7 +2632,7 @@ function prefillSelfExclude(){
   });
   selfExcludeAddr=addr;
 }
-$('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setStatus(false,'disconnected'); setConnectedUI(false); removeSelfExclude(); loadAiReports(); refreshLoadSpam(); refreshCacheInfo(); Object.keys(unlockedSecrets).forEach(k=>delete unlockedSecrets[k]); smtpNotifySecret=''; log('Disconnected.'); };
+$('btnDisconnect').onclick=async()=>{ if(SID){ try{await api('/api/disconnect/'+SID);}catch(e){} } localStorage.removeItem('icw_sid'); SID=null; connectedProfile=''; knownFolders=[]; selectedFolders=['INBOX']; renderFolders(); setStatus(false,'disconnected'); setConnectedUI(false); removeSelfExclude(); loadAiReports(); refreshLoadSpam(); refreshCacheInfo(); Object.keys(unlockedSecrets).forEach(k=>delete unlockedSecrets[k]); smtpNotifySecret=''; refreshConditional(); if($('tab-scheduling') && !$('tab-scheduling').classList.contains('hidden')) loadJobs(); log('Disconnected.'); };
 $('btnValidate').onclick=async()=>{ try{ const d=await api('/api/validate-rule',{tree:toTree(ROOT)}); $('ruleOut').textContent='OK → SEARCH '+d.search; $('ruleOut').className='text-xs text-ok ml-2'; }catch(e){ $('ruleOut').textContent=e.message; $('ruleOut').className='text-xs text-danger ml-2'; } };
 $('btnStop').onclick=async()=>{ if(SID&&curRunId){ $('btnStop').disabled=true; $('btnStop').textContent='Stopping…'; try{ await api(`/api/stop/${SID}/${curRunId}`); log('Stop requested - finishing the current batch, then stopping…'); }catch(e){} } };
 $('btnSenders').onclick=async()=>{ if(!(await ensureFolderChosen())) return; const p=Object.assign({sid:SID, folders:selectedFolders.length?selectedFolders:['INBOX'], batch_size:parseInt($('batch').value)||500, scan_mode:$('scanMode').value, include_subdomains:$('subdomains').checked}, matchPayload()); log('Listing senders in: '+p.folders.join(', ')+' …'); startJob('/api/senders', p); };
@@ -2408,26 +2661,30 @@ $('btnRun').onclick=async ()=>{
   if($('aiCleanup').checked){
     if(!SID){ toastErr('Not connected.'); return; }
     if(!(await ensureFolderChosen())) return;
-    if(!$('aiModel').value){ log('[ERROR] Choose a model in the AI panel (configure one in the LLM tab).'); return; }
+    const reportOnly=$('aiReportOnly')&&$('aiReportOnly').checked;
+    const skip=$('aiSkipLlm')&&$('aiSkipLlm').checked;
     const ap=aiPayload();
-    if(!ap.dry_run && !(await confirmDialog({title:'AI Cleanup - not a dry-run', message:'The AI will judge the flagged senders and DELETE the confirmed ones in:\n'+ap.folders.join(', ')+'\n\nContinue?', okText:'Run AI cleanup', danger:true}))) return;
+    if(reportOnly){
+      // Report-only path: build the report, delete nothing (what "Generate report" used to do).
+      if(!skip && (typeof LLM_MODELS!=='undefined'?LLM_MODELS:[]).length===0){
+        const ch=await choiceDialog({title:'No LLM configured', message:'No LLM model is configured, so the report will use the local HEURISTIC engine only (spam score, no AI verdicts) - exactly as if you had ticked "Skip LLM". It is free and private, but less precise.\n\nProceed heuristic-only, or open the LLM tab to configure a model?', choices:[{key:'go', label:'Proceed (heuristic only)'},{key:'llm', label:'Open LLM tab'}]});
+        if(!ch){ log('Report cancelled.'); return; }
+        if(ch==='llm'){ switchTab('llm'); return; }
+        ap.model=''; ap.skip_llm=true;   // proceed heuristic-only on purpose
+      }
+      if(!(await ensureSmtpNotifySecret())){ log('Report cancelled.'); return; } ap.notify_secret=smtpNotifySecret;
+      log('Building AI report'+(ap.model?'':' (heuristic only)')+' on: '+ap.folders.join(', ')+' …');
+      startJob('/api/ai-report', ap); return;
+    }
+    // Real AI run (deletes the confirmed senders).
+    if(!ap.model){ toastErr('Choose a model in the AI panel, or tick Report only + Skip LLM for a heuristic report.'); return; }
+    if(!ap.dry_run && !(await confirmRunRecap())) return;
     if(!(await ensureSmtpNotifySecret())){ log('Run cancelled.'); return; } ap.notify_secret=smtpNotifySecret;
     log((ap.dry_run?'[DRY-RUN] ':'')+'AI Cleanup on: '+ap.folders.join(', ')+' …'); startJob('/api/ai-run', ap, !ap.dry_run); return;
   }
   if(!(await ensureFolderChosen())) return;
   const p=Object.assign({sid:SID}, matchPayload(), optionsPayload());
-  if(!p.dry_run){
-    let what, note='';
-    if(p.empty_folder) what='DELETE EVERYTHING in';
-    else if(p.move){
-      const moveAll = p.match_mode!=='rule' && !(($('targets').value||'').trim());
-      what=(moveAll?'MOVE EVERY message':'Move matched messages')+' to "'+(p.dest_folder||'?')+'" from';
-    }
-    else if(p.gmail_trash) what='Move matched messages to Gmail Trash in';
-    else if(p.expunge) what='PERMANENTLY delete (expunge) matched messages in';
-    else { what='Flag matched messages as deleted in';
-      note='\n\nNote: without Expunge, messages are only flagged \\Deleted (hidden but recoverable) - they are NOT permanently removed. Enable Expunge to delete for good.'; }
-    if(!(await confirmDialog({title:'This is not a dry-run', message:'About to '+what+':\n'+p.folders.join(', ')+note+'\n\nContinue?', okText:'Run for real', danger:true}))) return; }
+  if(!p.dry_run && !(await confirmRunRecap())) return;
   if(!(await ensureSmtpNotifySecret())){ log('Run cancelled.'); return; } p.notify_secret=smtpNotifySecret;
   log((p.dry_run?'[DRY-RUN] ':'')+'Starting on: '+p.folders.join(', ')); startJob('/api/run',p, !p.dry_run);
 };
@@ -2446,9 +2703,6 @@ if($('btnJobSource')) $('btnJobSource').onclick=async()=>{
   catch(e){ sourceDialog('Job source - error', e.message); }
 };
 $('btnInstallJob').onclick=async()=>{ if(!(await confirmJobOverwrite())) return; try{ const d=await api('/api/jobs/install',jobPayload()); $('jobCmd').classList.remove('hidden'); $('jobCmd').textContent=d.message+'\n\n'+d.command; loadJobs(); }catch(e){ toastErr(e.message); } };
-$('jobProfile').onchange=updateJobSummary;
-['jobAiThreshold','jobAiSample'].forEach(id=>{ if($(id)) $(id).oninput=updateJobSummary; });
-if($('jobAiModel')) $('jobAiModel').onchange=updateJobSummary;
 function download(name, text){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href); }
 $('targetsFile').onchange=(e)=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ $('targets').value=r.result; try{localStorage.setItem('icw_targets',$('targets').value);}catch(_){} log('Loaded target list from '+f.name+'.'); }; r.readAsText(f); e.target.value=''; };
 async function saveTargets(){
@@ -2872,8 +3126,32 @@ $('saveConfirm').onclick=async ()=>{
 };
 $('btnDeleteProfile').onclick=async ()=>{
   const name=selectedProfile; if(!name){ log('Select a saved profile to delete.'); return; }
-  if(!(await confirmDialog({title:'Delete profile', message:'Delete profile "'+name+'"?', okText:'Delete', danger:true}))) return;
-  try{ await api('/api/profiles/'+encodeURIComponent(name), null, 'DELETE'); delete unlockedSecrets[name]; await loadProfiles(''); log('Profile "'+name+'" deleted.'); }catch(e){ log('[ERROR] '+e.message); }
+  // Find scheduled jobs that use this profile - they'd be orphaned (fail at run time).
+  let orphans=[];
+  try{ const d=await (await fetch('/api/profiles/'+encodeURIComponent(name)+'/jobs')).json(); orphans=d.jobs||[]; }catch(_){}
+  let delOrphans=false;
+  if(orphans.length){
+    const ch=await choiceDialog({title:'Delete profile',
+      message:'Profile "'+name+'" is used by '+orphans.length+' scheduled job(s):\n  '+orphans.join(', ')+
+        '\n\nWithout this profile those jobs can\'t run - the scheduled task would fail with "No profile named '+name+'". What do you want to do?',
+      choices:[
+        {key:'both', label:'Delete profile AND those '+orphans.length+' job(s)', danger:true},
+        {key:'profile', label:'Delete profile only (leave jobs orphaned)', danger:true}
+      ]});
+    if(!ch) return;                 // Cancel
+    delOrphans = (ch==='both');
+  } else {
+    if(!(await confirmDialog({title:'Delete profile', message:'Delete profile "'+name+'"?', okText:'Delete', danger:true}))) return;
+  }
+  try{
+    const r=await api('/api/profiles/'+encodeURIComponent(name)+(delOrphans?'?delete_orphans=true':''), null, 'DELETE');
+    delete unlockedSecrets[name]; await loadProfiles('');
+    const note = r.removed_jobs ? (' (and '+r.removed_jobs+' job(s) removed)')
+      : (orphans.length ? (' ('+orphans.length+' job(s) left orphaned)') : '');
+    log('Profile "'+name+'" deleted'+note+'.');
+    toast('Profile "'+name+'" deleted'+note+'.', 'border-ok/50 bg-ok/15 text-ok');
+    if($('tab-scheduling') && !$('tab-scheduling').classList.contains('hidden')) loadJobs();
+  }catch(e){ toastErr(e.message); }
 };
 
 function restoreUiState(){

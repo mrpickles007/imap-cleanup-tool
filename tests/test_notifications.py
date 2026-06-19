@@ -127,6 +127,68 @@ class SMTPProfileTests(unittest.TestCase):
             "me@x.com", ["INBOX"], 3, dry_run=False, gmail=False)
         self.assertNotIn("Trash", body2)
 
+
+class BatchSenderTests(unittest.TestCase):
+    """The reused-connection sender used by bulk unsubscribe (retry + rate limit)."""
+
+    cfg = {"from_addr": "me@x.com", "host": "smtp.x.com", "port": 587,
+           "security": "starttls", "user": "me@x.com", "password": "pw"}
+
+    def _sender(self, behaviors):
+        """A BatchSender whose every send_message follows `behaviors` in order.
+        Each item is 'ok', a transient exc, or a permanent/rate exc."""
+        import smtplib
+        seq = iter(behaviors)
+        servers = []
+
+        class Srv:
+            def __init__(self):
+                servers.append(self)
+
+            def send_message(self, msg):
+                item = next(seq)
+                if isinstance(item, Exception):
+                    raise item
+
+            def quit(self):
+                pass
+
+        s = nt.BatchSender(self.cfg, sleep=lambda _x: None)
+        return s, Srv, servers
+
+    def test_retry_then_success(self):
+        import smtplib
+        s, Srv, servers = self._sender(
+            [smtplib.SMTPServerDisconnected("lost"), "ok"])
+        with mock.patch.object(nt, "_server", side_effect=lambda cfg: Srv()):
+            s.send("to@y.com", "s", "b")        # succeeds on the 2nd attempt
+        self.assertEqual(len(servers), 2)       # reconnected once
+
+    def test_persistent_rate_limit_raises(self):
+        import smtplib
+        rate = smtplib.SMTPResponseException(451, b"4.7.0 too many messages")
+        s, Srv, _ = self._sender([rate, rate, rate])
+        with mock.patch.object(nt, "_server", side_effect=lambda cfg: Srv()):
+            with self.assertRaises(nt.RateLimitError):
+                s.send("to@y.com", "s", "b")
+
+    def test_permanent_error_is_not_rate_limit(self):
+        import smtplib
+        perm = smtplib.SMTPResponseException(550, b"mailbox unavailable")
+        s, Srv, _ = self._sender([perm])
+        with mock.patch.object(nt, "_server", side_effect=lambda cfg: Srv()):
+            with self.assertRaises(nt.NotifyError) as ctx:
+                s.send("to@y.com", "s", "b")
+            self.assertNotIsInstance(ctx.exception, nt.RateLimitError)
+
+    def test_connection_reused_across_sends(self):
+        s, Srv, servers = self._sender(["ok", "ok", "ok"])
+        with mock.patch.object(nt, "_server", side_effect=lambda cfg: Srv()):
+            s.send("a@y.com", "s", "b")
+            s.send("b@y.com", "s", "b")
+            s.send("c@y.com", "s", "b")
+        self.assertEqual(len(servers), 1)       # one connection for all three
+
     def test_cleanup_summary_wording_per_operation(self):
         # Move is worded "moved" (not "deleted") and shows the destination.
         subj, body = nt.cleanup_summary(
