@@ -960,7 +960,8 @@ def _apply_exclude(conn: imaplib.IMAP4_SSL, uids, exclude, should_stop=None):
     addrs = sorted({a for a in (exclude or set()) if a})
     if not addrs or not uids:
         return uids
-    logger.info("Exclude list (%d address(es)): %s", len(addrs), ", ".join(addrs))
+    logger.info("Skipping any message from the exclude list (%d address(es)): %s",
+                len(addrs), ", ".join(addrs))
     drop: set[bytes] = set()
     for addr in addrs:
         _check_stop(should_stop)
@@ -968,8 +969,13 @@ def _apply_exclude(conn: imaplib.IMAP4_SSL, uids, exclude, should_stop=None):
         if status == "OK" and data and data[0]:
             drop.update(data[0].split())
     kept = [u for u in uids if u not in drop]
-    logger.info("=> exclude removed %d of %d matched message(s) (%d kept).",
-                len(uids) - len(kept), len(uids), len(kept))
+    removed = len(uids) - len(kept)
+    if removed:
+        logger.info("=> Exclude list skipped %d of the %d matched message(s); "
+                    "%d left to act on.", removed, len(uids), len(kept))
+    else:
+        logger.info("=> None of the %d matched message(s) were from the exclude "
+                    "list; nothing skipped.", len(uids))
     return kept
 
 
