@@ -124,6 +124,17 @@ class LLMConfigTests(unittest.TestCase):
                 self.assertAlmostEqual(log["total"]["cost"], 0.07)
                 self.assertEqual(len(log["entries"]), 2)
 
+    def test_delete_model_clears_its_cost_log(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(llm, "config_dir", return_value=Path(tmp)):
+                llm.save_model("m", "gpt-4o-mini", track_costs=True)
+                llm.log_cost("m", 1000, 200, 0.05)
+                self.assertEqual(llm.cost_log("m")["total"]["calls"], 1)
+                llm.delete_model("m")
+                # a model recreated with the same name must start with a clean log
+                self.assertEqual(llm.cost_log("m")["total"]["calls"], 0)
+                self.assertAlmostEqual(llm.cost_log("m")["total"]["cost"], 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -290,10 +290,16 @@ def remove_user_preset(kind: str, value: str) -> bool:
 
 
 def delete_model(name: str) -> None:
-    """Remove a model config by name (no error if it does not exist)."""
+    """Remove a model config by name, plus its cost log (no error if absent).
+
+    The cost log is keyed by the model **name**, so it must be cleared too -
+    otherwise a later model created with the same name would inherit the old
+    model's cost history.
+    """
     conn = _connect()
     try:
         conn.execute("DELETE FROM models WHERE name=?", (name,))
+        conn.execute("DELETE FROM costs WHERE model_name=?", (name,))
         conn.commit()
     finally:
         conn.close()
