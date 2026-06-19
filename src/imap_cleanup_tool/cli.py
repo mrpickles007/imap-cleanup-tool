@@ -126,8 +126,17 @@ def _add_arguments(parser: argparse.ArgumentParser) -> None:
                         help="Run a saved scheduled job by name (used by the "
                              "OS scheduler / cron).")
     parser.add_argument("--profile", metavar="NAME",
-                        help="Load the connection (host/user/password) from a "
-                             "saved, non-encrypted profile.")
+                        help="Load the connection (host/user/password or OAuth "
+                             "token) from a saved, non-encrypted profile.")
+    parser.add_argument("--oauth-login", metavar="PROVIDER",
+                        help="Sign in with OAuth2 (e.g. 'microsoft') via the "
+                             "device-code flow and save the result as a connection "
+                             "profile, then exit. Works headless (prints a URL + "
+                             "code to open on any device). Use with --user and "
+                             "--oauth-profile.")
+    parser.add_argument("--oauth-profile", metavar="NAME", default="",
+                        help="Name to save the --oauth-login profile under "
+                             "(defaults to the email address).")
     parser.add_argument("--notify-profile", metavar="NAME", default="",
                         help="Send the notification email from this saved SMTP "
                              "profile (must be non-encrypted) instead of the active "
@@ -153,6 +162,61 @@ def _resolve_credentials(args: argparse.Namespace) -> tuple[str, str, str]:
     user = args.user or input("Username: ").strip()
     password = args.password or getpass.getpass("Password: ")
     return host, user, password
+
+
+def _oauth_login_cli(args: argparse.Namespace) -> int:
+    """Run the device-code OAuth sign-in and save a connection profile."""
+    from . import oauth
+    from .profiles import ProfileError, save_oauth_profile
+
+    provider = args.oauth_login.strip().lower()
+    try:
+        cfg = oauth.get_provider(provider)
+    except oauth.OAuthError as exc:
+        print(f"[ERROR] {exc}")
+        return 2
+
+    # Host/port: explicit flags win, else the provider's default IMAP host.
+    imap = cfg.get("imap") or {}
+    host = args.host or imap.get("host", "")
+    port = args.port if args.host else int(imap.get("port", args.port))
+    user = args.user or input("Mailbox email: ").strip()
+    if not host or not user:
+        print("[ERROR] An IMAP host and a mailbox email are required.")
+        return 2
+    name = (args.oauth_profile or user).strip()
+
+    try:
+        flow = oauth.start_device_code(provider)
+    except oauth.OAuthError as exc:
+        print(f"[ERROR] {exc}")
+        return 2
+    # Microsoft/Google send a ready-made instruction string; fall back to our own.
+    print("\n" + (flow["message"] or
+                  f"To sign in, open {flow['verification_uri']} and enter the "
+                  f"code: {flow['user_code']}"))
+    print("\nWaiting for you to finish signing in in the browser ...")
+    try:
+        tok = oauth.poll_device_code(
+            flow["device_code"], provider=provider, interval=flow["interval"],
+            timeout=flow["expires_in"])
+    except oauth.OAuthError as exc:
+        print(f"[ERROR] {exc}")
+        return 2
+
+    refresh = tok.get("refresh_token") or ""
+    if not refresh:
+        print("[ERROR] The provider returned no refresh token (the "
+              "'offline_access' scope may be missing).")
+        return 2
+    try:
+        save_oauth_profile(name, host, port, user, refresh, provider)
+    except ProfileError as exc:
+        print(f"[ERROR] {exc}")
+        return 2
+    print(f"\nSigned in. Saved profile {name!r}. Connect with: "
+          f"--profile {name}")
+    return 0
 
 
 def _confirm(folders: list[str], empty: bool, gmail: bool,
@@ -475,6 +539,9 @@ def main(argv: list[str] | None = None) -> int:
               '    pip install "imap-cleanup-tool[ai]"')
         return 3
 
+    if args.oauth_login:
+        return _oauth_login_cli(args)
+
     if args.run_job:
         from .scheduler import load_jobs
         job = next((j for j in load_jobs() if j.name == args.run_job), None)
@@ -483,6 +550,7 @@ def main(argv: list[str] | None = None) -> int:
             return 4
         return _run_saved_job(job)
 
+    oauth_prof = None
     if args.profile:
         from .profiles import ProfileError, load_profile
         try:
@@ -496,18 +564,44 @@ def main(argv: list[str] | None = None) -> int:
         # A profile can carry the "enable local cache" setting; the flag can also
         # force it on for an ad-hoc connection.
         args.local_cache = args.local_cache or prof.get("local_cache", False)
+        if prof.get("auth_method") == "oauth":
+            oauth_prof = prof
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)-7s %(message)s", datefmt="%H:%M:%S")
 
-    host, user, password = _resolve_credentials(args)
-    args.user = user                 # the resolved account (used for the cache key)
-    try:
-        conn = core.connect(host, args.port, user, password, args.timeout)
-    except (OSError, core.imaplib.IMAP4.error) as exc:
-        print(f"[ERROR] Connection/login failed: {exc}")
-        return 2
+    if oauth_prof is not None:
+        # OAuth profile: mint a fresh access token from the stored refresh token
+        # (persisting any rotation) and authenticate with XOAUTH2. No password
+        # prompt - this is what lets scheduled jobs run unattended.
+        from . import oauth as _oauth
+        from .profiles import ProfileError, update_refresh_token
+        host, user = oauth_prof["host"], oauth_prof["user"]
+        args.user = user
+
+        def _persist(new_token: str) -> None:
+            try:
+                update_refresh_token(args.profile, new_token)
+            except ProfileError:
+                pass
+        try:
+            token = _oauth.access_token_for(oauth_prof, persist=_persist)
+            conn = core.connect_oauth(host, args.port, user, token, args.timeout)
+        except _oauth.OAuthError as exc:
+            print(f"[ERROR] OAuth sign-in failed: {exc}")
+            return 2
+        except (OSError, core.imaplib.IMAP4.error) as exc:
+            print(f"[ERROR] Connection failed: {exc}")
+            return 2
+    else:
+        host, user, password = _resolve_credentials(args)
+        args.user = user             # the resolved account (used for the cache key)
+        try:
+            conn = core.connect(host, args.port, user, password, args.timeout)
+        except (OSError, core.imaplib.IMAP4.error) as exc:
+            print(f"[ERROR] Connection/login failed: {exc}")
+            return 2
 
     folders = args.folder or ["INBOX"]
     try:

@@ -138,10 +138,20 @@ def _connect() -> sqlite3.Connection:
         " from_addr TEXT,"
         " encrypted INTEGER NOT NULL DEFAULT 0,"
         " salt BLOB,"
-        " secret BLOB,"                 # Fernet token, or UTF-8 password bytes
+        " secret BLOB,"                 # Fernet token, or UTF-8 password/token bytes
+        " auth_method TEXT NOT NULL DEFAULT 'password',"  # 'password' | 'oauth'
+        " provider TEXT NOT NULL DEFAULT '',"             # '' | 'microsoft' | …
         " created_at TEXT)")
     conn.execute(
         "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+    # Migrate older DBs that predate the OAuth columns.
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(smtp_profiles)")}
+    if "auth_method" not in cols:
+        conn.execute("ALTER TABLE smtp_profiles ADD COLUMN "
+                     "auth_method TEXT NOT NULL DEFAULT 'password'")
+    if "provider" not in cols:
+        conn.execute("ALTER TABLE smtp_profiles ADD COLUMN "
+                     "provider TEXT NOT NULL DEFAULT ''")
     return conn
 
 
@@ -157,6 +167,33 @@ def _derive_key(secret: str, salt: bytes) -> bytes:
     return base64.urlsafe_b64encode(kdf.derive(secret.encode("utf-8")))
 
 
+def _seal(value: str, encrypt: bool, secret: str):
+    """Turn a secret value (password or refresh token) into stored columns:
+    ``(encrypted_flag, salt_or_None, secret_bytes)``."""
+    if encrypt:
+        if not secret:
+            raise NotifyError("An encryption password is required.")
+        salt = os.urandom(16)
+        key = _derive_key(secret, salt)
+        from cryptography.fernet import Fernet
+        return 1, salt, Fernet(key).encrypt((value or "").encode("utf-8"))
+    return 0, None, (value or "").encode("utf-8")
+
+
+def _unseal(row, secret: str) -> str:
+    """Recover the secret value stored for ``row`` (decrypting if needed)."""
+    if row["encrypted"]:
+        if not secret:
+            raise NotifyError("This profile is encrypted - enter its password.")
+        key = _derive_key(secret, bytes(row["salt"]))
+        from cryptography.fernet import Fernet, InvalidToken
+        try:
+            return Fernet(key).decrypt(bytes(row["secret"])).decode("utf-8")
+        except InvalidToken as exc:
+            raise NotifyError("Wrong password.") from exc
+    return bytes(row["secret"] or b"").decode("utf-8")
+
+
 # --------------------------------------------------------------------------- #
 # Profiles
 # --------------------------------------------------------------------------- #
@@ -165,13 +202,16 @@ def list_profiles() -> list[dict]:
     conn = _connect()
     try:
         rows = conn.execute(
-            "SELECT name, host, port, security, user, from_addr, encrypted"
+            "SELECT name, host, port, security, user, from_addr, encrypted,"
+            " auth_method, provider"
             " FROM smtp_profiles ORDER BY name COLLATE NOCASE").fetchall()
     finally:
         conn.close()
     return [{"name": r["name"], "host": r["host"], "port": r["port"],
              "security": r["security"], "user": r["user"],
-             "from_addr": r["from_addr"], "encrypted": bool(r["encrypted"])}
+             "from_addr": r["from_addr"], "encrypted": bool(r["encrypted"]),
+             "auth_method": r["auth_method"] or "password",
+             "provider": r["provider"] or ""}
             for r in rows]
 
 
@@ -208,36 +248,72 @@ def save_profile(name: str, host: str, port: int, user: str, password: str,
             conn.close()
         return name
 
-    if encrypt:
-        if not secret:
-            raise NotifyError("An encryption password is required.")
-        salt = os.urandom(16)
-        key = _derive_key(secret, salt)
-        from cryptography.fernet import Fernet
-        enc, salt_b = 1, salt
-        secret_b = Fernet(key).encrypt((password or "").encode("utf-8"))
-    else:
-        enc, salt_b, secret_b = 0, None, (password or "").encode("utf-8")
+    enc, salt_b, secret_b = _seal(password, encrypt, secret)
+    _write_profile(name, host, port, security, user, from_addr, enc, salt_b,
+                   secret_b, auth_method="password", provider="")
+    return name
 
+
+def _write_profile(name, host, port, security, user, from_addr, enc, salt_b,
+                   secret_b, *, auth_method, provider) -> None:
+    """Insert or replace a full SMTP profile row (shared by password + OAuth)."""
     conn = _connect()
     try:
         conn.execute(
             "INSERT INTO smtp_profiles"
             " (name, host, port, security, user, from_addr, encrypted, salt,"
-            "  secret, created_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "  secret, auth_method, provider, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             " ON CONFLICT(name) DO UPDATE SET host=excluded.host,"
             " port=excluded.port, security=excluded.security,"
             " user=excluded.user, from_addr=excluded.from_addr,"
             " encrypted=excluded.encrypted, salt=excluded.salt,"
-            " secret=excluded.secret",
+            " secret=excluded.secret, auth_method=excluded.auth_method,"
+            " provider=excluded.provider",
             (name, host.strip(), int(port), security, (user or "").strip(),
-             (from_addr or "").strip(), enc, salt_b, secret_b,
-             datetime.now().astimezone().isoformat(timespec="seconds")))
+             (from_addr or "").strip(), enc, salt_b, secret_b, auth_method,
+             provider, datetime.now().astimezone().isoformat(timespec="seconds")))
         conn.commit()
     finally:
         conn.close()
+
+
+def save_oauth_profile(name: str, host: str, user: str, refresh_token: str,
+                       provider: str, from_addr: str = "",
+                       security: str = "starttls", port: int = 587,
+                       encrypt: bool = False, secret: str = "") -> str:
+    """Create or replace an OAuth2 (XOAUTH2) SMTP profile. The stored secret is
+    the refresh token; access tokens are minted from it at send time."""
+    name = (name or "").strip()
+    if not name:
+        raise NotifyError("Profile name is required.")
+    if not (host or "").strip():
+        raise NotifyError("SMTP host is required.")
+    if not (refresh_token or "").strip():
+        raise NotifyError("A refresh token is required for an OAuth profile.")
+    if not (provider or "").strip():
+        raise NotifyError("An OAuth provider is required.")
+    enc, salt_b, secret_b = _seal(refresh_token, encrypt, secret)
+    _write_profile(name, host, port, security, user, from_addr, enc, salt_b,
+                   secret_b, auth_method="oauth", provider=provider.strip().lower())
     return name
+
+
+def update_refresh_token(name: str, refresh_token: str, secret: str = "") -> None:
+    """Persist a rotated refresh token for an OAuth SMTP profile, preserving
+    whether the profile is encrypted (needs the encryption password if it is)."""
+    conn = _connect()
+    try:
+        row = conn.execute("SELECT encrypted FROM smtp_profiles WHERE name=?",
+                           (name,)).fetchone()
+        if row is None:
+            raise NotifyError(f"No SMTP profile named {name!r}.")
+        _, salt_b, secret_b = _seal(refresh_token, bool(row["encrypted"]), secret)
+        conn.execute("UPDATE smtp_profiles SET salt=?, secret=? WHERE name=?",
+                     (salt_b, secret_b, name))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def load_profile(name: str, secret: str = "") -> dict:
@@ -251,21 +327,16 @@ def load_profile(name: str, secret: str = "") -> dict:
     if row is None:
         raise NotifyError(f"No SMTP profile named {name!r}.")
 
-    if row["encrypted"]:
-        if not secret:
-            raise NotifyError("This profile is encrypted - enter its password.")
-        key = _derive_key(secret, bytes(row["salt"]))
-        from cryptography.fernet import Fernet, InvalidToken
-        try:
-            password = Fernet(key).decrypt(bytes(row["secret"])).decode("utf-8")
-        except InvalidToken as exc:
-            raise NotifyError("Wrong password.") from exc
-    else:
-        password = bytes(row["secret"] or b"").decode("utf-8")
+    auth_method = (row["auth_method"] or "password")
+    value = _unseal(row, secret)
+    is_oauth = auth_method == "oauth"
 
     return {"name": row["name"], "host": row["host"], "port": row["port"],
             "security": row["security"], "user": row["user"],
-            "from_addr": row["from_addr"], "password": password,
+            "from_addr": row["from_addr"],
+            "password": "" if is_oauth else value,
+            "refresh_token": value if is_oauth else "",
+            "auth_method": auth_method, "provider": row["provider"] or "",
             "encrypted": bool(row["encrypted"])}
 
 
@@ -327,10 +398,50 @@ def set_settings(active: str | None = None, notify_to: str | None = None,
 # --------------------------------------------------------------------------- #
 # Sending
 # --------------------------------------------------------------------------- #
+def _oauth_login(srv: smtplib.SMTP, cfg: dict) -> None:
+    """Authenticate an open SMTP connection with XOAUTH2 from an OAuth profile."""
+    from . import oauth
+    # Persist a rotated refresh token so unattended (scheduled) sends keep working.
+    # Encrypted profiles can't be re-sealed without the passphrase, so skip then.
+    def _persist(new_token: str) -> None:
+        if cfg.get("encrypted") or not cfg.get("name"):
+            return
+        try:
+            update_refresh_token(cfg["name"], new_token)
+        except NotifyError:
+            pass
+    try:
+        token = oauth.access_token_for(cfg, persist=_persist)
+    except oauth.OAuthError as exc:
+        raise NotifyError(f"OAuth sign-in failed: {exc}") from exc
+    # We AUTH by hand (smtplib has no XOAUTH2 helper), so we must greet first - just
+    # like SMTP.login() does. STARTTLS resets the EHLO state, and on a fresh SSL
+    # connection none was sent yet; without this the server replies "send hello first".
+    srv.ehlo_or_helo_if_needed()
+    code, resp = srv.docmd("AUTH", "XOAUTH2 " + oauth.xoauth2_b64(cfg["user"], token))
+    if code == 334:                       # server returned a base64 error challenge
+        code, resp = srv.docmd("")        # send empty line to surface the real error
+    if code != 235:
+        detail = resp.decode("utf-8", "replace") if isinstance(resp, bytes) else resp
+        raise NotifyError(f"SMTP OAuth login was rejected: {detail}")
+
+
+def _quiet_close(srv) -> None:
+    """Close a half-open SMTP connection without sending QUIT (which could hang on
+    an already-broken/throttled link) and without raising."""
+    if srv is None:
+        return
+    try:
+        srv.close()
+    except Exception:  # pylint: disable=broad-exception-caught
+        pass
+
+
 def _server(cfg: dict) -> smtplib.SMTP:
     """Open and authenticate an SMTP connection from a loaded profile dict."""
     host, port = cfg["host"], int(cfg["port"])
     security = cfg.get("security", "starttls")
+    srv = None
     try:
         if security == "ssl":
             srv = smtplib.SMTP_SSL(host, port, timeout=30,
@@ -339,11 +450,17 @@ def _server(cfg: dict) -> smtplib.SMTP:
             srv = smtplib.SMTP(host, port, timeout=30)
             if security == "starttls":
                 srv.starttls(context=ssl.create_default_context())
-        if cfg.get("user"):
+        if cfg.get("auth_method") == "oauth":
+            _oauth_login(srv, cfg)
+        elif cfg.get("user"):
             srv.login(cfg["user"], cfg.get("password", ""))
         return srv
     except (smtplib.SMTPException, OSError, ssl.SSLError) as exc:
+        _quiet_close(srv)                     # don't leak the socket on failure
         raise NotifyError(f"SMTP connection failed: {exc}") from exc
+    except NotifyError:                       # auth helper (_oauth_login) failed
+        _quiet_close(srv)
+        raise
 
 
 def test_connection(name: str, secret: str = "") -> dict:

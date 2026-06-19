@@ -1,0 +1,26 @@
+{
+  "_comment": "OAuth2 (XOAUTH2) providers for IMAP/SMTP sign-in. To add or enable a provider, fill in client_id (and client_secret if the provider requires one for installed/device apps - Microsoft public clients do not, Google does). Endpoints + scope drive the device-code flow; imap/smtp give the default hosts the UI can auto-fill. See src/imap_cleanup_tool/oauth.py.",
+
+  "microsoft": {
+    "label": "Microsoft",
+    "client_id": "2fb2537a-f98e-45b7-9155-f79cb7df4c9b",
+    "client_secret": "",
+    "devicecode_endpoint": "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode",
+    "token_endpoint": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+    "scope": "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access",
+    "verification_uri": "https://microsoft.com/devicelogin",
+    "imap": { "host": "outlook.office365.com", "port": 993 },
+    "smtp": { "host": "smtp-mail.outlook.com", "port": 587, "security": "starttls" }
+  },
+
+  "google": {
+    "label": "Google",
+    "client_id": "",
+    "client_secret": "",
+    "devicecode_endpoint": "https://oauth2.googleapis.com/device/code",
+    "token_endpoint": "https://oauth2.googleapis.com/token",
+    "scope": "https://mail.google.com/",
+    "imap": { "host": "imap.gmail.com", "port": 993 },
+    "smtp": { "host": "smtp.gmail.com", "port": 587, "security": "starttls" }
+  }
+}

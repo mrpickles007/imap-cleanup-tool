@@ -229,13 +229,23 @@ tailwind.config = { theme: { extend: {
         <label class="text-xs text-muted">Timeout (s)
           <input id="timeout" class="field mt-1" value="120">
         </label>
-        <label class="text-xs text-muted col-span-2">
+        <label id="passwordRow" class="text-xs text-muted col-span-2">
           <span class="flex items-center">Password<span id="passTip" class="tip hidden"><span class="ic">i</span><span class="bub" id="passBub"></span></span></span>
           <div class="mt-1 flex gap-2">
             <input id="password" type="password" class="field" autocomplete="current-password">
             <button id="togglePass" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream">show</button>
           </div>
         </label>
+        <p id="passDeprecatedNote" class="col-span-2 hidden text-[11px] text-warn -mt-1">This provider has <b>disabled password login</b> (modern auth only). Use <b>Sign in</b> below - no password needed.</p>
+        <div id="oauthRow" class="col-span-2 hidden -mt-1">
+          <div id="oauthAuthBanner" class="hidden mb-2 rounded-lg border px-3 py-2 text-[11px] backdrop-blur-sm"></div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-[11px] text-muted">Modern auth (no password):</span>
+            <button id="btnOAuthSignin" type="button" class="px-3 py-1.5 rounded-lg border border-line text-cream hover:border-brand text-sm">Sign in with Microsoft…</button>
+            <span class="tip"><span class="ic">i</span><span class="bub">Microsoft (Outlook / Office 365 / Hotmail) and other providers have disabled password login in favor of <b>OAuth2 / modern auth</b>. When you click this, the tool shows a <b>short code</b> on screen and opens the provider's sign-in page in your browser: <b>type that code</b> there, sign in, and approve access. We then store a <b>refresh token</b> (no password) so the tool can reconnect and run <b>scheduled jobs</b> on its own. The sign-in is saved as a connection profile.</span></span>
+          </div>
+          <p id="oauthCodeNote" class="text-[11px] text-muted mt-1">A <b>code</b> will appear on screen: enter it in the sign-in page that opens, then complete the login. The tool connects automatically when you finish.</p>
+        </div>
         <label class="col-span-2 flex items-center gap-2 text-sm py-1 cursor-pointer">
           <input id="localCache" type="checkbox" checked>
           <span class="flex items-center">Enable local cache
@@ -521,6 +531,7 @@ tailwind.config = { theme: { extend: {
       </label>
       <p id="expungeNote" class="hidden text-[11px] text-warn -mt-1 mb-1">⚠️ <b>Disabled on Gmail</b> (no effect here): Gmail <b>auto-expunges</b> deleted messages itself. With “Gmail: move to Trash” they go to the Trash - then, <b>after the run</b>, select <code>[Gmail]/Trash</code> and use <b>Empty folder</b> to remove them for good.</p>
       <p id="expungeEnabledNote" class="hidden text-[11px] text-muted -mt-1 mb-1">Removes the flagged messages <b>permanently</b>. Without it they are only flagged <code>\\Deleted</code> - <b>not every server</b> drops those on its own, so they can linger until expunged. Applies to manual runs and AI Cleanup.</p>
+      <p id="expungeReportNote" class="hidden text-[11px] text-muted -mt-1 mb-1"><b>Not used in Report only</b> - the report deletes nothing, so there is nothing to expunge.</p>
 
       <div id="dryRunBox" class="rounded-lg border -mx-2 px-2 py-2.5 my-3">
         <label class="flex items-center justify-between text-sm cursor-pointer">
@@ -538,9 +549,9 @@ tailwind.config = { theme: { extend: {
       <input id="batch" class="field mt-1" value="500">
       <p class="text-[11px] text-muted mb-1">How many messages each IMAP request handles. Used at <b>full size</b> by: <b>Count / Run / Export</b> matching in <b>"full"</b> mode (header fetch), <b>Export</b> (message bodies), the <b>Import</b> duplicate-check (Message-IDs), and <b>Delete</b> / <b>Expunge</b> / <b>Move</b> / <b>Empty</b>. <b>Capped</b> for a few: <b>AI Cleanup</b> and <b>List senders</b> fetch headers at <b>max 50</b>/request, and on <b>Gmail</b> <b>"move to Trash"</b> is auto-capped at <b>200</b> (so these ignore a larger batch size). The <b>"search"</b> mode does one server-side SEARCH, so batch size doesn't apply there. <i>The import itself is one message at a time (IMAP APPEND), so it isn't batched.</i></p>
 
-      <div class="flex gap-2 mt-3">
-        <button id="btnRun" class="flex-1 bg-brand hover:bg-brand-light text-ink font-bold rounded-lg px-4 py-2.5 transition">▶ Run</button>
-        <button id="btnStop" class="hidden px-4 py-2.5 rounded-lg bg-danger text-ink font-bold">■ Stop</button>
+      <div class="flex gap-2 mt-5">
+        <button id="btnRun" class="flex-1 bg-brand hover:bg-brand-light text-ink font-bold text-lg tracking-wide rounded-lg px-4 py-3.5 transition">▶ RUN</button>
+        <button id="btnStop" class="hidden px-4 py-3.5 rounded-lg bg-danger text-ink font-bold">■ Stop</button>
       </div>
       <p class="text-[11px] text-muted mt-1.5">Runs the action chosen above on the selected folders: <b>Manual Cleanup</b> (delete / move / empty folder for the matching messages) or <b>AI Cleanup</b> (heuristic + LLM, then delete the confirmed senders). With <b>dry-run</b> on, “Run” only <b>previews</b> - nothing is changed.</p>
       <p id="gmailDraftsNote" class="hidden text-[11px] text-warn mt-1.5">ℹ️ On <b>Gmail</b>, some folders (e.g. <b>[Gmail]/Drafts</b>) may need <b>more than one pass</b> for deleting messages - including <b>Empty folder</b> - because of how Gmail handles them. If some messages remain, just <b>run it again</b>. Or prefer the standard flow: <b>Run</b> with <b>“Gmail: move to Trash”</b>, then after the run select <b>[Gmail]/Trash</b> and tick <b>Empty folder</b>.</p>
@@ -573,9 +584,10 @@ tailwind.config = { theme: { extend: {
         <p id="jobProfileNote" class="hidden text-[11px] text-warn mt-1"></p>
       </div>
       <label class="text-xs text-muted col-span-2">Notification SMTP profile
+        <div id="jobNotifyBanner" class="hidden mt-1 mb-1 rounded-lg border px-3 py-2 text-[11px] backdrop-blur-sm border-warn/40 bg-warn/10 text-warn"></div>
         <div class="flex gap-2 mt-1">
           <select id="jobSmtpProfile" class="field"></select>
-          <button id="btnJobSmtpTest" type="button" class="px-3 rounded-lg border border-line text-cream hover:border-brand text-sm whitespace-nowrap" title="Test the connection to the selected SMTP server">Test</button>
+          <button id="btnJobSmtpTest" type="button" class="smtp-testbtn px-3 rounded-lg border border-line text-cream hover:border-brand text-sm whitespace-nowrap disabled:opacity-50" title="Test the connection to the selected SMTP server">Test</button>
         </div>
         <span class="block text-[11px] text-muted mt-1">For this job's completion email. Only <b>non-encrypted</b> profiles (a cron can't type a passphrase). Leave on <i>use active profile</i> for the globally active one.</span>
         <p id="jobSmtpNote" class="hidden text-[11px] text-warn mt-1">⚠️ No non-encrypted SMTP profile available - this job will run <b>without notifications</b> even if they're enabled. Add a non-encrypted profile in the <b>Notifications</b> tab.</p>
@@ -632,7 +644,7 @@ tailwind.config = { theme: { extend: {
   </section>
 
   <section class="bg-panel border border-line rounded-xl p-5">
-    <div class="flex items-center justify-between mb-3">
+    <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-3">
       <h2 class="font-display font-semibold text-brand-light">Saved jobs</h2>
       <span class="text-[11px] text-muted">Runs via the system scheduler (Task Scheduler / cron) - even when this app is closed.</span>
     </div>
@@ -780,11 +792,24 @@ tailwind.config = { theme: { extend: {
       <label class="text-xs text-muted col-span-2"><span class="flex items-center">Username<span id="smUserTip" class="tip hidden"><span class="ic">i</span><span class="bub" id="smUserBub"></span></span></span>
         <input id="smUser" class="field mt-1" placeholder="SMTP username">
       </label>
-      <label class="text-xs text-muted col-span-2"><span class="flex items-center">Password<span id="smPassTip" class="tip hidden"><span class="ic">i</span><span class="bub" id="smPassBub"></span></span></span>
+      <label id="smPasswordRow" class="text-xs text-muted col-span-2"><span class="flex items-center">Password<span id="smPassTip" class="tip hidden"><span class="ic">i</span><span class="bub" id="smPassBub"></span></span></span>
         <div class="flex gap-2 mt-1"><input id="smKey" type="password" class="field" placeholder="SMTP password / API key"><button id="smKeyToggle" type="button" class="px-3 rounded-lg border border-line text-muted hover:text-cream">show</button></div>
       </label>
+      <div id="smOauthRow" class="col-span-2 hidden -mt-1">
+        <div id="smOauthBanner" class="hidden mb-2 rounded-lg border px-3 py-2 text-[11px] backdrop-blur-sm"></div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-[11px] text-muted">Modern auth (no password):</span>
+          <button id="btnSmtpOAuth" type="button" class="px-3 py-1.5 rounded-lg border border-line text-cream hover:border-brand text-sm">Sign in with Microsoft…</button>
+          <span class="tip"><span class="ic">i</span><span class="bub">For providers that disabled password login (Microsoft etc.), sign in once in your browser. The tool shows a <b>short code</b> on screen and opens the sign-in page: <b>type that code</b> there, sign in, and approve. The tool stores a refresh token (no password) and can send notification emails - including from scheduled jobs - on its own. Saved as a new SMTP profile.</span></span>
+        </div>
+        <p id="smOauthCodeNote" class="text-[11px] text-muted mt-1">A <b>code</b> will appear on screen: enter it in the sign-in page that opens, then complete the login. The SMTP profile is saved when you finish.</p>
+      </div>
     </div>
-    <label class="flex items-center justify-between text-sm py-2 mt-1">
+    <div id="smOauthEdit" class="hidden text-[11px] mt-1 mb-1 rounded-lg border border-ok/40 bg-ok/10 text-ok px-3 py-2 backdrop-blur-sm">
+      This is an <b>OAuth2</b> sign-in profile (<span id="smOauthEditProvider">Microsoft</span>) - no password. Edit the fields above and Update, or
+      <button id="btnSmtpReauth" type="button" class="underline hover:no-underline font-semibold">re-authenticate</button> if sending starts failing.
+    </div>
+    <label id="smEncryptRow" class="flex items-center justify-between text-sm py-2 mt-1">
       <span class="flex items-center">Encrypt the password
         <span class="tip"><span class="ic">i</span><span class="bub">Encrypts the password with a passphrase (never stored). An <b>encrypted</b> profile cannot send from scheduled jobs (no one to type it).</span></span>
       </span>
@@ -832,7 +857,7 @@ tailwind.config = { theme: { extend: {
     </label>
     <div class="flex gap-2 mt-3 flex-wrap">
       <button id="btnSaveNotify" class="bg-brand hover:bg-brand-light text-ink font-semibold rounded-lg px-4 py-2">Save settings</button>
-      <button id="btnSendTest" type="button" class="rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand px-4 py-2 text-sm">Send test email</button>
+      <button id="btnSendTest" type="button" class="smtp-testbtn rounded-lg border border-brand/60 bg-panel2 text-cream hover:border-brand px-4 py-2 text-sm disabled:opacity-50">Send test email</button>
     </div>
     <p id="smNotifyMsg" class="text-[11px] mt-2 text-muted"></p>
     <h3 class="font-display font-semibold text-brand-light mt-5 mb-2 text-sm">Saved SMTP profiles</h3>
@@ -1056,6 +1081,7 @@ function setConnectedUI(connected){
   $('btnConnect').disabled=connected;
   $('btnDisconnect').disabled=!connected;
   $('btnRefreshFolders').disabled=!connected;
+  if(typeof updateOAuthAuthState==='function') updateOAuthAuthState();
 }
 // Styled replacement for window.confirm(); resolves true/false.
 function confirmDialog(opts){
@@ -1202,6 +1228,7 @@ async function loadMeta(){
   if(typeof populateLlmPresets==='function') populateLlmPresets();
   applyAiAvailability();
   buildRoot();
+  if(typeof loadOAuthProviders==='function') loadOAuthProviders();
 }
 function applyAiAvailability(){
   const ok = META.ai_available !== false;   // default true if unknown
@@ -1239,6 +1266,20 @@ function applyProviderTips(){
     else { tip.classList.add('hidden'); if(ic&&ic._tippy) ic._tippy.disable(); } };
   set('userTip', p.user_tip);
   set('passTip', p.pass_tip);
+  // Providers that have dropped password login (pass_deprecated) hide the Password
+  // field and point the user at the OAuth sign-in instead.
+  const deprecated = !!p.pass_deprecated;
+  const op=(p.oauth_provider||'').toLowerCase();
+  const oauthOk = op && (typeof oauthProviderConfigured==='function') && oauthProviderConfigured(op);
+  // Hide the password only when there's a WORKING OAuth alternative. If the provider
+  // declares modern-auth but its OAuth has no credentials, keep the password visible
+  // as a last resort (the banner explains OAuth is unavailable).
+  if($('passwordRow')) $('passwordRow').classList.toggle('hidden', deprecated && oauthOk);
+  if($('passDeprecatedNote')) $('passDeprecatedNote').classList.add('hidden');   // the OAuth banner carries this now
+  // syncOAuthFormState recomputes the password-disable state AND refreshes the
+  // OAuth row/banner for the current selection.
+  if(typeof syncOAuthFormState==='function') syncOAuthFormState();
+  else if(typeof updateOAuthAuthState==='function') updateOAuthAuthState();
 }
 // The gmail-flagged provider (providers.json) is the single source of truth for
 // the Gmail host - so changing it there updates detection everywhere.
@@ -1325,11 +1366,14 @@ function refreshConditional(){
   // Expunge stays available under AI Cleanup (so AI deletions can be permanent),
   // but is pointless on Gmail: Gmail auto-expunges on its own, and removing a
   // message from a folder there only archives it to All Mail. So disable it on Gmail.
-  const expungeOff = empty || move || gmail;
+  // Report only deletes nothing, so Expunge is moot there too.
+  const expungeOff = empty || move || gmail || (ai && aiReportOnly);
   $('expunge').disabled = expungeOff; if(expungeOff)$('expunge').checked=false;
   // Explain *why* it's disabled - only on Gmail (and not when move/empty take over).
   $('expungeNote').classList.toggle('hidden', !(gmail && !move && !empty));
-  // When it IS usable (non-Gmail), explain what it does. Mutually exclusive with the disabled note.
+  // Report-only reason (only when Gmail/move/empty aren't already the reason shown).
+  if($('expungeReportNote')) $('expungeReportNote').classList.toggle('hidden', !(ai && aiReportOnly && !gmail && !move && !empty));
+  // When it IS usable, explain what it does. Mutually exclusive with the disabled notes.
   $('expungeEnabledNote').classList.toggle('hidden', expungeOff);
   // Plain delete on Gmail (no Trash) just archives to All Mail - warn the user.
   // (AI Cleanup on Gmail always uses Trash, so it's never the archive-only case.)
@@ -1626,16 +1670,49 @@ function populateJobSmtp(){
     plain.forEach(p=>{ const op=document.createElement('option'); op.value=p.name; op.textContent=p.name+' ('+p.host+')'; sel.appendChild(op); });
     if(cur && plain.some(p=>p.name===cur)) sel.value=cur;
   }
-  if($('jobSmtpNote')) $('jobSmtpNote').classList.toggle('hidden', plain.length>0);
+  // Job notifications are gated by the global "Notify for scheduled jobs" toggle
+  // (Notifications tab). When it's off, this picker is moot - disable it and explain
+  // why; when it's on, keep the existing logic.
+  const notifyOn=!!(NOTIFY_SETTINGS && NOTIFY_SETTINGS.notify_jobs);
+  const banner=$('jobNotifyBanner');
+  if(banner){ banner.classList.toggle('hidden', notifyOn);
+    if(!notifyOn) banner.innerHTML='⚠ <b>Job notifications are off</b>, so this job won\'t send a completion email. Turn on <b>"Notify for scheduled jobs"</b> in the <b>Notifications</b> tab to enable them.'; }
+  sel.disabled=!notifyOn;
+  // Keep the Test button correct even if the tab is (re)opened mid-test: off when
+  // notifications are off, AND off while any SMTP test is running anywhere.
+  const test=$('btnJobSmtpTest'); if(test) test.disabled = !notifyOn || (typeof SMTP_TEST_BUSY!=='undefined' && SMTP_TEST_BUSY);
+  // the "no non-encrypted profile" note only matters when notifications are on
+  if($('jobSmtpNote')) $('jobSmtpNote').classList.toggle('hidden', !(notifyOn && plain.length===0));
+}
+// One row for the Job/Run summaries: are notifications on, and via which SMTP
+// profile (resolving "use active profile" to the real active one)?
+function notifyRecapRow(scope){
+  const ns=NOTIFY_SETTINGS||{};
+  const on = scope==='jobs' ? !!ns.notify_jobs : !!ns.notify_runs;
+  if(!on) return _recapRow('Notifications', '<span class="text-muted">off</span>');
+  let prof, viaActive;
+  if(scope==='jobs'){ const picked=$('jobSmtpProfile')?$('jobSmtpProfile').value:''; prof=picked||ns.active||''; viaActive=!picked; }
+  else { prof=ns.active||''; viaActive=true; }
+  const profTxt = prof
+    ? ('<b>'+escapeHtml(prof)+'</b>'+(viaActive?' <span class="text-muted">(active profile)</span>':''))
+    : '<span class="text-warn">⚠ no SMTP profile set</span>';
+  const to = ns.notify_to ? (' → '+escapeHtml(ns.notify_to)) : '';
+  return _recapRow('Notifications', 'on, via '+profTxt+to);
 }
 if($('btnJobSmtpTest')) $('btnJobSmtpTest').onclick=async()=>{
+  if(SMTP_TEST_BUSY) return;
   const el=$('jobSmtpTestMsg'); const show=(t,cls)=>{ if(el){ el.classList.remove('hidden'); el.textContent=t; el.className='text-[11px] mt-1 '+cls; } };
   const name=$('jobSmtpProfile').value || (NOTIFY_SETTINGS.active||'');
   if(!name){ show('No SMTP profile to test - pick one (or set an active profile in Notifications).','text-warn'); return; }
-  show('Testing '+name+' …','text-muted');
-  try{ const r=await api('/api/smtp-test',{name, secret:''}); show((r.ok?'✓ ':'✗ ')+r.message, r.ok?'text-ok':'text-danger'); }
-  catch(e){ show('✗ '+e.message,'text-danger'); }
+  setSmtpTestBusy(true);
+  show('Testing '+name+' … (up to ~30s)','text-muted');
+  const p=(SMTP_PROFILES||[]).find(x=>x.name===name);
+  try{ const r=await api('/api/smtp-test',{name, secret:''}); show((r.ok?'✓ ':'✗ ')+r.message+(r.ok?'':smtpHint(r.message)), r.ok?'text-ok':'text-danger');
+       if(!r.ok) await maybeOfferSmtpReauth(p, r.message); }
+  catch(e){ show('✗ '+e.message+smtpHint(e.message),'text-danger'); await maybeOfferSmtpReauth(p, e.message); }
+  finally{ setSmtpTestBusy(false); }
 };
+if($('jobSmtpProfile')) $('jobSmtpProfile').onchange=updateJobSummary;   // keep the Job summary's Notifications row in sync
 function jobProfileEncrypted(){ const p=PROFILES.find(x=>x.name===connectedProfile); return !!(p && p.encrypted); }
 function jobProfileOk(){ return !!SID && !!connectedProfile && !jobProfileEncrypted(); }
 /* The job's connection profile is the one the session is connected with (no
@@ -1672,7 +1749,7 @@ function updateJobSummary(){
   // Run confirm popup - so the job summary reads exactly like what an interactive run does.
   const r=actionRecap();
   const profHtml = prof ? ('<b>'+escapeHtml(prof)+'</b>') : '<span class="text-warn">⚠️ none selected</span>';
-  const head=[ _recapRow('Profile', profHtml), _recapRow('Schedule', '<b>'+escapeHtml(describeScheduleForm())+'</b>') ];
+  const head=[ _recapRow('Profile', profHtml), _recapRow('Schedule', '<b>'+escapeHtml(describeScheduleForm())+'</b>'), notifyRecapRow('jobs') ];
   el.innerHTML =
     '<div class="space-y-1 text-[13px]">'+head.join('')+r.rows.join('')+'</div>'+
     '<p class="text-[12.5px] text-muted mt-3 leading-relaxed">'+r.discursive+'</p>'+
@@ -1801,7 +1878,7 @@ function switchTab(name){
   try{ localStorage.setItem('icw_tab', name); }catch(_){}
   document.querySelectorAll('.tab,.navitem').forEach(x=>{ if(x.dataset.tab) x.classList.toggle('active', x.dataset.tab===name); });
   TABS.forEach(t=>{ const el=$('tab-'+t); if(el) el.classList.toggle('hidden', t!==name); });
-  if(name==='scheduling'){ populateJobProfiles(); updateSchedInputs(); loadJobs(); loadLLMModels(); loadSmtp().then(populateJobSmtp); updateJobSummary(); }
+  if(name==='scheduling'){ populateJobProfiles(); updateSchedInputs(); loadJobs(); loadLLMModels(); loadSmtp().then(()=>{ populateJobSmtp(); updateJobSummary(); }); updateJobSummary(); }
   if(name==='report'){ loadAiReports(); }
   if(name==='llm'){ loadLLMModels(); }
   if(name==='notifications'){ loadSmtp(); }
@@ -1940,6 +2017,7 @@ function recapBodyHtml(r){
     +'<p class="text-[12.5px] text-muted mt-3 leading-relaxed">'+r.discursive+'</p>';
 }
 function confirmRunRecap(){ const r=actionRecap();
+  r.rows=r.rows.concat(notifyRecapRow('runs'));   // show whether a completion email is sent, and via which profile
   return confirmDialog({ title:r.title, html:recapBodyHtml(r), okText:(r.danger?'Run for real':'Proceed'), danger:r.danger }); }
 function updateAiSecret(){
   const sel=$('aiModel'); const m=LLM_MODELS.find(x=>x.name===(sel?sel.value:''));
@@ -1981,7 +2059,7 @@ function renderReports(){
     const dt=parseReportLabel(r.label);
     const tr=document.createElement('tr'); tr.className='border-b border-line/60';
     tr.innerHTML='<td class="py-2 pr-2"><input type="checkbox" data-n="'+escapeHtml(r.name)+'"'+(reportSel.has(r.name)?' checked':'')+'></td>'
-      +'<td class="py-2 pr-2 font-mono text-[12px] text-cream break-all">'+escapeHtml(r.name)+'</td>'
+      +'<td class="py-2 pr-3 font-mono text-[12px] text-cream whitespace-nowrap">'+escapeHtml(r.name)+'</td>'
       +'<td class="py-2 pr-2 whitespace-nowrap text-muted">'+escapeHtml(dt.date)+'</td>'
       +'<td class="py-2 pr-2 whitespace-nowrap text-muted">'+escapeHtml(dt.time)+'</td>'
       +'<td class="py-2 pr-2 text-right whitespace-nowrap"><button data-dl="'+escapeHtml(r.name)+'" class="text-brand-light hover:underline text-xs mr-3">download</button>'
@@ -2214,7 +2292,7 @@ $('costClose').onclick=()=>$('costModal').classList.add('hidden');
 $('costModal').onclick=(e)=>{ if(e.target.id==='costModal') $('costModal').classList.add('hidden'); };
 
 /* ---------- Notifications tab (SMTP profiles + settings) ---------- */
-let SMTP_PROFILES=[], SMTP_PROVIDERS_DONE=false, EDITING_SMTP=null;
+let SMTP_PROFILES=[], SMTP_PROVIDERS_DONE=false, EDITING_SMTP=null, EDITING_SMTP_OAUTH=null;
 let smWasEncrypted=false, llmWasEncrypted=false;   // was the edited profile/model encrypted?
 let NOTIFY_SETTINGS={};                             // saved notification settings (active/notify_runs/…)
 let smtpNotifySecret='';  // SMTP passphrase for run emails (memory only; only a verified one is cached)
@@ -2234,6 +2312,40 @@ function applySmtpProviderTips(){
     else { tip.classList.add('hidden'); if(ic&&ic._tippy) ic._tippy.disable(); } };
   set('smUserTip', p.user_tip);
   set('smPassTip', p.pass_tip);
+  refreshSmtpOAuthRow();
+}
+function currentSmtpProvider(){ return ((typeof META==='object'&&META&&META.smtp_providers)||[])[parseInt(($('smProvider')||{}).value)||0]||{}; }
+// SMTP OAuth row, scoped to the selected SMTP provider (mirrors the connection card):
+// shown only when the provider declares an oauth_provider; dynamic label; sign-in
+// disabled (and password kept) when that provider's OAuth has no credentials.
+function refreshSmtpOAuthRow(){
+  const row=$('smOauthRow'), btn=$('btnSmtpOAuth'), banner=$('smOauthBanner'), note=$('smOauthCodeNote');
+  if(!row) return;
+  const base='mb-2 rounded-lg border px-3 py-2 text-[11px] backdrop-blur-sm ';
+  const prov=currentSmtpProvider(), op=(prov.oauth_provider||'').toLowerCase();
+  if(!op){ row.classList.add('hidden'); if($('smPasswordRow')) $('smPasswordRow').classList.remove('hidden'); return; }
+  row.classList.remove('hidden');
+  const configured=(typeof oauthProviderConfigured==='function') && oauthProviderConfigured(op);
+  const label=(typeof oauthProviderLabel==='function')?oauthProviderLabel(op):op;
+  if(btn){ btn.textContent='Sign in with '+label+'…'; btn.disabled=!configured;
+    btn.classList.toggle('opacity-50',!configured); btn.classList.toggle('cursor-not-allowed',!configured); }
+  if(note) note.classList.toggle('hidden', !configured);
+  const hidePw = !!prov.pass_deprecated && configured;
+  if($('smPasswordRow')) $('smPasswordRow').classList.toggle('hidden', hidePw);
+  if($('smEncryptRow')) $('smEncryptRow').classList.toggle('hidden', hidePw);
+  if(banner){
+    if(!configured){
+      banner.className=base+'border-danger/40 bg-danger/10 text-danger';
+      banner.innerHTML='OAuth for <b>'+escapeHtml(label)+'</b> is <b>not configured</b> in this build, so sign-in is unavailable. '+(prov.pass_deprecated?'Set its credentials in <code>oauth_providers.json</code> to enable it.':'Use a password instead.');
+    } else if(prov.pass_deprecated){
+      banner.className=base+'border-warn/40 bg-warn/10 text-warn';
+      banner.innerHTML='⚠ <b>Authentication required.</b> This SMTP host uses modern auth - <b>Sign in with '+escapeHtml(label)+'</b> below (no password).';
+    } else {
+      banner.className=base+'border-brand/40 bg-brand/10 text-brand-light';
+      banner.innerHTML='You can <b>Sign in with '+escapeHtml(label)+'</b> (no password) or use a password.';
+    }
+    banner.classList.remove('hidden');
+  }
 }
 if($('smProvider')) $('smProvider').onchange=()=>{ const p=(META.smtp_providers||[])[parseInt($('smProvider').value)||0]; if(!p) return; if(p.host!==undefined)$('smHost').value=p.host; if(p.port)$('smPort').value=p.port; if(p.security)$('smSecurity').value=p.security; applySmtpProviderTips(); };
 if($('smKeyToggle')) $('smKeyToggle').onclick=()=>{ const k=$('smKey'); k.type=k.type==='password'?'text':'password'; $('smKeyToggle').textContent=k.type==='password'?'show':'hide'; };
@@ -2308,10 +2420,10 @@ function renderSmtp(settings){
     if(!SMTP_PROFILES.length){ box.innerHTML='<p class="text-muted text-xs">No profiles yet.</p>'; }
     else SMTP_PROFILES.forEach(p=>{
       const row=document.createElement('div'); row.className='flex items-center justify-between bg-ink border border-line rounded-lg px-3 py-2';
-      const badges=[p.encrypted?'🔒 encrypted':'', p.security].filter(Boolean).map(b=>'<span class="text-muted text-xs">· '+escapeHtml(b)+'</span>').join(' ');
+      const badges=[p.auth_method==='oauth'?'OAuth2':'', p.encrypted?'🔒 encrypted':'', p.security].filter(Boolean).map(b=>'<span class="text-muted text-xs">· '+escapeHtml(b)+'</span>').join(' ');
       row.innerHTML='<span class="truncate"><b>'+escapeHtml(p.name)+'</b> <span class="text-muted text-xs">'+escapeHtml(p.host)+':'+p.port+'</span> '+badges+'</span>';
       const acts=document.createElement('span'); acts.className='flex gap-3 flex-none ml-2';
-      const test=document.createElement('button'); test.className='text-brand-light text-xs hover:underline'; test.textContent='test'; test.onclick=()=>smtpTest(p);
+      const test=document.createElement('button'); test.className='smtp-testbtn text-brand-light text-xs hover:underline disabled:opacity-50'; test.textContent='test'; test.onclick=()=>smtpTest(p, test); test.disabled=(typeof SMTP_TEST_BUSY!=='undefined' && SMTP_TEST_BUSY);
       const ed=document.createElement('button'); ed.className='text-brand-light text-xs hover:underline'; ed.textContent='edit'; ed.onclick=()=>editSmtp(p);
       const del=document.createElement('button'); del.className='text-danger text-xs hover:underline'; del.textContent='delete';
       del.onclick=async()=>{ if(!(await confirmDialog({title:'Delete SMTP profile', message:'Delete "'+p.name+'"?', okText:'Delete', danger:true}))) return; await api('/api/smtp-profiles/'+encodeURIComponent(p.name),null,'DELETE'); loadSmtp(); };
@@ -2319,35 +2431,84 @@ function renderSmtp(settings){
     });
   }
 }
-async function smtpTest(p){
+// Transient/throttle-looking SMTP errors (timeouts, 421/451, "service not
+// available", dropped connection) - suggest a calm retry rather than alarm.
+function smtpHint(msg){
+  return /timed out|timeout|unexpectedly closed|service not available|not available|421|451|4\.3\.2|4\.7\.0|too many|throttl/i.test(msg||'')
+    ? ' — this looks like temporary provider throttling (e.g. too many tries in a row). Wait a few seconds and try again.' : '';
+}
+// Only auth-looking failures (not timeouts/throttling) should suggest re-signing in.
+async function maybeOfferSmtpReauth(p, errMsg){
+  if(!p || p.auth_method!=='oauth') return;
+  if(smtpHint(errMsg)) return;   // transient/throttle -> not an auth problem
+  if(!/oauth|token|sign.?in|expired|refresh|rejected|authenticate|535|5\.7/i.test(errMsg||'')) return;
+  if(await confirmDialog({title:'Re-authenticate?',
+      message:'Sending via "'+p.name+'" failed - the '+oauthProviderLabel(p.provider)+' sign-in may have expired. Re-authenticate now?',
+      okText:'Re-authenticate'})){
+    oauthSignin({target:'smtp', provider:p.provider, email:p.user, profileName:p.name});
+  }
+}
+let SMTP_TEST_BUSY=false;   // guard so rapid clicks don't open parallel connections (which trigger throttling)
+// One SMTP test runs at a time for the whole page, so while one is in flight we
+// disable EVERY test button (per-profile "test", "Send test email", Scheduling "Test").
+function setSmtpTestBusy(on){
+  SMTP_TEST_BUSY=on;
+  document.querySelectorAll('.smtp-testbtn').forEach(b=>{ b.disabled=on; });
+  if(!on){ const jb=$('btnJobSmtpTest'); if(jb) jb.disabled = !(NOTIFY_SETTINGS && NOTIFY_SETTINGS.notify_jobs); }  // restore its own gating
+}
+async function smtpTest(p, btn){
+  if(SMTP_TEST_BUSY) return;
   let secret=''; if(p.encrypted){ secret=await promptDialog({title:'Encrypted profile', message:'Enter the passphrase for "'+p.name+'" to test it.'}); if(secret==null) return; }
-  $('smNotifyMsg').textContent='Testing '+p.name+'…'; $('smNotifyMsg').className='text-[11px] mt-2 text-muted';
-  try{ const r=await api('/api/smtp-test',{name:p.name,secret:secret||''}); $('smNotifyMsg').textContent=r.ok?('✓ '+r.message):('✗ '+r.message); $('smNotifyMsg').className='text-[11px] mt-2 '+(r.ok?'text-ok':'text-danger'); }
-  catch(e){ $('smNotifyMsg').textContent='✗ '+e.message; $('smNotifyMsg').className='text-[11px] mt-2 text-danger'; }
+  setSmtpTestBusy(true);
+  $('smNotifyMsg').textContent='Testing '+p.name+'… (up to ~30s)'; $('smNotifyMsg').className='text-[11px] mt-2 text-muted';
+  try{ const r=await api('/api/smtp-test',{name:p.name,secret:secret||''}); $('smNotifyMsg').textContent=r.ok?('✓ '+r.message):('✗ '+r.message+smtpHint(r.message)); $('smNotifyMsg').className='text-[11px] mt-2 '+(r.ok?'text-ok':'text-danger');
+       if(!r.ok) await maybeOfferSmtpReauth(p, r.message); }
+  catch(e){ $('smNotifyMsg').textContent='✗ '+e.message+smtpHint(e.message); $('smNotifyMsg').className='text-[11px] mt-2 text-danger'; await maybeOfferSmtpReauth(p, e.message); }
+  finally{ setSmtpTestBusy(false); }
 }
 function editSmtp(p){
   EDITING_SMTP=p.name; smWasEncrypted=!!p.encrypted;
-  if($('smEncNote')) $('smEncNote').classList.toggle('hidden', !smWasEncrypted);
+  const isOauth = p.auth_method==='oauth';
+  EDITING_SMTP_OAUTH = isOauth ? p : null;
   $('smName').value=p.name; $('smName').readOnly=true; $('smName').classList.add('opacity-60');
   $('smHost').value=p.host; $('smPort').value=p.port; $('smSecurity').value=p.security||'starttls';
   $('smUser').value=p.user||''; $('smFrom').value=p.from_addr||'';
-  $('smKey').value=''; $('smKey').placeholder=p.encrypted?'(leave blank to keep current)':'(leave blank to keep current)';
-  $('smEncrypt').checked=false; $('smSecretRow').classList.add('hidden'); $('smSecret').value=''; $('smSecret2').value=''; $('btnSaveSmtp').disabled=false;
-  syncSmtpEncryptEnabled();
-  $('btnSaveSmtp').textContent='Update profile'; $('btnCancelSmtp').classList.remove('hidden');
-  $('smMsg').textContent='Editing "'+p.name+'" - name locked; leave the password blank to keep it.'; $('smMsg').className='text-[11px] mt-2 text-muted';
+  // Show the password/encrypt fields for password profiles, the OAuth notice for OAuth ones.
+  if($('smPasswordRow')) $('smPasswordRow').classList.toggle('hidden', isOauth);
+  if($('smEncryptRow')) $('smEncryptRow').classList.toggle('hidden', isOauth);
+  if($('smOauthRow')) $('smOauthRow').classList.add('hidden');     // the "sign in (new profile)" row is N/A while editing
+  if($('smOauthEdit')) $('smOauthEdit').classList.toggle('hidden', !isOauth);
+  if(isOauth){
+    if($('smOauthEditProvider')) $('smOauthEditProvider').textContent=oauthProviderLabel(p.provider);
+    if($('smEncNote')) $('smEncNote').classList.add('hidden');
+    $('smSecretRow').classList.add('hidden'); $('smEncrypt').checked=false; $('smKey').value='';
+    $('smMsg').textContent='Editing OAuth profile "'+p.name+'" - no password. Update the fields, or re-authenticate if sending fails.';
+  } else {
+    if($('smEncNote')) $('smEncNote').classList.toggle('hidden', !smWasEncrypted);
+    $('smKey').value=''; $('smKey').placeholder='(leave blank to keep current)';
+    $('smEncrypt').checked=false; $('smSecretRow').classList.add('hidden'); $('smSecret').value=''; $('smSecret2').value='';
+    syncSmtpEncryptEnabled();
+    $('smMsg').textContent='Editing "'+p.name+'" - name locked; leave the password blank to keep it.';
+  }
+  $('btnSaveSmtp').disabled=false; $('btnSaveSmtp').textContent='Update profile'; $('btnCancelSmtp').classList.remove('hidden');
+  $('smMsg').className='text-[11px] mt-2 text-muted';
   $('smName').scrollIntoView({behavior:'smooth',block:'center'});
 }
 function resetSmtpForm(){
-  EDITING_SMTP=null; smWasEncrypted=false;
+  EDITING_SMTP=null; EDITING_SMTP_OAUTH=null; smWasEncrypted=false;
   if($('smEncNote')) $('smEncNote').classList.add('hidden');
+  if($('smOauthEdit')) $('smOauthEdit').classList.add('hidden');
+  if($('smPasswordRow')) $('smPasswordRow').classList.remove('hidden');
+  if($('smEncryptRow')) $('smEncryptRow').classList.remove('hidden');
   ['smName','smHost','smUser','smFrom','smKey','smSecret','smSecret2'].forEach(id=>$(id).value='');
   $('smName').readOnly=false; $('smName').classList.remove('opacity-60');
   $('smPort').value='587'; $('smSecurity').value='starttls'; $('smKey').placeholder='SMTP password / API key';
   $('smEncrypt').checked=false; $('smSecretRow').classList.add('hidden'); syncSmtpEncryptEnabled();
   $('smSecret').type='password'; $('smSecret2').type='password'; if($('smSecretEye')) $('smSecretEye').textContent='show';
   $('btnSaveSmtp').textContent='Save profile'; $('btnCancelSmtp').classList.add('hidden'); $('btnSaveSmtp').disabled=false;
+  if(typeof refreshSmtpOAuthRow==='function') refreshSmtpOAuthRow();   // restore per-provider row state for "new profile"
 }
+if($('btnSmtpReauth')) $('btnSmtpReauth').onclick=()=>{ const p=EDITING_SMTP_OAUTH; if(p) oauthSignin({target:'smtp', provider:p.provider, email:p.user, profileName:p.name}); };
 if($('btnCancelSmtp')) $('btnCancelSmtp').onclick=()=>{ resetSmtpForm(); $('smMsg').textContent=''; };
 if($('btnSaveSmtp')) $('btnSaveSmtp').onclick=async()=>{
   try{
@@ -2356,26 +2517,39 @@ if($('btnSaveSmtp')) $('btnSaveSmtp').onclick=async()=>{
     if(editing && smWasEncrypted && keyTyped && !$('smEncrypt').checked){
       if(!(await confirmDialog({title:'Save without encryption?', message:'This profile\'s password was encrypted. Saving a new password with Encrypt off will store it in plain text - no longer encrypted.\n\nContinue?', okText:'Save unencrypted', cancelText:'Cancel', danger:true}))) return;
     }
+    const wasOauth=EDITING_SMTP_OAUTH;   // captured before reset, for the post-save token check
     await api('/api/smtp-profiles',{ name:$('smName').value, host:$('smHost').value, port:parseInt($('smPort').value)||587, security:$('smSecurity').value, user:$('smUser').value, password:$('smKey').value, from_addr:$('smFrom').value, encrypt:$('smEncrypt').checked, secret:$('smSecret').value, update_password });
     const was=editing; resetSmtpForm(); $('smMsg').textContent=was?'Updated.':'Saved.'; $('smMsg').className='text-[11px] mt-2 text-ok'; loadSmtp();
+    // OAuth profile: the Update itself only writes metadata, so verify the stored
+    // sign-in still works (mints a token) and offer to re-authenticate if it doesn't.
+    if(wasOauth){
+      try{ const r=await api('/api/smtp-test',{name:wasOauth.name, secret:''});
+        if(!r.ok){ $('smMsg').textContent='Updated, but the sign-in check failed: '+r.message; $('smMsg').className='text-[11px] mt-2 text-warn'; await maybeOfferSmtpReauth(wasOauth, r.message); } }
+      catch(e){ $('smMsg').textContent='Updated, but the sign-in check failed: '+e.message; $('smMsg').className='text-[11px] mt-2 text-warn'; await maybeOfferSmtpReauth(wasOauth, e.message); }
+    }
   }catch(e){ $('smMsg').textContent='Error: '+e.message; $('smMsg').className='text-[11px] mt-2 text-danger'; }
 };
 if($('btnSaveNotify')) $('btnSaveNotify').onclick=async()=>{
   try{ await api('/api/notify-settings',{ active:$('smActive').value, notify_to:$('smTo').value, notify_jobs:$('smNotifyJobs').checked, notify_runs:$('smNotifyRuns').checked });
     NOTIFY_SETTINGS={active:$('smActive').value, notify_to:$('smTo').value, notify_jobs:$('smNotifyJobs').checked, notify_runs:$('smNotifyRuns').checked};
     smtpNotifySecret='';   // settings changed -> re-ask if needed
-    $('smNotifyMsg').textContent='Settings saved.'; $('smNotifyMsg').className='text-[11px] mt-2 text-ok'; }
+    // A transient toast (re-fires on every save, so re-saving gives clear feedback);
+    // the inline line is cleared so a stale "saved" can't linger.
+    $('smNotifyMsg').textContent=''; toast('Notification settings saved.', 'border-ok/50 bg-ok/15 text-ok'); }
   catch(e){ $('smNotifyMsg').textContent='Error: '+e.message; $('smNotifyMsg').className='text-[11px] mt-2 text-danger'; }
 };
 if($('btnSendTest')) $('btnSendTest').onclick=async()=>{
+  if(SMTP_TEST_BUSY) return;
   const name=$('smActive').value; if(!name){ $('smNotifyMsg').textContent='Choose an active profile first.'; $('smNotifyMsg').className='text-[11px] mt-2 text-danger'; return; }
   if(!$('smTo').value.trim()){ $('smNotifyMsg').textContent='Enter a recipient address first (and Save settings).'; $('smNotifyMsg').className='text-[11px] mt-2 text-danger'; return; }
   const prof=SMTP_PROFILES.find(p=>p.name===name); let secret='';
   if(prof && prof.encrypted){ secret=await promptDialog({title:'Encrypted profile', message:'Enter the passphrase for "'+name+'".'}); if(secret==null) return; }
-  $('smNotifyMsg').textContent='Sending test email…'; $('smNotifyMsg').className='text-[11px] mt-2 text-muted';
+  setSmtpTestBusy(true);
+  $('smNotifyMsg').textContent='Sending test email… (up to ~30s)'; $('smNotifyMsg').className='text-[11px] mt-2 text-muted';
   try{ await api('/api/notify-settings',{ notify_to:$('smTo').value });   // ensure recipient is saved
     const r=await api('/api/smtp-send-test',{name, secret}); $('smNotifyMsg').textContent='✓ Test email sent to '+r.sent; $('smNotifyMsg').className='text-[11px] mt-2 text-ok'; }
-  catch(e){ $('smNotifyMsg').textContent='✗ '+e.message; $('smNotifyMsg').className='text-[11px] mt-2 text-danger'; }
+  catch(e){ $('smNotifyMsg').textContent='✗ '+e.message+smtpHint(e.message); $('smNotifyMsg').className='text-[11px] mt-2 text-danger'; await maybeOfferSmtpReauth(prof, e.message); }
+  finally{ setSmtpTestBusy(false); }
 };
 
 /* ---------- Spam addresses tab ---------- */
@@ -2422,7 +2596,7 @@ function renderSpam(items){
     if(it.verdict_delete===true) verdict='<span class="text-danger font-semibold">delete</span>';
     else if(it.verdict_delete===false) verdict='<span class="text-ok font-semibold">keep</span>';
     const conf = it.verdict_confidence!=null? ' ('+Math.round(it.verdict_confidence*100)+'%)':'';
-    const reason = it.verdict_reason? '<div class="text-muted text-[11px]">'+escapeHtml(it.verdict_reason)+'</div>':'';
+    const reason = it.verdict_reason? '<div class="text-muted text-[11px] whitespace-nowrap">'+escapeHtml(it.verdict_reason)+'</div>':'';
     const checked=spamState.sel.has(it.address)?'checked':'';
     const sevClass = it.score>=8?'text-danger':(it.score>=6?'text-warn':'text-cream');
     let unsubCell;
@@ -2438,13 +2612,13 @@ function renderSpam(items){
     else if(it.list_unsubscribe) unsubCell='<span class="text-warn text-[11px] cursor-help" title="A List-Unsubscribe header was seen but no usable link is stored yet. Run a fresh AI report and it is normally captured (it then shows auto / auto ✉ / link ↗). If it persists, clear the local cache (connection card) and run the report again.">rescan</span>';
     else unsubCell='<span class="text-muted text-[11px] cursor-help" title="No List-Unsubscribe header - this sender can\'t be unsubscribed from here (only flagged/removed).">none</span>';
     tr.innerHTML='<td class="py-2 pr-2"><input type="checkbox" data-addr="'+escapeHtml(it.address)+'" '+checked+'></td>'
-      +'<td class="py-2 pr-3 break-all">'+escapeHtml(it.address)+'</td>'
+      +'<td class="py-2 pr-3 whitespace-nowrap">'+escapeHtml(it.address)+'</td>'
       +'<td class="py-2 px-2 text-center font-semibold '+sevClass+'">'+(it.score!=null?it.score:'')+'</td>'
       +'<td class="py-2 px-2 text-center">'+(it.messages||0)+'</td>'
       +'<td class="py-2 px-2 text-center">'+fmtPct(it.unread_ratio)+'</td>'
       +'<td class="py-2 px-2 text-center">'+(it.per_week!=null?it.per_week:'')+'</td>'
-      +'<td class="py-2 px-2 text-muted text-xs">'+sig+'</td>'
-      +'<td class="py-2 px-2">'+verdict+conf+reason+'</td>'
+      +'<td class="py-2 px-2 text-muted text-xs whitespace-nowrap">'+sig+'</td>'
+      +'<td class="py-2 px-2"><span class="whitespace-nowrap">'+verdict+conf+'</span>'+reason+'</td>'
       +'<td class="py-2 px-2 text-center">'+unsubCell+'</td>';
     tr.querySelector('input').onchange=(e)=>{ const a=e.target.dataset.addr; if(e.target.checked) spamState.sel.add(a); else spamState.sel.delete(a); updateSpamSel(); };
     body.appendChild(tr);
@@ -2582,6 +2756,8 @@ if($('spamFlag')) $('spamFlag').onclick=async()=>{
   catch(e){ spamMsg('✗ '+e.message,'text-danger'); }
 };
 $('togglePass').onclick=()=>{ const p=$('password'); p.type=p.type==='password'?'text':'password'; $('togglePass').textContent=p.type==='password'?'show':'hide'; };
+if($('btnOAuthSignin')) $('btnOAuthSignin').onclick=()=>oauthSignin({target:'imap', provider:(currentImapProvider().oauth_provider||'')});
+if($('btnSmtpOAuth')) $('btnSmtpOAuth').onclick=()=>oauthSignin({target:'smtp', provider:(currentSmtpProvider().oauth_provider||'')});
 document.querySelectorAll('input[name=mode]').forEach(r=> r.onchange=()=>{ const mode=document.querySelector('input[name=mode]:checked').value; try{localStorage.setItem('icw_mode',mode);}catch(_){} const rule=mode==='rule'; $('paneRule').classList.toggle('hidden',!rule); $('paneTargets').classList.toggle('hidden',rule); refreshConditional(); });
 $('targets').addEventListener('input', ()=>{ try{localStorage.setItem('icw_targets',$('targets').value);}catch(_){} updateJobSummary(); });
 if($('aiExclude')) $('aiExclude').addEventListener('input', updateJobSummary);
@@ -2598,20 +2774,60 @@ $('btnClear').onclick=()=>{ logLines=[]; renderLog(); persistLog(); };
 $('btnSelectAll').onclick=()=>{ const names=new Set(knownFolders.map(f=>f.name)); selectedFolders.forEach(n=>names.add(n)); selectedFolders=[...names]; renderFolders(); };
 $('btnDeselectAll').onclick=()=>{ selectedFolders=[]; renderFolders(); };
 
+// Shared post-connect UI, used by password connect, saved-profile connect, and
+// the OAuth sign-in finish - so all three land in exactly the same state.
+function applyConnected(d){
+  SID=d.sid; localStorage.setItem('icw_sid',SID);
+  connectedProfile=d.profile||'';
+  logCursor=0; persistLog();   // fresh session log
+  knownFolders=d.folders||[]; renderFolders(); setStatus(true,'connected · '+knownFolders.length+' folders'); setConnectedUI(true);
+  prefillSelfExclude();
+  loadAiReports();   // show this account's reports right away (no manual reload)
+  refreshLoadSpam(); // show the "Load saved Spam addresses" box if any exist
+  refreshCacheInfo(); // show cached-header count + Clear cache control
+  log('Connected. Loaded '+knownFolders.length+' folder(s).'); toast('Connected - '+knownFolders.length+' folder(s) loaded.', 'border-ok/50 bg-ok/15 text-ok'); refreshConditional();
+  if($('tab-scheduling') && !$('tab-scheduling').classList.contains('hidden')) loadJobs();
+}
 $('btnConnect').onclick=async()=>{
+  // A saved OAuth profile reconnects entirely server-side: the refresh token never
+  // travels to the browser, and a rotated token is persisted by the server.
+  const sel = PROFILES.find(x=>x.name===selectedProfile);
+  if(sel && sel.auth_method==='oauth'){
+    // Server-side connect: it mints (and so VERIFIES) the access token from the
+    // stored refresh token first, then opens IMAP. If the token is no longer valid
+    // we offer to sign in again right here.
+    let secret='';
+    if(sel.encrypted){ secret=await promptDialog({title:'Encrypted profile', message:'Enter the passphrase for "'+selectedProfile+'".'}); if(secret===null) return; }
+    try{ setStatus(false,'verifying sign-in…'); $('btnConnect').disabled=true; log('Verifying '+oauthProviderLabel(sel.provider)+' token for "'+selectedProfile+'" …');
+      const d=await api('/api/connect-profile',{name:selectedProfile, secret, local_cache: $('localCache')?$('localCache').checked:false});
+      applyConnected(d);
+    }catch(e){
+      setStatus(false,'failed'); setConnectedUI(false); log('[ERROR] '+e.message);
+      if(/oauth|token|sign.?in|expired|refresh|offline_access/i.test(e.message||'')){
+        if(await confirmDialog({title:'Sign-in expired',
+            message:'The '+oauthProviderLabel(sel.provider)+' sign-in for "'+selectedProfile+'" is no longer valid. Sign in again now?',
+            okText:'Sign in'})){
+          oauthSignin({target:'imap', provider:sel.provider, email:sel.user, profileName:sel.name});
+        }
+      }
+    }
+    return;
+  }
+  // A password-deprecated provider with a CONFIGURED OAuth and no OAuth profile yet:
+  // you must sign in. (If its OAuth isn't configured, fall through - the password
+  // field is shown as a last resort.)
+  const provNow=currentImapProvider();
+  const opNow=(provNow.oauth_provider||'').toLowerCase();
+  if(provNow.pass_deprecated && oauthProviderConfigured(opNow)){
+    toastErr('This account uses modern auth - sign in with '+oauthProviderLabel(opNow)+' (no password).');
+    oauthSignin({target:'imap', provider:opNow});
+    return;
+  }
   if(!$('host').value.trim() || !$('user').value.trim()){ setStatus(false,'failed'); toastErr('Please enter at least Host and User before connecting.'); return; }
   if(!$('password').value){ if(!(await confirmDialog({title:'No password', message:'No password entered - try connecting anyway?', okText:'Connect'}))) return; }
   try{ setStatus(false,'connecting…'); $('btnConnect').disabled=true; log('Connecting to '+$('host').value+' …');
-    const d=await api('/api/connect',connParams()); SID=d.sid; localStorage.setItem('icw_sid',SID);
-    connectedProfile=d.profile||'';
-    logCursor=0; persistLog();   // fresh session log
-    knownFolders=d.folders||[]; renderFolders(); setStatus(true,'connected · '+knownFolders.length+' folders'); setConnectedUI(true);
-    prefillSelfExclude();
-    loadAiReports();   // show this account's reports right away (no manual reload)
-    refreshLoadSpam(); // show the "Load saved Spam addresses" box if any exist
-    refreshCacheInfo(); // show cached-header count + Clear cache control
-    log('Connected. Loaded '+knownFolders.length+' folder(s).'); toast('Connected - '+knownFolders.length+' folder(s) loaded.', 'border-ok/50 bg-ok/15 text-ok'); refreshConditional();
-    if($('tab-scheduling') && !$('tab-scheduling').classList.contains('hidden')) loadJobs();
+    const d=await api('/api/connect',connParams());
+    applyConnected(d);
   }catch(e){ setStatus(false,'failed'); setConnectedUI(false); log('[ERROR] '+e.message); }
 };
 // Pre-fill the AI exclude box with the connected mailbox so self-sent mail is
@@ -2942,7 +3158,169 @@ async function loadProfiles(selectName){
     renderProfileMenu();
     populateJobProfiles();
     setProfileLabel(selectName || '');
+    if(typeof updateOAuthAuthState==='function') updateOAuthAuthState();
   }catch(_){}
+}
+// ----- OAuth2 sign-in (device-code flow) ------------------------------- //
+// All providers from the server, each carrying a `configured` flag (true only
+// when its client id/credentials are filled in - e.g. Microsoft yes, Google not).
+let OAUTH_PROVIDERS = [];
+async function loadOAuthProviders(){
+  try{ const d = await (await fetch('/api/oauth/providers')).json();
+       OAUTH_PROVIDERS = (d.providers||[]); }
+  catch(_){ OAUTH_PROVIDERS=[]; }
+  // The OAuth rows are scoped to the SELECTED provider (below) - refresh them.
+  if(typeof applyProviderTips==='function') applyProviderTips();
+  if(typeof refreshSmtpOAuthRow==='function') refreshSmtpOAuthRow();
+}
+function oauthConfiguredProviders(){ return (OAUTH_PROVIDERS||[]).filter(p=>p.configured); }
+function oauthProviderConfigured(name){ const p=(OAUTH_PROVIDERS||[]).find(x=>x.name===(name||'').toLowerCase()); return !!(p && p.configured); }
+function oauthProviderLabel(name){ const p=(OAUTH_PROVIDERS||[]).find(x=>x.name===(name||'').toLowerCase()); if(p) return p.label; name=name||''; return name?name.charAt(0).toUpperCase()+name.slice(1):'OAuth'; }
+function currentImapProvider(){ return ((typeof META==='object'&&META&&META.providers)||[])[parseInt($('provider').value)||0]||{}; }
+// The selected profile, but ONLY while it's an OAuth profile AND the form still
+// matches it (same host). If the user switched the Provider dropdown / host away,
+// the profile no longer applies - so its "authenticated" state must not linger.
+function activeOAuthProfile(){
+  const prof=(PROFILES||[]).find(x=>x.name===selectedProfile);
+  if(!(prof && prof.auth_method==='oauth')) return null;
+  const ph=(prof.host||'').toLowerCase();
+  const provHost=(currentImapProvider().host||'').toLowerCase();   // selected provider preset
+  const liveHost=($('host').value||'').trim().toLowerCase();        // host field
+  // Applies only while BOTH the selected Provider preset and the host field still
+  // match the profile - so switching the provider (even to Custom, which keeps the
+  // host) or editing the host drops the profile's "authenticated" state.
+  return (provHost===ph && liveHost===ph) ? prof : null;
+}
+// The OAuth provider relevant to the current selection: the active OAuth profile's
+// provider, else the selected IMAP provider's declared oauth_provider ('' if none).
+function relevantOAuthProvider(){
+  const p=activeOAuthProfile();
+  if(p) return (p.provider||'').toLowerCase();
+  return (currentImapProvider().oauth_provider||'').toLowerCase();
+}
+// Drives the whole OAuth row in the Connection card for the current selection:
+// show it only when OAuth applies, label/enable the button per the provider, and
+// set the colored glass banner (authenticated / required / optional / not-configured).
+function updateOAuthAuthState(){
+  const row=$('oauthRow'), btn=$('btnOAuthSignin'), banner=$('oauthAuthBanner'), note=$('oauthCodeNote');
+  if(!row) return;
+  const base='mb-2 rounded-lg border px-3 py-2 text-[11px] backdrop-blur-sm ';
+  // Once connected, the connection form is read-only: hide the whole sign-in row
+  // (button + tooltip + "a code will appear" note + banner).
+  if(typeof SID!=='undefined' && SID){ row.classList.add('hidden'); return; }
+  const op=relevantOAuthProvider();
+  if(!op){ row.classList.add('hidden'); return; }     // provider has no OAuth: hide the row entirely
+  row.classList.remove('hidden');
+  const configured=oauthProviderConfigured(op), label=oauthProviderLabel(op);
+  if(btn){ btn.textContent='Sign in with '+label+'…'; btn.disabled=!configured;
+    btn.classList.toggle('opacity-50', !configured); btn.classList.toggle('cursor-not-allowed', !configured); }
+  if(note) note.classList.toggle('hidden', !configured);   // the code instructions only matter if sign-in works
+  if(!banner) return;
+  const profOauth=!!activeOAuthProfile();
+  const prov=currentImapProvider();
+  if(typeof SID!=='undefined' && SID){ banner.classList.add('hidden'); return; }
+  if(!configured){
+    banner.className=base+'border-danger/40 bg-danger/10 text-danger';
+    banner.innerHTML='OAuth for <b>'+escapeHtml(label)+'</b> is <b>not configured</b> in this build, so sign-in is unavailable. '+(prov.pass_deprecated?'Set its credentials in <code>oauth_providers.json</code> to enable it.':'Use a password instead.');
+  } else if(profOauth){
+    banner.className=base+'border-ok/40 bg-ok/10 text-ok';
+    banner.innerHTML='✓ Authenticated with <b>'+escapeHtml(label)+'</b>. Click <b>Connect &amp; load folders</b> - the token is verified automatically, and if it has expired you\'ll be asked to sign in again.';
+  } else if(prov.pass_deprecated){
+    banner.className=base+'border-warn/40 bg-warn/10 text-warn';
+    banner.innerHTML='⚠ <b>Authentication required.</b> This account uses modern auth - <b>Sign in with '+escapeHtml(label)+'</b> below (no password needed).';
+  } else {
+    banner.className=base+'border-brand/40 bg-brand/10 text-brand-light';
+    banner.innerHTML='You can <b>Sign in with '+escapeHtml(label)+'</b> (no password) or use a password. If you signed in before, pick that saved profile instead.';
+  }
+  banner.classList.remove('hidden');
+}
+function oauthSignin(opts){
+  opts=opts||{}; const target=opts.target||'imap';   // 'imap' connection or 'smtp' sending profile
+  const PROVS=oauthConfiguredProviders();             // only providers with credentials can sign in
+  if(!PROVS.length){ toastErr('No OAuth providers are configured (add credentials in oauth_providers.json).'); return; }
+  let pollTimer=null, flowId=null, done=false;
+  const ov=document.createElement('div');
+  ov.className='fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4';
+  const provOpts=PROVS.map((p,i)=>'<option value="'+i+'">'+escapeHtml(p.label)+'</option>').join('');
+  ov.innerHTML='<div class="bg-panel border border-line rounded-xl p-5 w-full max-w-md">'
+    +'<h3 class="font-display font-semibold text-brand-light mb-3">Sign in with OAuth2'+(target==='smtp'?' (sending)':'')+'</h3>'
+    +'<div data-x="form" class="space-y-3">'
+    +  '<label class="block text-xs text-muted">Provider<select data-x="prov" class="field mt-1">'+provOpts+'</select></label>'
+    +  '<label class="block text-xs text-muted">Mailbox email<input data-x="email" class="field mt-1" placeholder="you@outlook.com"></label>'
+    +  (target==='smtp' ? '<label class="block text-xs text-muted">From address<input data-x="from" class="field mt-1" placeholder="you@outlook.com"></label>' : '')
+    +  '<label class="block text-xs text-muted">Save as profile<input data-x="name" class="field mt-1" placeholder="profile name"></label>'
+    +  '<p class="text-[11px] text-muted">A browser sign-in opens. The tool stores a refresh token (no password) so it can '+(target==='smtp'?'send notification emails':'reconnect and run scheduled jobs')+' on its own.</p>'
+    +'</div>'
+    +'<div data-x="wait" class="hidden space-y-3 text-sm">'
+    +  '<p class="text-cream">Open the sign-in page and enter this code:</p>'
+    +  '<div data-x="code" class="text-2xl font-mono font-bold text-brand-light text-center tracking-widest select-all"></div>'
+    +  '<div class="flex justify-center"><a data-x="link" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg bg-brand text-ink font-semibold hover:bg-brand-light">Open sign-in page ↗</a></div>'
+    +  '<p data-x="status" class="text-muted text-center">Waiting for you to finish signing in…</p>'
+    +'</div>'
+    +'<p data-x="err" class="hidden text-danger text-sm mt-3"></p>'
+    +'<div class="flex justify-end gap-2 mt-4">'
+    +  '<button data-x="cancel" class="px-4 py-2 rounded-lg border border-line text-muted hover:text-cream">Cancel</button>'
+    +  '<button data-x="go" class="px-4 py-2 rounded-lg font-semibold bg-brand text-ink hover:bg-brand-light">Sign in</button>'
+    +'</div></div>';
+  document.body.appendChild(ov);
+  const q=s=>ov.querySelector('[data-x='+s+']');
+  const provSel=q('prov'), email=q('email'), nameI=q('name'), fromI=q('from');
+  // Pre-select a provider when the caller knows it (e.g. re-authenticating a
+  // profile, or signing in for the selected IMAP provider).
+  if(opts.provider){ const i=PROVS.findIndex(p=>p.name===(opts.provider||'').toLowerCase()); if(i>=0) provSel.value=String(i); }
+  email.value=(opts.email || (target==='smtp' ? (($('smFrom')&&$('smFrom').value)||($('smUser')&&$('smUser').value)||'') : ($('user').value||''))).trim();
+  if(fromI) fromI.value=email.value;
+  const defName=()=> (target==='smtp' && $('smName') && $('smName').value.trim()) ? $('smName').value.trim() : (email.value||PROVS[+provSel.value].label);
+  if(opts.profileName){ nameI.value=opts.profileName; nameI.dataset.auto='0'; }   // re-auth: keep the same profile
+  else { nameI.dataset.auto='1'; nameI.value=defName(); }
+  const autoName=()=>{ if(nameI.dataset.auto==='1') nameI.value=defName(); };
+  email.addEventListener('input', ()=>{ if(fromI && fromI.dataset.auto!=='0') fromI.value=email.value; autoName(); });
+  if(fromI) fromI.addEventListener('input', ()=>{ fromI.dataset.auto='0'; });
+  provSel.addEventListener('change', autoName);
+  nameI.addEventListener('input', ()=>{ nameI.dataset.auto='0'; });
+  const showErr=m=>{ q('err').textContent=m; q('err').classList.remove('hidden'); q('status').textContent=''; q('cancel').textContent='Close'; };
+  const close=(doCancel)=>{ if(pollTimer) clearTimeout(pollTimer); done=true;
+    if(doCancel && flowId) api('/api/oauth/cancel',{flow_id:flowId}).catch(()=>{});
+    ov.remove(); };
+  q('cancel').onclick=()=>close(true);
+  ov.onclick=(e)=>{ if(e.target===ov) close(true); };
+  q('go').onclick=async()=>{
+    const prov=PROVS[+provSel.value];
+    const user=(email.value||'').trim(), name=(nameI.value||'').trim()||user;
+    if(!user){ showErr('Enter the mailbox email.'); return; }
+    q('err').classList.add('hidden'); q('go').disabled=true;
+    try{
+      const d=await api('/api/oauth/start',{provider:prov.name});
+      flowId=d.flow_id;
+      q('form').classList.add('hidden'); q('go').classList.add('hidden'); q('wait').classList.remove('hidden');
+      q('code').textContent=d.user_code||'';
+      const link=q('link'); link.href=d.verification_uri_complete||d.verification_uri||'#';
+      try{ window.open(link.href,'_blank','noopener'); }catch(_){}
+      const conn=(prov.imap||{}), smtp=(prov.smtp||{});
+      const poll=async()=>{
+        if(done) return;
+        try{
+          const s=await api('/api/oauth/poll',{flow_id:flowId});
+          if(s.status==='pending'){ pollTimer=setTimeout(poll, 3000); return; }
+          if(s.status==='error'){ showErr(s.error||'Sign-in failed.'); return; }
+          if(target==='smtp'){
+            q('status').textContent='Signed in - saving, please wait…';
+            await api('/api/oauth/finish-smtp',{flow_id:flowId, name, user, host:smtp.host||'', port:smtp.port||587, security:smtp.security||'starttls', from_addr:(fromI&&fromI.value.trim())||user});
+            done=true; ov.remove();
+            toast('SMTP profile "'+name+'" saved (OAuth2).', 'border-ok/50 bg-ok/15 text-ok');
+            if(typeof loadSmtp==='function') loadSmtp();
+          } else {
+            q('status').textContent='Signed in - connecting, please wait…';
+            const fin=await api('/api/oauth/finish',{flow_id:flowId, name, user, host:conn.host||'', port:conn.port||993, local_cache: $('localCache')?$('localCache').checked:false});
+            done=true; ov.remove();
+            await loadProfiles(name);
+            applyConnected(fin);
+          }
+        }catch(e){ showErr(e.message); }
+      };
+      pollTimer=setTimeout(poll, 2500);
+    }catch(e){ q('err').textContent=e.message; q('err').classList.remove('hidden'); q('go').disabled=false; }
+  };
 }
 function fillConnection(p){
   $('host').value=p.host||''; $('port').value=p.port||993; $('user').value=p.user||'';
@@ -2955,11 +3333,29 @@ async function doLoadProfile(name, secret){
   const d = await api('/api/profiles/load', {name, secret: secret||''});
   fillConnection(d); log('Profile "'+name+'" loaded.');
 }
+function syncOAuthFormState(){
+  // An OAuth profile has no password: grey out the password field while that
+  // profile is the ACTIVE one (selected + form still matches it). Switching the
+  // provider away re-enables the password.
+  const isOauth = !!activeOAuthProfile();
+  const pw=$('password'); if(pw){ pw.disabled=isOauth; if(isOauth){ pw.value=''; pw.placeholder='(OAuth2 - no password needed)'; } else if(pw.placeholder.indexOf('OAuth2')>=0){ pw.placeholder=''; } }
+  const tp=$('togglePass'); if(tp) tp.disabled=isOauth;
+  if(typeof updateOAuthAuthState==='function') updateOAuthAuthState();
+}
 async function chooseProfile(name){
   $('profileMenu').classList.add('hidden');
   setProfileLabel(name);
-  if(!name) return;
+  if(!name){ syncOAuthFormState(); return; }
   const p = PROFILES.find(x=>x.name===name);
+  if(p && p.auth_method==='oauth'){
+    // OAuth profile: no password to load - just show its host/user. Connecting
+    // happens server-side (Connect button -> /api/connect-profile).
+    fillConnection({host:p.host, port:p.port, user:p.user, timeout:120, password:'', local_cache:p.local_cache});
+    syncOAuthFormState();
+    log('OAuth profile "'+name+'" selected - click Connect to sign in with the stored token.');
+    return;
+  }
+  syncOAuthFormState();
   if(p && p.encrypted){ openUnlock(name); return; }
   try{ await doLoadProfile(name, ''); }catch(e){ log('[ERROR] '+e.message); setProfileLabel(''); }
 }
@@ -3136,6 +3532,19 @@ $('saveConfirm').onclick=async ()=>{
     else delete unlockedSecrets[name];
     $('saveModal').classList.add('hidden'); await loadProfiles(name);
     log('Profile "'+name+'" saved'+(encrypt?' (encrypted).':'.'));
+    // If we're connected ad-hoc and just saved THIS connection, adopt the profile
+    // so Scheduling stops saying "connected manually" (and it survives a refresh).
+    if(SID){
+      try{
+        const r=await api('/api/session/adopt-profile',{sid:SID, profile:name});
+        if(r && r.profile){
+          connectedProfile=r.profile;
+          if(typeof populateJobProfiles==='function') populateJobProfiles();
+          if(typeof updateJobSummary==='function') updateJobSummary();
+          if($('tab-scheduling') && !$('tab-scheduling').classList.contains('hidden') && typeof loadJobs==='function') loadJobs();
+        }
+      }catch(_){ /* saved a profile that isn't the live connection - leave as is */ }
+    }
   }catch(e){ saveErr(e.message); }
 };
 $('btnDeleteProfile').onclick=async ()=>{
@@ -3159,7 +3568,13 @@ $('btnDeleteProfile').onclick=async ()=>{
   }
   try{
     const r=await api('/api/profiles/'+encodeURIComponent(name)+(delOrphans?'?delete_orphans=true':''), null, 'DELETE');
-    delete unlockedSecrets[name]; await loadProfiles('');
+    delete unlockedSecrets[name];
+    // If we deleted the profile we're connected through, the live session is no
+    // longer "via a profile" - drop it so Scheduling reverts to "connected manually".
+    if(connectedProfile===name){ connectedProfile=''; }
+    await loadProfiles('');
+    if(typeof populateJobProfiles==='function') populateJobProfiles();
+    if(typeof updateJobSummary==='function') updateJobSummary();
     const note = r.removed_jobs ? (' (and '+r.removed_jobs+' job(s) removed)')
       : (orphans.length ? (' ('+orphans.length+' job(s) left orphaned)') : '');
     log('Profile "'+name+'" deleted'+note+'.');
@@ -3203,7 +3618,7 @@ function startTour(){
       { element:'#btnRun', popover:{ title:'7 · Run', description:'Run the action. With dry-run on it just previews; without it you get a clear confirmation first. Use Stop to cancel a long run.' } },
       { element:'#log', popover:{ title:'8 · Live log', description:'Everything the tool does shows here in real time - what it searches, matches and acts on. Watch it during a run; the log survives a page refresh.' } },
       { element:'.tab[data-tab="scheduling"]', popover:{ title:'9 · Schedule it', description:'In the <b>Scheduling</b> tab you can turn these settings into a job (incl. AI Cleanup) and install it into your system scheduler (Task Scheduler / cron) to run automatically.' } },
-      { element:'.tab[data-tab="llm"]', popover:{ title:'10 · LLM models', description:'Configure the model(s) for AI Cleanup here - cloud or <b>local</b> (Ollama). <b>BYOA</b>: your API key stays on your machine and can be encrypted; optional per-model cost tracking. Needs the <code>[ai]</code> extra installed.' } },
+      { element:'.tab[data-tab="llm"]', popover:{ title:'10 · LLM models', description:'Configure the model(s) for AI Cleanup here - <b>local</b> (Ollama) or any remote/cloud model. <b>BYOA (bring your own API key)</b> for all remote/cloud models: your API key stays on your machine and can be encrypted; optional per-model cost tracking. Needs the <code>[ai]</code> extra installed.' } },
       { element:'.tab[data-tab="notifications"]', popover:{ title:'11 · Email notifications', description:'Add an <b>SMTP</b> profile (Gmail, Amazon SES, …), pick a recipient, and get an email when a cleanup finishes - for scheduled jobs and, if enabled, interactive runs (the report can be emailed as a CSV). Test connection + send-test included.' } },
       { element:'.tab[data-tab="spam"]', popover:{ title:'12 · Spam addresses', description:'Every AI run records the flagged senders here (per account), with scores and verdicts. Sort any column, bulk-remove, or <b>flag senders as spam</b> on the server so future mail is auto-filtered.' } },
       { popover:{ title:'That is it! 🎉', description:'Tip: hover the little <b>i</b> icons anywhere for detailed help. Happy cleaning!' } },

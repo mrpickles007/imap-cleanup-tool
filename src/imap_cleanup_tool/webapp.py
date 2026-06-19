@@ -34,8 +34,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from . import (__version__, ai, core, llm, notifications, profiles, scheduler,
-               spamstore)
+from . import (__version__, ai, core, llm, notifications, oauth, profiles,
+               scheduler, spamstore)
 from .rules import RuleError, compile_search, node_from_dict
 from .targets import parse_targets_text
 
@@ -184,6 +184,13 @@ FIELD_OPERATORS = {
 # --------------------------------------------------------------------------- #
 _SESSIONS: dict[str, "Session"] = {}
 _RUN_BY_THREAD: dict[int, "RunState"] = {}
+
+# In-flight OAuth device-code sign-ins, keyed by flow id. Each record holds the
+# device code, a background poll thread's status, and (when done) the token. The
+# refresh token never leaves the server - the browser only sees the user code/URL.
+_OAUTH_FLOWS: dict[str, dict] = {}
+_OAUTH_LOCK = threading.Lock()
+OAUTH_FLOW_CAP = 20         # drop the oldest flows beyond this many
 
 
 SESSION_LOG_CAP = 50000     # keep at most this many log lines per session
@@ -486,6 +493,41 @@ def create_app():
         name: str
         secret: str = ""
 
+    class ConnectProfileIn(BaseModel):
+        name: str = Field(..., min_length=1)
+        secret: str = ""                 # passphrase for an encrypted profile
+        local_cache: bool = False
+
+    class AdoptProfileIn(BaseModel):
+        sid: str
+        profile: str = Field(..., min_length=1)
+
+    class OAuthStartIn(BaseModel):
+        provider: str = "microsoft"
+
+    class OAuthPollIn(BaseModel):
+        flow_id: str
+
+    class OAuthFinishIn(BaseModel):
+        flow_id: str
+        name: str = Field(..., min_length=1)     # profile to save the sign-in as
+        user: str = Field(..., min_length=1)     # the mailbox email
+        host: str = Field(..., min_length=1)
+        port: int = 993
+        timeout: int = 120
+        local_cache: bool = False
+        encrypt: bool = False
+        secret: str = ""                         # encryption passphrase (optional)
+
+    class OAuthFinishSmtpIn(BaseModel):
+        flow_id: str
+        name: str = Field(..., min_length=1)     # SMTP profile to save the sign-in as
+        user: str = Field(..., min_length=1)     # the mailbox email
+        host: str = Field(..., min_length=1)
+        port: int = 587
+        security: str = "starttls"
+        from_addr: str = ""
+
     class JobIn(Match, Options):
         name: str = "job"
         profile: str = ""                    # connection profile (non-encrypted)
@@ -556,20 +598,16 @@ def create_app():
             "ai_available": _ai_extra_available(),
         }
 
-    @app.post("/api/connect")
-    def connect(body: ConnIn) -> dict[str, Any]:
-        try:
-            conn = core.connect(body.host, body.port, body.user,
-                                body.password, body.timeout)
-        except (OSError, core.imaplib.IMAP4.error) as exc:
-            raise HTTPException(502, f"Connection/login failed: {exc}") from exc
+    def _start_session(conn, host: str, port: int, user: str, *,
+                       profile: str = "", local_cache: bool = False) -> "Session":
+        """Register a live IMAP connection as a session and load its folders."""
         sid = uuid.uuid4().hex
-        sess = Session(sid, conn, body.host, body.port, body.user)
-        sess.local_cache = bool(body.local_cache)
+        sess = Session(sid, conn, host, port, user)
+        sess.local_cache = bool(local_cache)
         # Remember the saved profile used to connect (jobs are scheduled with it,
         # and the Scheduling tab scopes its job list to it). Only if it really
         # names a saved profile.
-        prof = (body.profile or "").strip()
+        prof = (profile or "").strip()
         if prof and any(p["name"] == prof for p in profiles.list_profiles()):
             sess.profile = prof
         try:
@@ -577,8 +615,153 @@ def create_app():
         except (OSError, core.imaplib.IMAP4.error):
             sess.folders = []
         _SESSIONS[sid] = sess
-        return {"sid": sid, "host": sess.host, "user": sess.user,
+        return sess
+
+    @app.post("/api/connect")
+    def connect(body: ConnIn) -> dict[str, Any]:
+        try:
+            conn = core.connect(body.host, body.port, body.user,
+                                body.password, body.timeout)
+        except (OSError, core.imaplib.IMAP4.error) as exc:
+            raise HTTPException(502, f"Connection/login failed: {exc}") from exc
+        sess = _start_session(conn, body.host, body.port, body.user,
+                              profile=body.profile, local_cache=body.local_cache)
+        return {"sid": sess.sid, "host": sess.host, "user": sess.user,
                 "folders": sess.folders, "profile": sess.profile}
+
+    # ----- OAuth2 (XOAUTH2) sign-in --------------------------------------- #
+    @app.get("/api/oauth/providers")
+    def oauth_providers() -> dict[str, Any]:
+        """Configured OAuth providers (Microsoft now; others when their client id
+        is filled into assets/oauth_providers.json)."""
+        return {"providers": oauth.available_providers()}
+
+    def _poll_oauth_flow(flow_id: str) -> None:
+        """Background: poll the token endpoint until the user finishes signing in."""
+        rec = _OAUTH_FLOWS.get(flow_id)
+        if rec is None:
+            return
+        try:
+            tok = oauth.poll_device_code(
+                rec["device_code"], provider=rec["provider"],
+                interval=rec["interval"], should_stop=rec["cancel"].is_set,
+                timeout=rec["expires_in"])
+            rec["token"] = tok
+            rec["status"] = "done"
+        except oauth.OAuthError as exc:
+            rec["status"] = "error"
+            rec["error"] = str(exc)
+
+    @app.post("/api/oauth/start")
+    def oauth_start(body: OAuthStartIn) -> dict[str, Any]:
+        try:
+            flow = oauth.start_device_code(body.provider)
+        except oauth.OAuthError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        flow_id = uuid.uuid4().hex
+        with _OAUTH_LOCK:
+            # Drop the oldest flows so the registry can't grow unbounded.
+            while len(_OAUTH_FLOWS) >= OAUTH_FLOW_CAP:
+                _OAUTH_FLOWS.pop(next(iter(_OAUTH_FLOWS)), None)
+            _OAUTH_FLOWS[flow_id] = {
+                "provider": flow["provider"], "device_code": flow["device_code"],
+                "interval": flow["interval"], "expires_in": flow["expires_in"],
+                "status": "pending", "error": "", "token": None,
+                "cancel": threading.Event()}
+        threading.Thread(target=_poll_oauth_flow, args=(flow_id,),
+                         daemon=True).start()
+        # Return only what the browser needs to show; never the device_code itself.
+        return {"flow_id": flow_id, "user_code": flow["user_code"],
+                "verification_uri": flow["verification_uri"],
+                "verification_uri_complete": flow["verification_uri_complete"],
+                "message": flow["message"], "expires_in": flow["expires_in"]}
+
+    @app.post("/api/oauth/poll")
+    def oauth_poll(body: OAuthPollIn) -> dict[str, Any]:
+        rec = _OAUTH_FLOWS.get(body.flow_id)
+        if rec is None:
+            raise HTTPException(404, "Sign-in expired - start again.")
+        return {"status": rec["status"], "error": rec["error"]}
+
+    @app.post("/api/oauth/cancel")
+    def oauth_cancel(body: OAuthPollIn) -> dict[str, Any]:
+        rec = _OAUTH_FLOWS.pop(body.flow_id, None)
+        if rec is not None:
+            rec["cancel"].set()
+        return {"cancelled": True}
+
+    @app.post("/api/oauth/finish")
+    def oauth_finish(body: OAuthFinishIn) -> dict[str, Any]:
+        """After a successful sign-in: save an OAuth profile and connect with it."""
+        rec = _OAUTH_FLOWS.get(body.flow_id)
+        if rec is None:
+            raise HTTPException(404, "Sign-in expired - start again.")
+        if rec["status"] != "done" or not rec.get("token"):
+            raise HTTPException(409, "Sign-in not finished yet.")
+        tok = rec["token"]
+        provider = rec["provider"]
+        refresh = tok.get("refresh_token") or ""
+        access = tok.get("access_token") or ""
+        if not refresh:
+            raise HTTPException(502, "Provider returned no refresh token "
+                                     "(offline_access scope missing?).")
+        try:
+            profiles.save_oauth_profile(
+                body.name, body.host, body.port, body.user, refresh, provider,
+                timeout=body.timeout, encrypt=body.encrypt, secret=body.secret,
+                local_cache=body.local_cache)
+        except profiles.ProfileError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        try:
+            conn = core.connect_oauth(body.host, body.port, body.user,
+                                      access, body.timeout)
+        except (OSError, core.imaplib.IMAP4.error) as exc:
+            raise HTTPException(502, f"Connection failed: {exc}") from exc
+        with _OAUTH_LOCK:
+            _OAUTH_FLOWS.pop(body.flow_id, None)
+        sess = _start_session(conn, body.host, body.port, body.user,
+                              profile=body.name, local_cache=body.local_cache)
+        return {"sid": sess.sid, "host": sess.host, "user": sess.user,
+                "folders": sess.folders, "profile": sess.profile}
+
+    @app.post("/api/oauth/finish-smtp")
+    def oauth_finish_smtp(body: OAuthFinishSmtpIn) -> dict[str, Any]:
+        """After a successful sign-in: save an OAuth2 SMTP (sending) profile."""
+        rec = _OAUTH_FLOWS.get(body.flow_id)
+        if rec is None:
+            raise HTTPException(404, "Sign-in expired - start again.")
+        if rec["status"] != "done" or not rec.get("token"):
+            raise HTTPException(409, "Sign-in not finished yet.")
+        refresh = (rec["token"].get("refresh_token") or "")
+        if not refresh:
+            raise HTTPException(502, "Provider returned no refresh token "
+                                     "(offline_access scope missing?).")
+        try:
+            notifications.save_oauth_profile(
+                body.name, body.host, body.user, refresh, rec["provider"],
+                from_addr=body.from_addr, security=body.security, port=body.port)
+        except notifications.NotifyError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        with _OAUTH_LOCK:
+            _OAUTH_FLOWS.pop(body.flow_id, None)
+        return {"saved": body.name}
+
+    @app.post("/api/session/adopt-profile")
+    def adopt_profile(body: AdoptProfileIn) -> dict[str, Any]:
+        """Attach a just-saved profile to the live session, so the Scheduling tab
+        and a later page refresh see the connection as 'via <profile>' instead of
+        'connected manually'. Only adopts a profile that matches the live
+        connection (same host + user)."""
+        sess = _session(body.sid)
+        p = next((x for x in profiles.list_profiles()
+                  if x["name"] == body.profile), None)
+        if p is None:
+            raise HTTPException(404, "No such profile.")
+        if ((p["host"] or "").lower() == (sess.host or "").lower()
+                and (p["user"] or "") == (sess.user or "")):
+            sess.profile = body.profile
+            return {"profile": sess.profile}
+        raise HTTPException(409, "Profile does not match the current connection.")
 
     @app.get("/api/session/{sid}")
     def session_info(sid: str) -> dict[str, Any]:
@@ -690,9 +873,46 @@ def create_app():
     @app.post("/api/profiles/load")
     def load_profile(body: ProfileLoadIn) -> dict[str, Any]:
         try:
-            return profiles.load_profile(body.name, body.secret)
+            prof = profiles.load_profile(body.name, body.secret)
         except profiles.ProfileError as exc:
             raise HTTPException(400, str(exc)) from exc
+        # Never hand the OAuth refresh token to the browser; reconnecting an OAuth
+        # profile goes through /api/connect-profile (server-side) instead.
+        prof.pop("refresh_token", None)
+        return prof
+
+    @app.post("/api/connect-profile")
+    def connect_profile(body: ConnectProfileIn) -> dict[str, Any]:
+        """Connect using a saved profile, server-side - so the password / OAuth
+        refresh token never travels to the browser. Handles both auth methods and
+        persists a rotated OAuth refresh token."""
+        try:
+            prof = profiles.load_profile(body.name, body.secret)
+        except profiles.ProfileError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        host, port, user = prof["host"], prof["port"], prof["user"]
+        timeout = prof["timeout"]
+        local_cache = body.local_cache or prof.get("local_cache", False)
+        try:
+            if prof.get("auth_method") == "oauth":
+                def _persist(new_token: str) -> None:
+                    try:
+                        profiles.update_refresh_token(body.name, new_token,
+                                                      body.secret)
+                    except profiles.ProfileError:
+                        pass
+                token = oauth.access_token_for(prof, persist=_persist)
+                conn = core.connect_oauth(host, port, user, token, timeout)
+            else:
+                conn = core.connect(host, port, user, prof["password"], timeout)
+        except oauth.OAuthError as exc:
+            raise HTTPException(502, f"OAuth sign-in failed: {exc}") from exc
+        except (OSError, core.imaplib.IMAP4.error) as exc:
+            raise HTTPException(502, f"Connection/login failed: {exc}") from exc
+        sess = _start_session(conn, host, port, user, profile=body.name,
+                              local_cache=local_cache)
+        return {"sid": sess.sid, "host": sess.host, "user": sess.user,
+                "folders": sess.folders, "profile": sess.profile}
 
     def _jobs_using_profile(name: str) -> list[str]:
         """Names of saved jobs whose --profile is this connection profile."""
@@ -727,6 +947,12 @@ def create_app():
                 scheduler.delete_job(jname)
                 removed += 1
         profiles.delete_profile(name)
+        # Detach the deleted profile from any live session that was connected via
+        # it, so Scheduling stops attributing the session to a profile that no
+        # longer exists (and a page refresh won't restore the stale name).
+        for sess in _SESSIONS.values():
+            if sess.profile == name:
+                sess.profile = ""
         return {"deleted": name, "orphan_jobs": orphans, "removed_jobs": removed}
 
     # ----- SMTP profiles + email notifications ----------------------------- #
@@ -1096,10 +1322,13 @@ def create_app():
                              "prompt_tokens": ev["prompt_tokens"],
                              "completion_tokens": ev["completion_tokens"],
                              "cost": ev["cost"]}
+            cost = ev["cost"]
+            cost_str = f"${cost:.6f}" if isinstance(cost, (int, float)) \
+                else "tracking off"
             core.logger.info("LLM done: %d to delete · %d/%d tokens · cost %s",
                              sum(1 for v in ev["verdicts"].values() if v["delete"]),
                              ev["prompt_tokens"], ev["completion_tokens"],
-                             ev["cost"])
+                             cost_str)
         else:
             core.logger.info("Heuristic-only report (Skip LLM): no per-sender AI "
                              "verdicts in this report.")

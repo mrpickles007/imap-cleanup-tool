@@ -31,6 +31,14 @@ class WebApiTests(unittest.TestCase):
         self.assertIn("Gmail", names)
         self.assertGreater(len(names), 20)        # loaded from providers.json
         self.assertIn("date", data["operators"])
+        # The Microsoft providers are flagged password-deprecated (modern auth only)
+        # so the UI hides the password field and points to OAuth sign-in.
+        ms = next(p for p in data["providers"]
+                  if p.get("oauth_provider") == "microsoft")
+        self.assertTrue(ms.get("pass_deprecated"))
+        # Exactly one Microsoft IMAP preset (the two old Outlook/Hotmail rows merged).
+        self.assertEqual(sum(1 for p in data["providers"]
+                             if p.get("oauth_provider") == "microsoft"), 1)
 
     def test_index_served(self):
         r = self.client.get("/")
@@ -64,6 +72,56 @@ class WebApiTests(unittest.TestCase):
         r = self.client.post("/api/count", json={
             "sid": "nope", "match_mode": "rule", "rule_tree": _RULE})
         self.assertEqual(r.status_code, 440)
+
+    def test_adopt_profile_attaches_matching_profile(self):
+        from imap_cleanup_tool import webapp
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(profiles, "config_dir",
+                                   return_value=Path(tmp)):
+                profiles.save_profile("mine", "imap.x.com", 993, "u@x.com", "pw")
+                profiles.save_profile("other", "imap.y.com", 993, "v@y.com", "pw")
+                sess = webapp.Session("sid-adopt", None, "imap.x.com", 993,
+                                      "u@x.com")
+                webapp._SESSIONS["sid-adopt"] = sess
+                try:
+                    # matching host+user -> adopted
+                    r = self.client.post("/api/session/adopt-profile",
+                                         json={"sid": "sid-adopt", "profile": "mine"})
+                    self.assertEqual(r.status_code, 200)
+                    self.assertEqual(r.json()["profile"], "mine")
+                    self.assertEqual(sess.profile, "mine")
+                    # different connection -> refused (409)
+                    r2 = self.client.post("/api/session/adopt-profile",
+                                          json={"sid": "sid-adopt", "profile": "other"})
+                    self.assertEqual(r2.status_code, 409)
+                    # unknown profile -> 404
+                    r3 = self.client.post("/api/session/adopt-profile",
+                                          json={"sid": "sid-adopt", "profile": "nope"})
+                    self.assertEqual(r3.status_code, 404)
+                finally:
+                    webapp._SESSIONS.pop("sid-adopt", None)
+
+    def test_adopt_profile_without_session_is_rejected(self):
+        r = self.client.post("/api/session/adopt-profile",
+                             json={"sid": "nope", "profile": "x"})
+        self.assertEqual(r.status_code, 440)
+
+    def test_deleting_connected_profile_detaches_session(self):
+        from imap_cleanup_tool import webapp
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(profiles, "config_dir",
+                                   return_value=Path(tmp)):
+                profiles.save_profile("mine", "imap.x.com", 993, "u@x.com", "pw")
+                sess = webapp.Session("sid-del", None, "imap.x.com", 993,
+                                      "u@x.com")
+                sess.profile = "mine"               # connected via this profile
+                webapp._SESSIONS["sid-del"] = sess
+                try:
+                    r = self.client.delete("/api/profiles/mine")
+                    self.assertEqual(r.status_code, 200)
+                    self.assertEqual(sess.profile, "")   # detached on delete
+                finally:
+                    webapp._SESSIONS.pop("sid-del", None)
 
     def test_senders_csv_without_session_is_rejected(self):
         self.assertEqual(

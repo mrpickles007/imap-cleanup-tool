@@ -35,8 +35,9 @@ features are optional extras (see [Install](#install)).
 - 🤖 **AI Cleanup (the headline):** a **local** heuristic scores every sender,
   then an **LLM** decides what is junk and deletes it - with a configurable
   threshold, a report-only mode, and per-model cost tracking. Pick your model:
-  a **free local one** via Ollama (nothing leaves your machine), **or** your own
-  cloud key (**BYOA** - OpenAI / OpenRouter / ...). Either way only sender
+  a **free local one** via Ollama (nothing leaves your machine), **or** **BYOA
+  (bring your own API key)** for any remote/cloud model (OpenAI / OpenRouter / ...).
+  Either way only sender
   **subjects + stats** are sent, never message bodies, and it works on a filter or
   a whole folder - just like Move. Even on a **cloud** model the cost is tiny: in
   testing it cleaned **~13,000 emails** from a ~40k-message mailbox for about
@@ -88,6 +89,7 @@ features are optional extras (see [Install](#install)).
 - [Rule expressions](#rule-expressions)
 - [Target file format](#target-file-format)
 - [Web interface](#web-interface)
+- [OAuth2 login (Microsoft modern auth)](#oauth2-login-microsoft-modern-auth)
 - [Folders vs labels, and moving](#folders-vs-labels-and-moving)
 - [Remote / headless server (SSH port forwarding)](#remote--headless-server-ssh-port-forwarding)
 - [Scheduling](#scheduling)
@@ -230,11 +232,11 @@ land in your shell history.
 
 *Optional - install the AI extra:* `pip install "imap-cleanup-tool[ai]"`.
 
-> **Local-first, and BYOA (Bring Your Own API key).** AI Cleanup runs great on a
-> **free local model** (Ollama) so nothing ever leaves your machine - or you can
-> **bring your own API key** for any cloud model (OpenAI, OpenRouter, ...). Your
-> key, your model, your choice. Either way, only sender **subjects + stats** are
-> sent to the model - **never the message body**.
+> **Local-first, and BYOA (bring your own API key).** AI Cleanup runs great on a
+> **free local model** (Ollama) so nothing ever leaves your machine - or use
+> **BYOA (bring your own API key)** for any remote/cloud model (OpenAI, OpenRouter,
+> ...). Your key, your model, your choice. Either way, only sender **subjects +
+> stats** are sent to the model - **never the message body**.
 
 AI Cleanup hands "which of these do I actually want?" to a model, safely - and
 **efficiently**. The key design choice: it works on **aggregated per-sender
@@ -647,7 +649,8 @@ after a period of inactivity. Your password is never stored.
 
 Highlights:
 
-- 🤖 **AI Cleanup** with a model dropdown (local Ollama or your own cloud key),
+- 🤖 **AI Cleanup** with a model dropdown (local Ollama, or **BYOA (bring your own
+  API key)** for any remote/cloud model),
   a threshold slider, a single **Run** with a **Report only** checkbox, and per-model cost tracking - see
   [AI Cleanup](#ai-cleanup). The **LLM** tab has a **model picker** (presets per
   provider, an **✎ edit** toggle to type any custom litellm id, and the option to
@@ -659,6 +662,8 @@ Highlights:
 - **Connection profiles**: save host / user / password to a local SQLite DB -
   optionally **encrypted** with a password, with a per-profile **Enable local
   cache** toggle (see [AI Cleanup](#ai-cleanup)) - and pick one from a dropdown.
+- **Sign in with Microsoft** (OAuth2 / modern auth) for accounts that no longer
+  accept a password over IMAP/SMTP - see [OAuth2 login](#oauth2-login-microsoft-modern-auth).
 - Match by a **target list** (paste or load from a file, with inline format
   help) or a **visual nested query builder** (field ▸ operator ▸ value, AND/OR
   groups).
@@ -684,6 +689,130 @@ Highlights:
   **Scheduling** tab to create jobs and install them into the OS scheduler.
 - A **light / dark theme** toggle (top bar on desktop, in the menu on mobile); your
   choice is remembered. The brand colors stay the same in both.
+
+---
+
+## OAuth2 login (Microsoft modern auth)
+
+**OAuth2 / XOAUTH2 sign-in is built in** (Microsoft ready out of the box; any other
+XOAUTH2 provider is a JSON edit away - see [below](#enabling-oauth-for-a-provider-example-gmail--google)).
+Microsoft (Outlook / Office 365 / Hotmail) and some other providers have **disabled
+password login** for IMAP/SMTP in favor of **OAuth2 / modern auth**; for those
+accounts you sign in with OAuth2 instead of a password - over the same standard
+library, no extra dependency.
+
+How it works: you sign in **once** in your browser (a **device-code** flow: open
+a URL, type a short code). The tool stores only a **refresh token** (never your
+password), encrypted like a profile password if you choose. From then on it mints
+short-lived access tokens **silently**, so reconnecting, and **scheduled jobs**,
+run unattended. Both **IMAP** (reading/cleanup) and **SMTP** (notification emails)
+use it.
+
+> **Whose app are you signing in to?** The tool ships a **public client id** for a
+> Microsoft app, so Microsoft sign-in works with **zero setup**. A public client
+> has **no secret**, and tokens are minted **on your machine** - nobody else ever
+> sees your tokens or your mail. If you'd rather authenticate through **your own**
+> OAuth app (recommended for organizations, or just for full independence), put
+> **your own credentials** in `oauth_providers.json` - see
+> [Using your own OAuth credentials](#using-your-own-oauth-credentials) below.
+
+**Web UI.** In the **Connection** card click **Sign in with Microsoft**, enter
+your mailbox email, finish in the browser, and you are connected - the sign-in is
+saved as a connection profile you can reuse and schedule. For sending, the
+**Notifications** tab has the same **Sign in with Microsoft** button to create an
+OAuth2 SMTP profile. The refresh token stays on the local server; it is never
+sent to the browser.
+
+**Command line / headless.** Sign in once, then connect with the saved profile:
+
+```bash
+imap-cleanup-tool --oauth-login microsoft --user you@outlook.com --oauth-profile outlook
+# open the printed URL, type the code, finish in the browser, then:
+imap-cleanup-tool --profile outlook --list-folders
+```
+
+The device-code prompt prints a URL and a code, so it works over SSH with no
+local browser (open them on any device). Scheduled jobs that use an OAuth profile
+just work - keep the profile **un-encrypted** so the refresh token is readable
+without a passphrase (the same rule as password profiles).
+
+**Other providers.** OAuth is **data-driven**: providers live in
+[`assets/oauth_providers.json`](src/imap_cleanup_tool/assets/oauth_providers.json)
+(endpoints, client id/secret, scope, default hosts). **Microsoft ships ready to
+use.** Adding or enabling a provider is a JSON edit, not a code change - and the
+whole UI follows it automatically: the button becomes *"Sign in with &lt;that
+provider&gt;"*, the banners/tooltips name it, and a provider whose credentials are
+missing shows the sign-in **disabled** (you can't sign in until it's configured).
+
+### Enabling OAuth for a provider (example: Gmail / Google)
+
+`oauth_providers.json` already ships a **Google stub** - you just add credentials:
+
+1. **Get OAuth credentials from the provider.** For Google: in the Google Cloud
+   console create an **OAuth client ID** (application type *Desktop app* / device),
+   note the **client id** and **client secret**, and request the
+   `https://mail.google.com/` scope. (Google's restricted-scope **verification**
+   applies before non-test users can consent - that's on Google's side.)
+2. **Fill them into `oauth_providers.json`** under the `google` entry:
+
+   ```json
+   "google": {
+     "label": "Google",
+     "client_id": "YOUR_CLIENT_ID.apps.googleusercontent.com",
+     "client_secret": "YOUR_CLIENT_SECRET",
+     "devicecode_endpoint": "https://oauth2.googleapis.com/device/code",
+     "token_endpoint": "https://oauth2.googleapis.com/token",
+     "scope": "https://mail.google.com/",
+     "imap": { "host": "imap.gmail.com", "port": 993 },
+     "smtp": { "host": "smtp.gmail.com", "port": 587, "security": "starttls" }
+   }
+   ```
+
+   Microsoft is a **public client** (no secret); Google's installed/device apps
+   need a `client_secret`, so the field is there for providers that require one.
+3. **(Optional) Point a mail provider at it.** To make a provider in
+   [`assets/providers.json`](src/imap_cleanup_tool/assets/providers.json) (IMAP) or
+   [`assets/smtp_providers.json`](src/imap_cleanup_tool/assets/smtp_providers.json)
+   (SMTP) offer that sign-in, add **`"oauth_provider": "google"`**. Add
+   **`"pass_deprecated": true`** as well if that provider has dropped password
+   login, so the UI **hides the password field** and points to OAuth (Gmail still
+   allows app passwords, so you'd leave `pass_deprecated` off and offer *both*).
+
+That's it - restart the web UI and "Sign in with Google" works the same way as
+Microsoft (device-code sign-in, encrypted refresh token, silent renewal, scheduled
+jobs). The same recipe enables any XOAUTH2-capable provider.
+
+### Using your own OAuth credentials
+
+The bundled Microsoft **client id** is what makes sign-in work with zero setup, but
+you are free to use **your own** OAuth app instead - just replace the `client_id`
+(and `client_secret` where the provider needs one) in
+[`assets/oauth_providers.json`](src/imap_cleanup_tool/assets/oauth_providers.json).
+Why you might:
+
+- **Enterprise / organizations (recommended there):** route sign-in through *your
+  own tenant's app registration*, so your admin controls consent, the app name and
+  policy, and access stays governed by your company - instead of going through a
+  third-party app. This is the setup to use for any business/enterprise deployment.
+- **Independence / trust:** depend on no one else's app; your app's name is what
+  appears on the consent screen.
+
+Either way the tool never transmits your tokens or mail anywhere - the client id
+just identifies the app to the provider; the OAuth exchange happens directly between
+**your machine** and the provider.
+
+**Is shipping a client id safe?** The Microsoft id is a **public client** (no
+secret) - designed to be embedded in distributed apps; on its own it grants nothing
+(no one reads a mailbox without that user signing in on their own machine) and costs
+nothing. **Google** is shipped as a **blank stub on purpose**: a Google OAuth client
+ties to *your* Cloud project's quota and verification, so rather than bundle one,
+each deployment adds its own (especially enterprises). Self-hosting Microsoft too?
+You can leave its `client_id` **blank** to force every user to bring their own - at
+the cost of that one-time per-user setup.
+
+> Business / org accounts: a tenant that enforces admin consent (or has disabled
+> IMAP OAuth) needs its **administrator's approval** - the same as any other mail
+> client, nothing this tool configures.
 
 ---
 

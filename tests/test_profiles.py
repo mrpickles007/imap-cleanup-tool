@@ -79,6 +79,49 @@ class ProfilesTests(unittest.TestCase):
             profiles.save_profile("e", "h", 993, "u", "pw",
                                   encrypt=True, secret="")
 
+    def test_oauth_roundtrip(self):
+        profiles.save_oauth_profile("o1", "outlook.office365.com", 993,
+                                    "u@outlook.com", "REFRESH-123", "microsoft")
+        listed = profiles.list_profiles()
+        self.assertEqual(listed[0]["auth_method"], "oauth")
+        self.assertEqual(listed[0]["provider"], "microsoft")
+        loaded = profiles.load_profile("o1")
+        self.assertEqual(loaded["auth_method"], "oauth")
+        self.assertEqual(loaded["provider"], "microsoft")
+        self.assertEqual(loaded["refresh_token"], "REFRESH-123")
+        self.assertEqual(loaded["password"], "")     # no password for OAuth
+
+    def test_oauth_requires_token_and_provider(self):
+        with self.assertRaises(profiles.ProfileError):
+            profiles.save_oauth_profile("o", "h", 993, "u", "", "microsoft")
+        with self.assertRaises(profiles.ProfileError):
+            profiles.save_oauth_profile("o", "h", 993, "u", "tok", "")
+
+    def test_update_refresh_token(self):
+        profiles.save_oauth_profile("o", "h", 993, "u", "OLD", "microsoft")
+        profiles.update_refresh_token("o", "NEW")
+        self.assertEqual(profiles.load_profile("o")["refresh_token"], "NEW")
+        with self.assertRaises(profiles.ProfileError):
+            profiles.update_refresh_token("missing", "x")
+
+    def test_password_profile_has_no_refresh_token(self):
+        profiles.save_profile("p", "h", 993, "u", "pw")
+        loaded = profiles.load_profile("p")
+        self.assertEqual(loaded["auth_method"], "password")
+        self.assertEqual(loaded["refresh_token"], "")
+
+    @unittest.skipUnless(_HAVE_CRYPTO, "cryptography not installed")
+    def test_oauth_encrypted_roundtrip(self):
+        profiles.save_oauth_profile("oe", "h", 993, "u", "SECRET-TOK",
+                                    "microsoft", encrypt=True, secret="master")
+        self.assertTrue(profiles.list_profiles()[0]["encrypted"])
+        self.assertEqual(
+            profiles.load_profile("oe", "master")["refresh_token"], "SECRET-TOK")
+        # rotation re-seals with the same passphrase
+        profiles.update_refresh_token("oe", "ROTATED", "master")
+        self.assertEqual(
+            profiles.load_profile("oe", "master")["refresh_token"], "ROTATED")
+
     def test_cli_profile_unknown_fails(self):
         from imap_cleanup_tool import cli
         self.assertEqual(cli.main(["--profile", "nope", "--list-folders"]), 2)

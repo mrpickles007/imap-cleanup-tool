@@ -18,13 +18,28 @@ class _FakeSMTP:
         self.logged_in = None
         self.sent = []
         self.started_tls = False
+        self.greeted = False
+        self.closed = False
+        self.docmds = []
         _FakeSMTP.instances.append(self)
+
+    def close(self):
+        self.closed = True
 
     def starttls(self, context=None):
         self.started_tls = True
 
+    def ehlo_or_helo_if_needed(self):
+        self.greeted = True
+
     def login(self, user, password):
         self.logged_in = (user, password)
+
+    def docmd(self, cmd, arg=None):
+        self.docmds.append((cmd, arg))
+        if cmd == "AUTH":
+            return (235, b"2.7.0 Accepted")   # XOAUTH2 accepted
+        return (250, b"OK")
 
     def noop(self):
         return (250, b"OK")
@@ -210,6 +225,80 @@ class BatchSenderTests(unittest.TestCase):
         _, body_move_gmail = nt.cleanup_summary(
             "me@gmail.com", ["INBOX"], 5, dry_run=False, gmail=True, kind="Move")
         self.assertNotIn("Trash", body_move_gmail)
+
+
+class SMTPOAuthTests(unittest.TestCase):
+    """OAuth2 (XOAUTH2) SMTP profiles + sending."""
+
+    def setUp(self):
+        _FakeSMTP.instances = []
+
+    def test_oauth_profile_roundtrip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(nt, "config_dir", return_value=Path(tmp)):
+                nt.save_oauth_profile("ms", "smtp-mail.outlook.com",
+                                      "u@outlook.com", "REFRESH", "microsoft",
+                                      from_addr="u@outlook.com")
+                p = nt.list_profiles()[0]
+                self.assertEqual(p["auth_method"], "oauth")
+                self.assertEqual(p["provider"], "microsoft")
+                loaded = nt.load_profile("ms")
+                self.assertEqual(loaded["auth_method"], "oauth")
+                self.assertEqual(loaded["refresh_token"], "REFRESH")
+                self.assertEqual(loaded["password"], "")
+
+    def test_oauth_requires_token_and_provider(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(nt, "config_dir", return_value=Path(tmp)):
+                with self.assertRaises(nt.NotifyError):
+                    nt.save_oauth_profile("x", "h", "u", "", "microsoft")
+                with self.assertRaises(nt.NotifyError):
+                    nt.save_oauth_profile("x", "h", "u", "tok", "")
+
+    def test_update_refresh_token(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(nt, "config_dir", return_value=Path(tmp)):
+                nt.save_oauth_profile("ms", "h", "u", "OLD", "microsoft")
+                nt.update_refresh_token("ms", "NEW")
+                self.assertEqual(nt.load_profile("ms")["refresh_token"], "NEW")
+
+    def test_failed_oauth_login_closes_connection(self):
+        """A rejected XOAUTH2 auth must not leak the open socket (else repeated
+        tests pile up connections and the provider starts throttling)."""
+        from imap_cleanup_tool import oauth
+
+        class _AuthFail(_FakeSMTP):
+            def docmd(self, cmd, arg=None):
+                self.docmds.append((cmd, arg))
+                return (535, b"5.7.3 Authentication unsuccessful")
+
+        cfg = {"host": "smtp-mail.outlook.com", "port": 587,
+               "security": "starttls", "user": "u@outlook.com",
+               "from_addr": "u@outlook.com", "auth_method": "oauth",
+               "provider": "microsoft", "refresh_token": "RT", "encrypted": False}
+        with mock.patch.object(nt.smtplib, "SMTP", _AuthFail):
+            with mock.patch.object(oauth, "access_token_for", return_value="ATK"):
+                with self.assertRaises(nt.NotifyError):
+                    nt._server(cfg)
+        self.assertTrue(_FakeSMTP.instances[-1].closed)   # socket was closed
+
+    def test_send_uses_xoauth2(self):
+        from imap_cleanup_tool import oauth
+        cfg = {"host": "smtp-mail.outlook.com", "port": 587,
+               "security": "starttls", "user": "u@outlook.com",
+               "from_addr": "u@outlook.com", "auth_method": "oauth",
+               "provider": "microsoft", "refresh_token": "RT", "encrypted": False}
+        with mock.patch.object(nt.smtplib, "SMTP", _FakeSMTP):
+            with mock.patch.object(oauth, "access_token_for", return_value="ATKN"):
+                nt.send_email(cfg, "to@y.com", "Hi", "Body")
+        srv = _FakeSMTP.instances[-1]
+        self.assertIsNone(srv.logged_in)              # no password login
+        self.assertTrue(srv.greeted)                  # EHLO sent before AUTH
+        auth = next(c for c in srv.docmds if c[0] == "AUTH")
+        self.assertTrue(auth[1].startswith("XOAUTH2 "))
+        self.assertEqual(auth[1].split(" ", 1)[1],
+                         oauth.xoauth2_b64("u@outlook.com", "ATKN"))
+        self.assertEqual(srv.sent[0]["To"], "to@y.com")
 
 
 if __name__ == "__main__":

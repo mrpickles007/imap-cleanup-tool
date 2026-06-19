@@ -100,6 +100,22 @@ def connect(host: str, port: int, user: str, password: str,
     return conn
 
 
+def connect_oauth(host: str, port: int, user: str, access_token: str,
+                  timeout: int = 120) -> imaplib.IMAP4_SSL:
+    """Open an SSL IMAP connection and authenticate with XOAUTH2 (OAuth2).
+
+    ``access_token`` is a fresh OAuth2 access token; the caller mints it from a
+    stored refresh token via :mod:`imap_cleanup_tool.oauth`. Raises on failure.
+    """
+    logger.info("Connecting to %s:%d (timeout %ds, XOAUTH2) ...",
+                host, port, timeout)
+    conn = imaplib.IMAP4_SSL(host, port, timeout=timeout)
+    sasl = f"user={user}\x01auth=Bearer {access_token}\x01\x01".encode("utf-8")
+    conn.authenticate("XOAUTH2", lambda _challenge: sasl)
+    logger.info("Logged in as %s (OAuth2).", user)
+    return conn
+
+
 def safe_logout(conn: imaplib.IMAP4_SSL | None) -> None:
     """Close and log out, ignoring errors. Accepts None."""
     if conn is None:
