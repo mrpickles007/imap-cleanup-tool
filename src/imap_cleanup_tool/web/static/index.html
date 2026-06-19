@@ -3253,7 +3253,8 @@ function oauthSignin(opts){
     +'</div>'
     +'<div data-x="wait" class="hidden space-y-3 text-sm">'
     +  '<p class="text-cream">Open the sign-in page and enter this code:</p>'
-    +  '<div data-x="code" class="text-2xl font-mono font-bold text-brand-light text-center tracking-widest select-all"></div>'
+    +  '<div class="flex items-center justify-center gap-2"><div data-x="code" class="text-2xl font-mono font-bold text-brand-light tracking-widest select-all"></div>'
+    +    '<button data-x="copy" type="button" class="px-2.5 py-1 rounded-lg border border-line text-muted hover:text-cream text-xs whitespace-nowrap" title="Copy the code">copy</button></div>'
     +  '<div class="flex justify-center"><a data-x="link" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg bg-brand text-ink font-semibold hover:bg-brand-light">Open sign-in page ↗</a></div>'
     +  '<p data-x="status" class="text-muted text-center">Waiting for you to finish signing in…</p>'
     +'</div>'
@@ -3294,6 +3295,7 @@ function oauthSignin(opts){
       flowId=d.flow_id;
       q('form').classList.add('hidden'); q('go').classList.add('hidden'); q('wait').classList.remove('hidden');
       q('code').textContent=d.user_code||'';
+      const copyBtn=q('copy'); if(copyBtn) copyBtn.onclick=()=>{ try{ navigator.clipboard.writeText(d.user_code||''); copyBtn.textContent='copied!'; setTimeout(()=>{ copyBtn.textContent='copy'; },1500); }catch(_){ } };
       const link=q('link'); link.href=d.verification_uri_complete||d.verification_uri||'#';
       try{ window.open(link.href,'_blank','noopener'); }catch(_){}
       const conn=(prov.imap||{}), smtp=(prov.smtp||{});
