@@ -244,5 +244,24 @@ class CliJobFailureNotifyTests(unittest.TestCase):
         # reaching here without an exception is the assertion
 
 
+class CliRecordsSpamTests(unittest.TestCase):
+    """Scheduled jobs / CLI must save flagged senders to the spam list (the path
+    used to skip it, unlike the web UI)."""
+
+    def test_record_spam_cli_forwards_to_spamstore(self):
+        from imap_cleanup_tool import cli, spamstore
+        report = {"senders": [{"sender": "x@y.com", "flagged": True, "score": 9}]}
+        with mock.patch.object(spamstore, "record_from_report",
+                               return_value=1) as rec:
+            cli._record_spam_cli("acct@x.com", report, "report")
+        rec.assert_called_once_with("acct@x.com", report, "report")
+
+    def test_record_spam_cli_never_raises(self):
+        from imap_cleanup_tool import cli, spamstore
+        with mock.patch.object(spamstore, "record_from_report",
+                               side_effect=RuntimeError("db locked")):
+            cli._record_spam_cli("a", {}, "run")     # best-effort: must not raise
+
+
 if __name__ == "__main__":
     unittest.main()

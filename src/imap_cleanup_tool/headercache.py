@@ -28,6 +28,15 @@ def db_path() -> Path:
     return config_dir() / "header_cache.sqlite"
 
 
+def canon_folder(folder: str) -> str:
+    """Canonicalize the special INBOX name (case-insensitive per RFC 3501) so that
+    "INBOX" / "Inbox" / "inbox" all share one cache key - otherwise e.g. a scheduled
+    job using "INBOX" and a web run using the server's "Inbox" would each cache the
+    same folder separately and keep re-downloading it. Other folder names are
+    case-sensitive and left untouched."""
+    return "INBOX" if (folder or "").upper() == "INBOX" else folder
+
+
 class HeaderCache:
     """Per-(account, folder, uidvalidity, uid) store of immutable header fields."""
 
@@ -64,12 +73,21 @@ class HeaderCache:
             for col in ("from_header", "unsub_value", "unsub_post", "message_id"):
                 if col not in cols:
                     conn.execute(f"ALTER TABLE headers ADD COLUMN {col} TEXT")
+            # One-time: collapse case-variant INBOX folders ("Inbox"/"inbox") into the
+            # canonical "INBOX" key (older caches stored them separately, causing the
+            # same inbox to be cached twice and re-downloaded). Rename where there's no
+            # clash, then drop the leftover duplicates - no cache is lost, no re-fetch.
+            conn.execute("UPDATE OR IGNORE headers SET folder='INBOX' "
+                         "WHERE folder<>'INBOX' AND UPPER(folder)='INBOX'")
+            conn.execute("DELETE FROM headers "
+                         "WHERE folder<>'INBOX' AND UPPER(folder)='INBOX'")
             conn.commit()
         finally:
             conn.close()
 
     def purge_other(self, account: str, folder: str, uidvalidity: str) -> None:
         """Drop cached rows for this folder whose UIDVALIDITY differs (stale)."""
+        folder = canon_folder(folder)
         conn = self._connect()
         try:
             conn.execute(
@@ -82,6 +100,7 @@ class HeaderCache:
     def get(self, account: str, folder: str, uidvalidity: str,
             uids: list[str]) -> dict[str, dict]:
         """Return cached rows for the given UIDs as ``{uid: {fields...}}``."""
+        folder = canon_folder(folder)
         if not uids:
             return {}
         conn = self._connect()
@@ -116,6 +135,7 @@ class HeaderCache:
         Also stores the raw ``from_header`` so these rows serve the From-only
         consumers (list-senders / full-scan) too.
         """
+        folder = canon_folder(folder)
         if not rows:
             return
         conn = self._connect()
@@ -146,6 +166,7 @@ class HeaderCache:
         Serves list-senders and ``--scan-mode full``; usable rows are any with a
         stored ``from_header`` (whether populated here or by a full AI fetch).
         """
+        folder = canon_folder(folder)
         if not uids:
             return {}
         conn = self._connect()
@@ -169,6 +190,7 @@ class HeaderCache:
                  rows: dict[str, str]) -> None:
         """Insert/replace From-only rows; updates only ``from_header`` on conflict
         (so it never wipes the richer fields of an existing AI row)."""
+        folder = canon_folder(folder)
         if not rows:
             return
         conn = self._connect()
@@ -189,6 +211,7 @@ class HeaderCache:
                         uids: list[str]) -> dict[str, str]:
         """Return cached ``Message-ID`` headers as ``{uid: message_id}`` (used by
         import de-duplication); only rows that have a stored message_id."""
+        folder = canon_folder(folder)
         if not uids:
             return {}
         conn = self._connect()
@@ -212,6 +235,7 @@ class HeaderCache:
                        rows: dict[str, str]) -> None:
         """Insert/replace Message-ID-only rows; updates only ``message_id`` on
         conflict (never wipes the richer fields of an existing row)."""
+        folder = canon_folder(folder)
         if not rows:
             return
         conn = self._connect()

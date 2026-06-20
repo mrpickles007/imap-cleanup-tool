@@ -93,6 +93,21 @@ class HeaderCacheStoreTests(unittest.TestCase):
             c.clear("me")
             self.assertFalse(c.has_account("me"))
 
+    def test_inbox_case_insensitive_key(self):
+        # INBOX is case-insensitive (RFC 3501): "Inbox"/"INBOX"/"inbox" must share
+        # one cache key, so a job using "INBOX" and a web run using the server's
+        # "Inbox" don't each cache the same folder and keep re-downloading it.
+        with tempfile.TemporaryDirectory() as tmp:
+            c = HeaderCache(Path(tmp) / "hc.sqlite")
+            c.put("me", "Inbox", "100",
+                  {"1": {"sender": "a@x.com", "date_h": "d", "subject": "s"}})
+            self.assertIn("1", c.get("me", "INBOX", "100", ["1"]))   # read via INBOX
+            self.assertIn("1", c.get("me", "inbox", "100", ["1"]))
+            c.put_from("me", "INBOX", "100", {"2": "From: b@y.com"})
+            self.assertIn("2", c.get_from("me", "Inbox", "100", ["2"]))
+            # a genuinely different folder stays separate
+            self.assertEqual(c.get("me", "Archive", "100", ["1"]), {})
+
 
 class ReportCacheTests(unittest.TestCase):
     def test_second_report_uses_cache_only_new_uids_fetched(self):

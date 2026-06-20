@@ -288,6 +288,19 @@ def _notify_job_failure(args, reason: str, *, oauth: bool) -> None:
                 subject=subject, body=body)
 
 
+def _record_spam_cli(account: str, report: dict, source: str) -> None:
+    """Best-effort: save the report's flagged senders to the per-account spam list.
+    The web UI already did this; the CLI / scheduled-job path was missing it, so
+    scheduled AI reports/runs never populated the Spam addresses tab."""
+    try:
+        from . import spamstore
+        n = spamstore.record_from_report(account, report, source)
+        if n:
+            core.logger.info("Saved %d sender(s) to the spam addresses list.", n)
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        core.logger.warning("Could not save spam addresses: %s", exc)
+
+
 def _cli_cache(args):
     """A HeaderCache when --local-cache (or a profile) enabled it, else None."""
     if not getattr(args, "local_cache", False):
@@ -460,11 +473,12 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
             return 2
 
     if args.ai_report_only or ev is None:
-        # Report-only: skip deletion, save the report, and (if email
-        # notifications are on) send it as an attachment.
+        # Report-only: skip deletion, save the report + its spam addresses, and (if
+        # email notifications are on) send the report as an attachment.
+        _record_spam_cli(user, report, "report")
         from .scheduler import save_ai_report
         try:
-            saved = save_ai_report(csv_text)
+            saved = save_ai_report(csv_text, user)   # tag the file with the account
             core.logger.info("Report saved to %s", saved)
         except OSError as exc:
             core.logger.warning("Could not save the report: %s", exc)
@@ -486,6 +500,7 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
         core.logger.info("Report only - nothing deleted.")
         return 0
 
+    _record_spam_cli(user, report, "run")   # save flagged senders to the spam list
     confirmed = {s["sender"].lower() for s in report["senders"]
                  if s.get("flagged")
                  and (s.get("verdict") or {}).get("delete")}
