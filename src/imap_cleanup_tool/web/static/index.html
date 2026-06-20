@@ -1753,7 +1753,7 @@ function updateJobSummary(){
   el.innerHTML =
     '<div class="space-y-1 text-[13px]">'+head.join('')+r.rows.join('')+'</div>'+
     '<p class="text-[12.5px] text-muted mt-3 leading-relaxed">'+r.discursive+'</p>'+
-    '<p class="text-[12px] text-warn mt-2">Runs for real - dry-run does not apply to scheduled jobs. Set the behaviour in the <b>Cleanup</b> tab; here you only choose the profile and schedule.</p>'+
+    '<p class="text-[12px] text-warn mt-2">Runs for real - dry-run does not apply to scheduled jobs. Set the behaviour in the <b>Cleanup</b> tab; here you only choose the <b>SMTP profile</b> and schedule.</p>'+
     (connected?'':'<p class="text-[12px] text-warn mt-1">⚠️ Not connected, so only <b>INBOX</b> will be used. Connect in the <b>Cleanup</b> tab and tick the folders you want there.</p>');
   // Validations -> the jobAiWarn line in the controls box above.
   const warnEl=$('jobAiWarn'); if(!warnEl) return;
