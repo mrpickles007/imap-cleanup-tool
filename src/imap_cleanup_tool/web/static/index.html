@@ -1784,6 +1784,19 @@ function parseJobArgs(args){
     expunge:has('--expunge'), scan_mode:val('--scan-mode')||'search' };
 }
 /* Human-readable details of a saved job (what the Job summary showed when you saved it). */
+// Notifications row for a SAVED job's details: uses the job's own --notify-profile
+// (blank = use the active profile), plus the global "Notify for scheduled jobs" toggle.
+function notifyRecapRowJob(notifyProfileArg){
+  const ns=NOTIFY_SETTINGS||{};
+  if(!ns.notify_jobs) return _recapRow('Notifications', '<span class="text-muted">off (enable "Notify for scheduled jobs")</span>');
+  const prof = notifyProfileArg || ns.active || '';
+  const viaActive = !notifyProfileArg;
+  const profTxt = prof
+    ? ('<b>'+escapeHtml(prof)+'</b>'+(viaActive?' <span class="text-muted">(active profile)</span>':''))
+    : '<span class="text-warn">⚠ no SMTP profile set</span>';
+  const to = ns.notify_to ? (' → '+escapeHtml(ns.notify_to)) : '';
+  return _recapRow('Notifications', 'on, via '+profTxt+to);
+}
 function jobDetailsHtml(j){
   const o=parseJobArgs(j.args); const rows=[]; let disc;
   rows.push(_recapRow('Name', '<b>'+escapeHtml(j.label||j.name)+'</b>'));
@@ -1814,7 +1827,7 @@ function jobDetailsHtml(j){
     rows.push(_recapRow('Scan mode', o.empty?'n/a (whole folder)':escapeHtml(o.scan_mode)));
     disc = o.empty?'Deletes <b>every</b> message in the selected folders.':'Acts on the messages matching the saved filter.';
   }
-  if(o.notify_profile) rows.push(_recapRow('Notify via', '<b>'+escapeHtml(o.notify_profile)+'</b>'));
+  rows.push(notifyRecapRowJob(o.notify_profile));
   rows.push(_recapRow('Status', j.installed?'<span class="text-ok">installed in the system scheduler</span>':'saved (not installed)'));
   return '<div class="space-y-1 text-[13px]">'+rows.join('')+'</div>'
     +'<p class="text-[12.5px] text-muted mt-3 leading-relaxed">'+disc+' Runs <b>for real</b> - dry-run does not apply to scheduled jobs.</p>';
