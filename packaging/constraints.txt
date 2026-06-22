@@ -1,0 +1,32 @@
+# Pinned dependency versions for the desktop installers (Windows / Linux).
+#
+# WHY: an installer embeds its own Python and, at install time, runs
+#   pip install "imap-cleanup-tool[web]"  (and [ai] if the user ticks it)
+# Using this constraints file (pip install ... -c constraints.txt) means every
+# installer we build resolves the SAME dependency versions - the ones we have
+# actually tested - regardless of when the build is run. Without it, two builds
+# made on different days could ship different FastAPI/litellm versions.
+#
+# These top-level pins are the versions we control. To capture the FULL
+# transitive lock (every indirect dependency) before a release, freeze a
+# known-good environment:
+#   pip install "imap-cleanup-tool[web,ai]" -c packaging/constraints.txt
+#   pip freeze > packaging/full-lock-<version>.txt
+# Bump the pins below deliberately when you move to newer dependencies, then
+# re-run the test suite before building installers.
+#
+# Source of these versions: the tested `ict` virtualenv (see CLAUDE.md).
+
+# --- [web] extra: local web UI ---
+fastapi==0.136.3
+uvicorn==0.49.0
+starlette==1.3.1
+anyio==4.13.0
+httpx==0.28.1
+cryptography==49.0.0
+
+# --- [ai] extra: AI Cleanup (optional component in the installer) ---
+litellm==1.89.1
+pydantic==2.13.4
+openai==2.41.1
+tiktoken==0.13.0
