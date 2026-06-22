@@ -36,12 +36,16 @@ online `.exe` into a **self-contained snapshot** (Python + all deps baked in):
 1. Install the **MSIX Packaging Tool** from the Store.
 2. Run our `imap-cleanup-tool-windows-setup.exe` once on a clean Windows VM with
    the **AI component ticked** (so the snapshot includes everything).
-3. In the MSIX Packaging Tool choose **"Application package" -> create from an
-   installer**, point it at our `.exe`, and let it monitor the install.
-4. When asked, set the **entry point** to the Start-menu shortcut (it runs the
-   web UI) and the **package identity** to the Partner Center values from above.
-5. It outputs an `.msix` (signed with a test cert for local testing). For the
-   Store you upload it **unsigned-by-you**; the Store re-signs it.
+3. In the MSIX Packaging Tool choose **"Application package" -> create on this
+   computer**, set the **package identity** to the Partner Center values above,
+   point it at our `.exe`, and let it monitor the install (tick **AI**, untick
+   **Launch** at the end).
+4. At the **entry-point** step keep **only `launcher.exe`** (the branded launcher
+   in the install folder). It runs the web UI with no arguments and carries the
+   app icon, so the MSIX tiles are generated **from our logo** automatically.
+   Remove `python.exe` and the other exes; do **not** click Run.
+5. Signing: choose **Do not sign**. The tool outputs an `.msix`; for the Store you
+   upload it **unsigned-by-you** and the Store re-signs it.
 6. Upload in Partner Center, fill the listing, submit for certification.
 
 ### Route B - Windows SDK + makeappx (scriptable)

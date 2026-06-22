@@ -50,6 +50,15 @@ if (-not (Test-Path (Join-Path $pyDir "python.exe"))) {
 Write-Host "Upgrading pip in the bundled Python..." -ForegroundColor Cyan
 & (Join-Path $pyDir "python.exe") -m pip install --upgrade pip
 
+Write-Host "Compiling launcher.exe (csc, with the app icon)..." -ForegroundColor Cyan
+$csc = @(
+  "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe",
+  "C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe") |
+  Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $csc) { throw "csc.exe (.NET Framework C# compiler) not found." }
+& $csc /nologo /target:exe "/out:$here\launcher.exe" "/win32icon:$here\app.ico" "$here\launcher.cs"
+if (-not (Test-Path (Join-Path $here "launcher.exe"))) { throw "launcher.exe build failed." }
+
 Write-Host "Compiling the installer with Inno Setup..." -ForegroundColor Cyan
 $iss = Join-Path $here "installer.iss"
 $iscc = $null

@@ -59,6 +59,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 ; The bundled, relocatable Python (built by build.ps1 into .\python).
 Source: "python\*"; DestDir: "{app}\python"; Flags: recursesubdirs createallsubdirs ignoreversion
 ; The launcher + the pinned-version constraints used by the pip step.
+Source: "launcher.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "launcher.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "app.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\constraints.txt"; DestDir: "{app}"; Flags: ignoreversion
@@ -76,17 +77,17 @@ Filename: "{app}\python\python.exe"; \
   StatusMsg: "Downloading and installing components (web UI + AI Cleanup) - this can take several minutes, please wait..."; \
   Flags: runhidden; Check: WizardIsTaskSelected('ai')
 ; Offer to launch at the end.
-Filename: "{app}\python\python.exe"; Parameters: """{app}\launcher.py"""; \
+Filename: "{app}\launcher.exe"; \
   Description: "Launch {#MyAppName}"; Flags: postinstall nowait skipifsilent
 
 [Icons]
-; Start-menu + (optional) desktop shortcut -> the launcher (opens the web UI),
-; using the branded app icon.
-Name: "{group}\IMAP Cleanup Tool"; Filename: "{app}\python\python.exe"; \
-  Parameters: """{app}\launcher.py"""; WorkingDir: "{app}"; IconFilename: "{app}\app.ico"
+; Start-menu + (optional) desktop shortcut -> the branded launcher.exe (opens the
+; web UI). launcher.exe carries the app icon, so MSIX tiles are generated from it.
+Name: "{group}\IMAP Cleanup Tool"; Filename: "{app}\launcher.exe"; \
+  WorkingDir: "{app}"; IconFilename: "{app}\app.ico"
 Name: "{group}\Uninstall IMAP Cleanup Tool"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\IMAP Cleanup Tool"; Filename: "{app}\python\python.exe"; \
-  Parameters: """{app}\launcher.py"""; WorkingDir: "{app}"; IconFilename: "{app}\app.ico"; Tasks: desktopicon
+Name: "{autodesktop}\IMAP Cleanup Tool"; Filename: "{app}\launcher.exe"; \
+  WorkingDir: "{app}"; IconFilename: "{app}\app.ico"; Tasks: desktopicon
 
 [Code]
 // Add {app}\python\Scripts to the user PATH when the addtopath task is selected.
