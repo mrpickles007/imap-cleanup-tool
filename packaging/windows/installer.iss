@@ -34,7 +34,9 @@ DisableProgramGroupPage=yes
 ; Per-machine install needs admin; use lowest + autopf for per-user if preferred.
 PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=dist
-OutputBaseFilename=imap-cleanup-tool-{#MyAppVersion}-windows-setup
+; Stable (unversioned) name so the website can link to the always-latest asset:
+;   .../releases/latest/download/imap-cleanup-tool-windows-setup.exe
+OutputBaseFilename=imap-cleanup-tool-windows-setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

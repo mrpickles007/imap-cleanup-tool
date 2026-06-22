@@ -41,12 +41,24 @@ from source and links to the Source tab (native macOS app is future work).
 
 ## Asset naming (GitHub Releases)
 
-Keep release asset names predictable so the site/README "latest" links are stable:
+Release assets use **stable, unversioned** names so the website and README can link
+to the always-latest build via GitHub's `releases/latest/download/<name>` redirect
+(no per-release link edits, ever):
 
 ```
-imap-cleanup-tool-<version>-windows-setup.exe
-imap-cleanup-tool-<version>-x86_64.AppImage
+imap-cleanup-tool-windows-setup.exe
+imap-cleanup-tool-x86_64.AppImage
 ```
+
+Download links (do not change these per release):
+
+```
+https://github.com/mrpickles007/imap-cleanup-tool/releases/latest/download/imap-cleanup-tool-windows-setup.exe
+https://github.com/mrpickles007/imap-cleanup-tool/releases/latest/download/imap-cleanup-tool-x86_64.AppImage
+```
+
+The version still lives in the release tag/title and in the app (`--version`). When
+cutting a release, upload each asset under the exact stable name above.
 
 ---
 

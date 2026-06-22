@@ -52,6 +52,19 @@ Write-Host "Upgrading pip in the bundled Python..." -ForegroundColor Cyan
 
 Write-Host "Compiling the installer with Inno Setup..." -ForegroundColor Cyan
 $iss = Join-Path $here "installer.iss"
-& ISCC.exe "/DMyAppVersion=$Version" $iss
+$iscc = $null
+$c = Get-Command ISCC -ErrorAction SilentlyContinue
+if ($c) { $iscc = $c.Source }
+if (-not $iscc) {
+  foreach ($p in @(
+      "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+      "C:\Program Files\Inno Setup 6\ISCC.exe",
+      "C:\Program Files (x86)\Inno Setup 7\ISCC.exe",
+      "C:\Program Files\Inno Setup 7\ISCC.exe")) {
+    if (Test-Path $p) { $iscc = $p; break }
+  }
+}
+if (-not $iscc) { throw "ISCC.exe (Inno Setup) not found. Install Inno Setup or add ISCC.exe to PATH." }
+& $iscc "/DMyAppVersion=$Version" $iss
 
 Write-Host "Done. Installer is in $here\dist" -ForegroundColor Green

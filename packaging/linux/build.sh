@@ -58,7 +58,9 @@ curl -fsSL -o "$AIT" "https://github.com/AppImage/appimagetool/releases/download
 chmod +x "$AIT"
 
 echo "== Building AppImage =="
-OUT="$DIST/imap-cleanup-tool-$VERSION-$ARCH.AppImage"
+# Stable (unversioned) name so the website can link to the always-latest asset:
+#   .../releases/latest/download/imap-cleanup-tool-x86_64.AppImage
+OUT="$DIST/imap-cleanup-tool-$ARCH.AppImage"
 ARCH="$ARCH" "$AIT" --appimage-extract-and-run "$APPDIR" "$OUT"
 
 echo "== Done =="
