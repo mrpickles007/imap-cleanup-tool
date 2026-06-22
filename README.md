@@ -515,15 +515,25 @@ CLI use.
 
 1. Download **[`imap-cleanup-tool-x86_64.AppImage`](https://github.com/mrpickles007/imap-cleanup-tool/releases/latest/download/imap-cleanup-tool-x86_64.AppImage)**
    (always the latest release).
-2. Make it executable and run it:
+2. **After downloading**, make it executable and run it (it starts the local web
+   UI and opens your browser):
 
    ```bash
-   chmod +x imap-cleanup-tool-*-x86_64.AppImage
-   ./imap-cleanup-tool-*-x86_64.AppImage
+   chmod +x imap-cleanup-tool-x86_64.AppImage
+   ./imap-cleanup-tool-x86_64.AppImage
    ```
 
-It starts the local web UI and opens your browser. A single file, no system Python
-required, runs on most distributions.
+A single file, no system Python required, runs on most distributions.
+
+**Headless server (no desktop)?** Download and run in one line, then reach the UI
+over an SSH tunnel:
+
+```bash
+curl -L -o imap-cleanup-tool.AppImage https://github.com/mrpickles007/imap-cleanup-tool/releases/latest/download/imap-cleanup-tool-x86_64.AppImage
+chmod +x imap-cleanup-tool.AppImage
+./imap-cleanup-tool.AppImage --no-browser            # add --appimage-extract-and-run if the server has no FUSE
+# from your machine:  ssh -L 8765:127.0.0.1:8765 user@server   then open http://127.0.0.1:8765
+```
 
 </details>
 
