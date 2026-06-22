@@ -301,5 +301,44 @@ class SMTPOAuthTests(unittest.TestCase):
         self.assertEqual(srv.sent[0]["To"], "to@y.com")
 
 
+class SendEmailRetryTests(unittest.TestCase):
+    """Notifications must survive a transient SMTP failure (e.g. an Outlook read
+    timeout on a scheduled run), but fail fast on an auth rejection."""
+
+    cfg = {"host": "smtp-mail.outlook.com", "port": 587, "security": "starttls",
+           "user": "u@outlook.com", "from_addr": "u@outlook.com"}
+
+    def test_retries_transient_then_succeeds(self):
+        srv = _FakeSMTP("h", 587)
+        calls = {"n": 0}
+
+        def fake_server(_cfg):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise nt.NotifyError("SMTP connection failed: Connection "
+                                     "unexpectedly closed: The read operation timed out")
+            return srv
+
+        with mock.patch.object(nt, "_server", side_effect=fake_server):
+            nt.send_email(self.cfg, "to@y.com", "Hi", "Body",
+                          sleep=lambda _x: None)
+        self.assertEqual(calls["n"], 2)          # retried once after the timeout
+        self.assertEqual(len(srv.sent), 1)       # then delivered
+
+    def test_does_not_retry_auth_failure(self):
+        calls = {"n": 0}
+
+        def fake_server(_cfg):
+            calls["n"] += 1
+            raise nt.NotifyError("SMTP OAuth login was rejected: "
+                                 "5.7.3 Authentication unsuccessful")
+
+        with mock.patch.object(nt, "_server", side_effect=fake_server):
+            with self.assertRaises(nt.NotifyError):
+                nt.send_email(self.cfg, "to@y.com", "Hi", "Body",
+                              sleep=lambda _x: None)
+        self.assertEqual(calls["n"], 1)          # failed fast, no retry
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 import smtplib
 import sqlite3
 import ssl
@@ -444,10 +445,10 @@ def _server(cfg: dict) -> smtplib.SMTP:
     srv = None
     try:
         if security == "ssl":
-            srv = smtplib.SMTP_SSL(host, port, timeout=30,
+            srv = smtplib.SMTP_SSL(host, port, timeout=60,
                                    context=ssl.create_default_context())
         else:
-            srv = smtplib.SMTP(host, port, timeout=30)
+            srv = smtplib.SMTP(host, port, timeout=60)
             if security == "starttls":
                 srv.starttls(context=ssl.create_default_context())
         if cfg.get("auth_method") == "oauth":
@@ -478,12 +479,27 @@ def test_connection(name: str, secret: str = "") -> dict:
             f"{cfg['user'] or '(no auth)'}."}
 
 
+# Errors that are an actual auth/rejection problem (don't retry - they'll just keep
+# failing). Everything else (timeouts, dropped connections, 4xx, throttling) is
+# treated as transient and worth a retry - this is what makes notifications survive
+# the occasional Outlook SMTP read-timeout on a scheduled (unattended) run.
+_AUTH_FAIL_RE = re.compile(r"rejected|authenticat|5\.7|\b535\b|invalid_grant|sign.?in",
+                           re.IGNORECASE)
+
+
+def _is_transient_send_error(message: str) -> bool:
+    return not _AUTH_FAIL_RE.search(message or "")
+
+
 def send_email(cfg: dict, to_addr: str, subject: str, body: str,
-               attachments: list | None = None) -> None:
+               attachments: list | None = None, *, retries: int = 3,
+               backoff: float = 3.0, sleep=time.sleep) -> None:
     """Send one plain-text email using a loaded profile dict.
 
     ``attachments`` is an optional list of ``(filename, text_content)`` pairs,
-    attached as ``text/csv`` (used to email an AI report).
+    attached as ``text/csv`` (used to email an AI report). Transient failures
+    (timeouts, dropped connections, throttling) are retried with backoff;
+    auth/rejection failures fail fast.
     """
     to_addr = (to_addr or "").strip()
     if not to_addr:
@@ -498,13 +514,28 @@ def send_email(cfg: dict, to_addr: str, subject: str, body: str,
     for filename, content in (attachments or []):
         msg.add_attachment((content or "").encode("utf-8"), maintype="text",
                            subtype="csv", filename=filename)
-    srv = _server(cfg)
-    try:
-        srv.send_message(msg)
-    except (smtplib.SMTPException, OSError) as exc:
-        raise NotifyError(f"Could not send email: {exc}") from exc
-    finally:
-        srv.quit()
+
+    last: Exception | None = None
+    for attempt in range(max(1, retries)):
+        try:
+            srv = _server(cfg)                # may raise NotifyError (connect/auth)
+            try:
+                srv.send_message(msg)
+                return
+            finally:
+                try:
+                    srv.quit()
+                except Exception:  # pylint: disable=broad-exception-caught
+                    pass
+        except (NotifyError, smtplib.SMTPException, OSError, ssl.SSLError) as exc:
+            last = exc
+            if attempt < retries - 1 and _is_transient_send_error(str(exc)):
+                sleep(backoff * (attempt + 1))
+                continue
+            if isinstance(exc, NotifyError):
+                raise
+            raise NotifyError(f"Could not send email: {exc}") from exc
+    raise NotifyError(f"Could not send email: {last}")
 
 
 def send_notification(subject: str, body: str, *, when: str,
