@@ -66,8 +66,11 @@ def main():
     ap.add_argument("tag")
     ap.add_argument("--title")
     ap.add_argument("--notes", default="")
+    ap.add_argument("--match", help="only upload assets whose filename contains this substring")
     args = ap.parse_args()
     token = get_token()
+    to_upload = [p for p in ASSETS
+                 if not args.match or args.match in os.path.basename(p)]
 
     st, rel = api(token, "GET",
                   "https://api.github.com/repos/%s/releases/tags/%s" % (REPO, args.tag))
@@ -88,7 +91,7 @@ def main():
                      "https://api.github.com/repos/%s/releases/%s/assets" % (REPO, rid))
     existing = {a["name"]: a["id"] for a in assets} if st == 200 else {}
 
-    for path in ASSETS:
+    for path in to_upload:
         name = os.path.basename(path)
         if not os.path.isfile(path):
             print("  SKIP missing: %s" % path)

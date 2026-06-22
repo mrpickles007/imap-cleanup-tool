@@ -40,7 +40,8 @@ OutputBaseFilename=imap-cleanup-tool-windows-setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-; SetupIconFile=app.ico        ; (optional) add packaging\windows\app.ico
+SetupIconFile=app.ico
+UninstallDisplayIcon={app}\app.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -55,6 +56,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 Source: "python\*"; DestDir: "{app}\python"; Flags: recursesubdirs createallsubdirs ignoreversion
 ; The launcher + the pinned-version constraints used by the pip step.
 Source: "launcher.py"; DestDir: "{app}"; Flags: ignoreversion
+Source: "app.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\constraints.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Run]
@@ -74,12 +76,13 @@ Filename: "{app}\python\python.exe"; Parameters: """{app}\launcher.py"""; \
   Description: "Launch {#MyAppName}"; Flags: postinstall nowait skipifsilent
 
 [Icons]
-; Start-menu + (optional) desktop shortcut -> the launcher (opens the web UI).
+; Start-menu + (optional) desktop shortcut -> the launcher (opens the web UI),
+; using the branded app icon.
 Name: "{group}\IMAP Cleanup Tool"; Filename: "{app}\python\python.exe"; \
-  Parameters: """{app}\launcher.py"""; WorkingDir: "{app}"
+  Parameters: """{app}\launcher.py"""; WorkingDir: "{app}"; IconFilename: "{app}\app.ico"
 Name: "{group}\Uninstall IMAP Cleanup Tool"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\IMAP Cleanup Tool"; Filename: "{app}\python\python.exe"; \
-  Parameters: """{app}\launcher.py"""; WorkingDir: "{app}"; Tasks: desktopicon
+  Parameters: """{app}\launcher.py"""; WorkingDir: "{app}"; IconFilename: "{app}\app.ico"; Tasks: desktopicon
 
 [Code]
 // Add {app}\python\Scripts to the user PATH when the addtopath task is selected.
@@ -105,6 +108,28 @@ procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if (CurStep = ssPostInstall) and WizardIsTaskSelected('addtopath') then
     AddToPath();
+end;
+
+// Remove the {app}\python\Scripts entry from the user PATH on uninstall, so no
+// stale (dangling) path is left behind once the files are gone.
+procedure RemoveFromPath();
+var
+  Scripts, Cur: string;
+begin
+  Scripts := ExpandConstant('{app}\python\Scripts');
+  if RegQueryStringValue(HKCU, EnvKey, 'Path', Cur) then
+  begin
+    StringChangeEx(Cur, ';' + Scripts, '', True);
+    StringChangeEx(Cur, Scripts + ';', '', True);
+    StringChangeEx(Cur, Scripts, '', True);
+    RegWriteStringValue(HKCU, EnvKey, 'Path', Cur);
+  end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+    RemoveFromPath();
 end;
 
 [UninstallDelete]
