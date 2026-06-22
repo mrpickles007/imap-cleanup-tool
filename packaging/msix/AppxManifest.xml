@@ -17,15 +17,17 @@
     xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
     xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
 
+  <!-- Identity values from Partner Center (reserved app "IMAP Cleanup Tool",
+       Store ID 9NWGG8ZMJ9S8). Bump Version (last digit 0) for each release. -->
   <Identity
-      Name="REPLACE_WITH_PARTNER_CENTER_IDENTITY_NAME"
-      Publisher="CN=REPLACE_WITH_PARTNER_CENTER_PUBLISHER"
+      Name="GiulioAlberello.IMAPCleanupTool"
+      Publisher="CN=AD337C08-F7F5-41ED-AF48-178EDE1BA081"
       Version="0.36.8.0"
       ProcessorArchitecture="x64" />
 
   <Properties>
     <DisplayName>IMAP Cleanup Tool</DisplayName>
-    <PublisherDisplayName>Giulio Alberello</PublisherDisplayName>
+    <PublisherDisplayName>Emirdev di Giulio Alberello</PublisherDisplayName>
     <Logo>assets\StoreLogo.png</Logo>
   </Properties>
 
