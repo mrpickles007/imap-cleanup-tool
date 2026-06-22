@@ -37,7 +37,7 @@ from `../../../imapcleanuptool-site/logo.png` if present.
   (3.14 is intentionally avoided for now: litellm/AI requires Python < 3.14.)
 - Dependency versions: see [`../constraints.txt`](../constraints.txt).
 
-A `web,ai` build is ~144 MB (litellm and its deps are large); a `web`-only build
+A `web,ai` build is ~152 MB (litellm and its deps are large); a `web`-only build
 is much smaller.
 
 ## Verified
