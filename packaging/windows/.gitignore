@@ -1,0 +1,4 @@
+# Build artifacts - never commit the bundled Python or the built installer.
+python/
+dist/
+pbs.tar.gz
