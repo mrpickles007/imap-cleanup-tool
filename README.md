@@ -30,6 +30,9 @@ Bulk-delete or move IMAP emails from the **command line** and a local **web
 interface**. The CLI uses only the Python standard library; the web UI and the AI
 features are optional extras (see [Install](#install)).
 
+**Windows and Linux** ship as **one-click installers** (no Python needed - see
+[Download](#download)); macOS and any other setup install via `pip`.
+
 > 💡 **Friendly heads-up:** this tool is a *little* tricky to get the hang of -
 > because it has **tons of features**. The good news: **everything is documented
 > in tooltips.** Hover the little **ⓘ** icons in the web UI and you'll find a
@@ -83,8 +86,26 @@ features are optional extras (see [Install](#install)).
 
 ---
 
+## Download
+
+**One-click installers - no Python needed.** Launch the app and the local web UI
+opens in your browser.
+
+| Platform | Get it |
+| --- | --- |
+| **Windows** | **[Download the installer (.exe)](https://github.com/mrpickles007/imap-cleanup-tool/releases/latest/download/imap-cleanup-tool-windows-setup.exe)** - *coming soon to the Microsoft Store* |
+| **Linux** | **[Download the AppImage](https://github.com/mrpickles007/imap-cleanup-tool/releases/latest/download/imap-cleanup-tool-x86_64.AppImage)** - single file, no install |
+| **macOS / other** | Install from source with `pip` - see [Install](#install) |
+
+The download links always serve the latest build (see all on the
+[releases page](https://github.com/mrpickles007/imap-cleanup-tool/releases)).
+Rather use pip on any platform? See [Install](#install).
+
+---
+
 ## Table of contents
 
+- [Download](#download)
 - [Quick start - web interface (with AI)](#quick-start---web-interface-with-ai)
 - [Quick start - command line](#quick-start---command-line)
 - [AI Cleanup](#ai-cleanup)
@@ -462,10 +483,67 @@ SQLite file (`header_cache.sqlite`) in your config directory.
 
 ## Install
 
+Pick your platform. **Windows** and **Linux** have a one-click download that
+bundles everything - you do **not** need Python installed. **macOS** (for now) and
+any other setup use the **Source** install (`pip`). Either way, launching the app
+starts the local web UI and opens it in your browser.
+
+<details open>
+<summary><b>&#127473; Windows</b> &mdash; one-click installer (recommended)</summary>
+
+<br>
+
+1. Download **[`imap-cleanup-tool-windows-setup.exe`](https://github.com/mrpickles007/imap-cleanup-tool/releases/latest/download/imap-cleanup-tool-windows-setup.exe)**
+   (always the latest release; also coming to the **Microsoft Store**).
+2. Run it. During setup you can tick **AI Cleanup** (optional extra); the
+   **Web UI** is always installed.
+3. Launch **IMAP Cleanup Tool** from the Start menu - it opens in your browser.
+
+No Python required: the installer bundles its own, fully isolated from any Python
+already on your PC. The `imap-cleanup-tool` command is also added to `PATH` for
+CLI use.
+
+> On first run Windows may show *"Windows protected your PC"* (the app is not yet
+> code-signed): click **More info -> Run anyway**.
+
+</details>
+
+<details>
+<summary><b>&#128039; Linux</b> &mdash; AppImage (no install, no root)</summary>
+
+<br>
+
+1. Download **[`imap-cleanup-tool-x86_64.AppImage`](https://github.com/mrpickles007/imap-cleanup-tool/releases/latest/download/imap-cleanup-tool-x86_64.AppImage)**
+   (always the latest release).
+2. Make it executable and run it:
+
+   ```bash
+   chmod +x imap-cleanup-tool-*-x86_64.AppImage
+   ./imap-cleanup-tool-*-x86_64.AppImage
+   ```
+
+It starts the local web UI and opens your browser. A single file, no system Python
+required, runs on most distributions.
+
+</details>
+
+<details>
+<summary><b>&#127822; macOS</b> &mdash; install from source (native app coming later)</summary>
+
+<br>
+
+A native macOS build is on the roadmap. For now, use the **Source** install below
+(`pip install "imap-cleanup-tool[web,ai]"`), then run `imap-cleanup-tool-web`.
+
+</details>
+
+<details>
+<summary><b>&#128013; Source / pip</b> &mdash; any platform</summary>
+
+<br>
+
 Requires **Python 3.10 or newer** (`python --version`). See
 [python.org/downloads](https://www.python.org/downloads/) if you need it.
-
-### From PyPI (recommended)
 
 A virtual environment keeps the install isolated (optional but recommended):
 
@@ -491,7 +569,7 @@ cryptography for encrypted profiles), and the **`[ai]` extra** pulls in
 **`litellm`** for [AI Cleanup](#ai-cleanup) (cloud models or a local Ollama one).
 Want the AI features but not the web UI? `pip install "imap-cleanup-tool[ai]"`.
 
-### From source
+**From a clone (for development):**
 
 ```bash
 git clone https://github.com/mrpickles007/imap-cleanup-tool.git
@@ -502,6 +580,11 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 
 pip install -e ".[dev,web,ai]"   # editable install + dev tools + web UI + AI
 ```
+
+</details>
+
+> Native installers are published on the
+> [Releases page](https://github.com/mrpickles007/imap-cleanup-tool/releases).
 
 ### Running the tests
 
