@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSIX manifest TEMPLATE for the Microsoft Store submission.
+
+  Replace the Identity placeholders with the EXACT values from Partner Center
+  (Product -> Product identity) after you reserve the app name:
+    - Name            = the "Package/Identity/Name" shown there
+    - Publisher       = the "Publisher (CN=...)" shown there
+    - Version         = <app version>.0  (4-part, last digit 0), e.g. 0.36.8.0
+
+  The Application Executable points at a small launcher.exe (Route B in
+  README.md) that runs:  python\python.exe -m imap_cleanup_tool.webapp
+  (the MSIX Packaging Tool - Route A - generates its own manifest instead).
+-->
+<Package
+    xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+    xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+    xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
+
+  <Identity
+      Name="REPLACE_WITH_PARTNER_CENTER_IDENTITY_NAME"
+      Publisher="CN=REPLACE_WITH_PARTNER_CENTER_PUBLISHER"
+      Version="0.36.8.0"
+      ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>IMAP Cleanup Tool</DisplayName>
+    <PublisherDisplayName>Giulio Alberello</PublisherDisplayName>
+    <Logo>assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application Id="App" Executable="app\launcher.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+          DisplayName="IMAP Cleanup Tool"
+          Description="Bulk-clean your IMAP mailbox by sender, domain, rules or AI - local-first."
+          Square150x150Logo="assets\Square150x150Logo.png"
+          Square44x44Logo="assets\Square44x44Logo.png"
+          BackgroundColor="transparent">
+        <uap:DefaultTile
+            Wide310x150Logo="assets\Wide310x150Logo.png"
+            Square71x71Logo="assets\Square71x71Logo.png"
+            Square310x310Logo="assets\Square310x310Logo.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <Capability Name="internetClient" />
+  </Capabilities>
+</Package>

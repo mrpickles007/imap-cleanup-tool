@@ -1,0 +1,7 @@
+# MSIX build artifacts - never commit packages or the bundled payload.
+*.msix
+*.msixupload
+*.appx
+*.pfx
+*.cer
+payload/
