@@ -1,0 +1,6 @@
+# Build artifacts - never commit the AppImage, AppDir, or downloaded tools.
+dist/
+AppDir/
+appimagetool*
+*.AppImage
+build.log

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=IMAP Cleanup Tool
+Comment=Bulk-clean your IMAP mailbox by sender, domain, rules or AI
+Exec=AppRun
+Icon=imap-cleanup-tool
+Categories=Network;Utility;
+Terminal=true
