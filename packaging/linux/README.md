@@ -32,8 +32,9 @@ from `../../../imapcleanuptool-site/logo.png` if present.
 
 ## Pinned
 
-- **python-build-standalone**: release tag `20260610`, CPython **3.12.13**
+- **python-build-standalone**: release tag `20260610`, CPython **3.13.14**
   (`...-x86_64-unknown-linux-gnu-install_only.tar.gz`). Override with `PBS_URL=...`.
+  (3.14 is intentionally avoided for now: litellm/AI requires Python < 3.14.)
 - Dependency versions: see [`../constraints.txt`](../constraints.txt).
 
 A `web,ai` build is ~144 MB (litellm and its deps are large); a `web`-only build

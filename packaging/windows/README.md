@@ -24,7 +24,7 @@ Cleanup is an optional task (off by default).
 
    ```powershell
    cd packaging\windows
-   .\build.ps1 -Version 0.36.8 -PbsUrl "https://github.com/astral-sh/python-build-standalone/releases/download/<TAG>/cpython-3.12.x+<DATE>-x86_64-pc-windows-msvc-install_only.tar.gz"
+   .\build.ps1 -Version 0.36.8 -PbsUrl "https://github.com/astral-sh/python-build-standalone/releases/download/<TAG>/cpython-3.13.x+<DATE>-x86_64-pc-windows-msvc-install_only.tar.gz"
    ```
 
 4. Test `dist\imap-cleanup-tool-0.36.8-windows-setup.exe` on a clean Windows VM

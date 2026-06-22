@@ -14,7 +14,7 @@
 
   Usage:
     .\build.ps1 -Version 0.36.8
-    .\build.ps1 -Version 0.36.8 -PbsUrl "https://github.com/astral-sh/python-build-standalone/releases/download/<TAG>/cpython-3.12.x+<DATE>-x86_64-pc-windows-msvc-install_only.tar.gz"
+    .\build.ps1 -Version 0.36.8 -PbsUrl "https://github.com/astral-sh/python-build-standalone/releases/download/<TAG>/cpython-3.13.x+<DATE>-x86_64-pc-windows-msvc-install_only.tar.gz"
 
   PIN THE PBS RELEASE: set $PbsUrl to a specific python-build-standalone release
   asset so every build embeds the same Python. Record the chosen tag in

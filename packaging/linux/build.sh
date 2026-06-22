@@ -27,7 +27,7 @@ echo "== Resolving python-build-standalone URL =="
 # Note: GitHub's browser_download_url encodes the '+' in the version as %2B.
 if [ -z "${PBS_URL:-}" ]; then
   curl -fsSL https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest -o "$WORK/rel.json"
-  PBS_URL="$(grep -oE 'https://github.com/[^"]*cpython-3\.12\.[0-9]+(%2B|\+)[0-9]+-x86_64-unknown-linux-gnu-install_only\.tar\.gz' "$WORK/rel.json" | head -n1 || true)"
+  PBS_URL="$(grep -oE 'https://github.com/[^"]*cpython-3\.13\.[0-9]+(%2B|\+)[0-9]+-x86_64-unknown-linux-gnu-install_only\.tar\.gz' "$WORK/rel.json" | head -n1 || true)"
 fi
 [ -n "$PBS_URL" ] || { echo "Could not resolve PBS URL; set PBS_URL"; exit 1; }
 echo "   $PBS_URL"
