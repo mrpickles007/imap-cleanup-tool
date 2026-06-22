@@ -5,6 +5,10 @@
 <h1 align="center">IMAP Cleanup Tool</h1>
 
 <p align="center">
+  <img src="https://raw.githubusercontent.com/mrpickles007/imap-cleanup-tool/main/assets/demo.gif" alt="IMAP Cleanup Tool demo" width="820">
+</p>
+
+<p align="center">
   <a href="https://pypi.org/project/imap-cleanup-tool/"><img src="https://img.shields.io/pypi/v/imap-cleanup-tool" alt="PyPI version"></a>
   <a href="https://pypi.org/project/imap-cleanup-tool/"><img src="https://img.shields.io/pypi/pyversions/imap-cleanup-tool" alt="Supported Python versions"></a>
   <img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="License: AGPL-3.0-or-later">
