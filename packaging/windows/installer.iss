@@ -46,6 +46,10 @@ UninstallDisplayIcon={app}\app.ico
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[Messages]
+; Warn up front that the final step downloads components and may look stuck.
+WelcomeLabel2=This will install %1 on your computer.%n%nThe final step downloads the app from the internet, so it needs a connection and can take a few minutes - the progress bar may appear to pause near the end. Please be patient and do not close the window.
+
 [Tasks]
 Name: "ai"; Description: "Install AI Cleanup (adds the local/cloud AI features; larger download)"; GroupDescription: "Optional components:"
 Name: "addtopath"; Description: "Add the imap-cleanup-tool command to PATH"; GroupDescription: "Optional components:"
@@ -64,12 +68,12 @@ Source: "..\constraints.txt"; DestDir: "{app}"; Flags: ignoreversion
 ; Web-only when the AI task is NOT selected...
 Filename: "{app}\python\python.exe"; \
   Parameters: "-m pip install --no-warn-script-location ""imap-cleanup-tool[web]"" -c ""{app}\constraints.txt"""; \
-  StatusMsg: "Installing IMAP Cleanup Tool (web UI)..."; \
+  StatusMsg: "Downloading and installing components (web UI) - this can take a few minutes, please wait..."; \
   Flags: runhidden; Check: not WizardIsTaskSelected('ai')
 ; ...web + AI when the AI task IS selected.
 Filename: "{app}\python\python.exe"; \
   Parameters: "-m pip install --no-warn-script-location ""imap-cleanup-tool[web,ai]"" -c ""{app}\constraints.txt"""; \
-  StatusMsg: "Installing IMAP Cleanup Tool (web UI + AI Cleanup)..."; \
+  StatusMsg: "Downloading and installing components (web UI + AI Cleanup) - this can take several minutes, please wait..."; \
   Flags: runhidden; Check: WizardIsTaskSelected('ai')
 ; Offer to launch at the end.
 Filename: "{app}\python\python.exe"; Parameters: """{app}\launcher.py"""; \
