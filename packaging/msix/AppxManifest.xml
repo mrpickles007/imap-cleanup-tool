@@ -27,7 +27,7 @@
 
   <Properties>
     <DisplayName>IMAP Cleanup Tool</DisplayName>
-    <PublisherDisplayName>Emirdev di Giulio Alberello</PublisherDisplayName>
+    <PublisherDisplayName>GiulioAlberello</PublisherDisplayName>
     <Logo>assets\StoreLogo.png</Logo>
   </Properties>
 
