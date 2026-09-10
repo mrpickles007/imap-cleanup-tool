@@ -9,7 +9,10 @@ parsing are plain functions so they can be unit-tested without litellm.
 from __future__ import annotations
 
 import json
+import os
 import re
+import socket
+from urllib.parse import urlparse
 
 from .core import StopRequested, logger
 
@@ -40,6 +43,105 @@ _SYSTEM = (
     "Respond with STRICT JSON only - no prose, no code fences - shaped exactly "
     'like: {"verdicts":[{"sender":"a@b.com","delete":true,"reason":"...",'
     '"confidence":0.0}]}')
+
+
+# Provider prefix -> environment variables litellm accepts for the API key
+# (best-effort; used only to avoid a false "missing key" pre-flight error when
+# the user relies on an env var instead of the in-app setting).
+_PROVIDER_ENV_KEYS = {
+    "gpt": ("OPENAI_API_KEY", "OPENAI_ADMIN_KEY"),
+    "o1": ("OPENAI_API_KEY",),
+    "o3": ("OPENAI_API_KEY",),
+    "chatgpt": ("OPENAI_API_KEY",),
+    "openai": ("OPENAI_API_KEY", "OPENAI_ADMIN_KEY"),
+    "claude": ("ANTHROPIC_API_KEY",),
+    "anthropic": ("ANTHROPIC_API_KEY",),
+    "gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+    "openrouter": ("OPENROUTER_API_KEY",),
+    "mistral": ("MISTRAL_API_KEY",),
+    "groq": ("GROQ_API_KEY",),
+    "deepseek": ("DEEPSEEK_API_KEY",),
+}
+
+
+def _is_local_model(model_cfg: dict) -> bool:
+    """True for local (Ollama) models - identified by the model id or api_base."""
+    model = (model_cfg.get("model") or "").lower()
+    base = (model_cfg.get("api_base") or "").lower()
+    return (model.startswith("ollama/") or model.startswith("ollama_chat/")
+            or "ollama" in base or "localhost" in base or "127.0.0.1" in base)
+
+
+def _ollama_base(model_cfg: dict) -> str:
+    return ((model_cfg.get("api_base") or "").strip()
+            or os.environ.get("OLLAMA_API_BASE") or "http://localhost:11434")
+
+
+def check_model_ready(model_cfg: dict) -> None:
+    """Fast pre-flight before the (expensive) mailbox scan.
+
+    Raises ``RuntimeError`` with an actionable message when the selected model
+    clearly cannot be used - a cloud model with no API key, or a local Ollama
+    server that is not reachable - so the user is not made to wait through a full
+    header scan only to fail at the LLM step. Silent (returns None) when the model
+    looks usable or when we cannot tell.
+    """
+    model = (model_cfg or {}).get("model", "").strip()
+    if not model:
+        return
+    if _is_local_model(model_cfg):
+        base = _ollama_base(model_cfg)
+        parsed = urlparse(base if "://" in base else "http://" + base)
+        host, port = (parsed.hostname or "localhost"), (parsed.port or 11434)
+        try:
+            socket.create_connection((host, port), timeout=3).close()
+        except OSError:
+            pulled = model.split("/", 1)[-1] or "llama3"
+            raise RuntimeError(
+                f"Cannot reach the local Ollama server at {base}. Make sure "
+                f"Ollama is running (run 'ollama serve' in a terminal) and the "
+                f"model is installed (e.g. 'ollama pull {pulled}'), then retry."
+            ) from None
+        return
+    # Cloud model: needs an API key, from the model settings or a known env var.
+    if model_cfg.get("api_key"):
+        return
+    low = model.lower()
+    envs: tuple = ()
+    for prefix, keys in _PROVIDER_ENV_KEYS.items():
+        if prefix in low:
+            envs = keys
+            break
+    if envs and any(os.environ.get(k) for k in envs):
+        return
+    if envs:
+        raise RuntimeError(
+            f"The model '{model}' needs an API key. Add your API key in the AI "
+            f"model settings, or switch to a free local model (Ollama). "
+            f"(No key set in the model settings, and the "
+            f"{' / '.join(envs)} environment variable is not set.)")
+    # Unknown provider - do not block; let the call run and surface any error.
+
+
+def _friendly_llm_error(exc: Exception, model: str) -> RuntimeError:
+    """Translate a raw litellm exception into an actionable message."""
+    msg = str(exc)
+    low = msg.lower()
+    if ("api_key" in low or "missing credentials" in low or "no api key" in low
+            or "openai_api_key" in low or "authenticationerror" in low
+            or "invalid api key" in low or "incorrect api key" in low
+            or "unauthorized" in low or "error code: 401" in low):
+        return RuntimeError(
+            f"The model '{model}' needs a valid API key. Add your API key in the "
+            f"AI model settings, or use a free local model (Ollama).")
+    if ("connection" in low or "forcibly closed" in low or "10054" in low
+            or "refused" in low or "max retries" in low or "timed out" in low
+            or "timeout" in low or "apiconnectionerror" in low):
+        return RuntimeError(
+            f"Could not reach the model server for '{model}'. If this is a local "
+            f"Ollama model, make sure Ollama is running and the model is pulled; "
+            f"if it is a cloud model, check your internet connection. ({msg[:180]})")
+    return RuntimeError(f"The AI model call failed for '{model}': {msg}")
 
 
 def _sender_payload(s: dict) -> dict:
@@ -201,18 +303,23 @@ def evaluate(report: dict, model_cfg: dict, max_retries: int = 3,
     flagged = [s for s in flagged_all if s["sender"].lower() not in known]
     total = len(flagged)
     pt = ct = 0
-    for start in range(0, total, max(1, batch_size)):
-        if should_stop is not None and should_stop():
-            raise StopRequested
-        batch = flagged[start:start + batch_size]
-        v, bpt, bct = _evaluate_batch(litellm, base_kwargs, batch, max_retries)
-        verdicts.update(v)
-        pt += bpt
-        ct += bct
-        if record_cost is not None and (bpt or bct):
-            record_cost(bpt, bct, _batch_cost(model_cfg, bpt, bct) or 0)
-        logger.info("LLM evaluated %d/%d flagged sender(s) ...",
-                    min(start + batch_size, total), total)
+    try:
+        for start in range(0, total, max(1, batch_size)):
+            if should_stop is not None and should_stop():
+                raise StopRequested
+            batch = flagged[start:start + batch_size]
+            v, bpt, bct = _evaluate_batch(litellm, base_kwargs, batch, max_retries)
+            verdicts.update(v)
+            pt += bpt
+            ct += bct
+            if record_cost is not None and (bpt or bct):
+                record_cost(bpt, bct, _batch_cost(model_cfg, bpt, bct) or 0)
+            logger.info("LLM evaluated %d/%d flagged sender(s) ...",
+                        min(start + batch_size, total), total)
+    except (StopRequested, RuntimeError):
+        raise
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        raise _friendly_llm_error(exc, base_kwargs.get("model", "")) from exc
 
     return {"verdicts": verdicts, "prompt_tokens": pt,
             "completion_tokens": ct, "cost": _batch_cost(model_cfg, pt, ct)}

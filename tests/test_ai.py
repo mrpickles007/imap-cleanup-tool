@@ -454,6 +454,74 @@ class LLMHelpersTests(unittest.TestCase):
         self.assertNotIn("friend@x.com", user)
 
 
+class ModelPreflightTests(unittest.TestCase):
+    """check_model_ready() fails fast with a clear message before the scan."""
+
+    def test_cloud_model_without_key_fails(self):
+        with self.assertRaises(RuntimeError) as cm:
+            ai.check_model_ready({"model": "gpt-4o-mini"})
+        self.assertIn("API key", str(cm.exception))
+
+    def test_cloud_model_with_key_ok(self):
+        ai.check_model_ready({"model": "gpt-4o-mini", "api_key": "sk-x"})
+
+    def test_cloud_model_with_env_key_ok(self):
+        import os
+        old = os.environ.get("OPENAI_API_KEY")
+        os.environ["OPENAI_API_KEY"] = "sk-env"
+        try:
+            ai.check_model_ready({"model": "gpt-4o-mini"})
+        finally:
+            if old is None:
+                os.environ.pop("OPENAI_API_KEY", None)
+            else:
+                os.environ["OPENAI_API_KEY"] = old
+
+    def test_unknown_provider_not_blocked(self):
+        ai.check_model_ready({"model": "some-weird/model"})
+
+    def test_ollama_unreachable(self):
+        with self.assertRaises(RuntimeError) as cm:
+            ai.check_model_ready({"model": "ollama/llama3",
+                                  "api_base": "http://127.0.0.1:1"})
+        self.assertIn("Ollama", str(cm.exception))
+
+
+class FriendlyErrorTests(unittest.TestCase):
+    def test_missing_key_translated(self):
+        e = ai._friendly_llm_error(
+            Exception("OpenAIException - Missing credentials. Please pass an "
+                      "api_key"), "gpt-4o-mini")
+        self.assertIn("API key", str(e))
+
+    def test_connection_translated(self):
+        e = ai._friendly_llm_error(
+            Exception("[WinError 10054] connection forcibly closed"),
+            "ollama/llama3")
+        self.assertIn("Ollama", str(e))
+
+    def test_evaluate_translates_auth_error(self):
+        import sys
+        import types
+
+        def boom(**kw):
+            raise Exception("OpenAIException - Missing credentials. Please pass "
+                            "an api_key")
+
+        fake = types.ModuleType("litellm")
+        fake.completion = boom
+        sys.modules["litellm"] = fake
+        try:
+            report = {"senders": [{"sender": "x@y.com", "flagged": True,
+                      "count": 1, "unread_ratio": 1.0, "per_week": 1,
+                      "list_unsubscribe": True, "score": 9, "samples": []}]}
+            with self.assertRaises(RuntimeError) as cm:
+                ai.evaluate(report, {"model": "gpt-4o-mini"}, max_retries=1)
+            self.assertIn("API key", str(cm.exception))
+        finally:
+            del sys.modules["litellm"]
+
+
 class CliWeightTests(unittest.TestCase):
     def test_parse_weights_ok(self):
         from imap_cleanup_tool.cli import _parse_ai_weights

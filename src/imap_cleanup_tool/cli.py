@@ -426,6 +426,14 @@ def _run_ai(conn, args: argparse.Namespace, folders: list[str],
                     "Re-run with --local-cache to reuse it for a fast report.")
         except Exception:  # pylint: disable=broad-exception-caught
             pass
+    if cfg is not None:
+        # Pre-flight the model before the (possibly long) scan: fail fast with a
+        # clear message on a missing API key or an unreachable Ollama server.
+        try:
+            ai.check_model_ready(cfg)
+        except RuntimeError as exc:
+            print(f"[ERROR] {exc}")
+            return 5
     report = core.build_ai_report(conn, folders, threshold=args.ai_threshold,
                                   sample_size=args.ai_sample, exclude=exclude,
                                   weights=weights,

@@ -280,6 +280,17 @@ def _install_log_dispatch() -> None:
     _install_log_dispatch._done = True   # type: ignore[attr-defined]
 
 
+def _network_error_hint(exc: Exception) -> str:
+    """An actionable hint for a dropped/stale mailbox connection (e.g. 10054)."""
+    low = str(exc).lower()
+    if any(k in low for k in ("10054", "forcibly closed", "reset by peer",
+                              "connection reset", "broken pipe", "aborted",
+                              "connection closed", "eof occurred", "bye")):
+        return ("  The connection to your mailbox was closed (it may have timed "
+                "out while idle). Click Connect again, then retry.")
+    return ""
+
+
 def _start_run(session: "Session", kind: str, work) -> "RunState":
     """Spawn ``work(rs)`` in a background thread bound to a new RunState."""
     run = RunState(uuid.uuid4().hex[:12], kind, session)
@@ -297,7 +308,7 @@ def _start_run(session: "Session", kind: str, work) -> "RunState":
         except (OSError, core.imaplib.IMAP4.error) as exc:
             run.status = "error"
             run.error = str(exc)
-            session.add_log(f"[NETWORK ERROR] {exc}")
+            session.add_log(f"[NETWORK ERROR] {exc}{_network_error_hint(exc)}")
         except Exception as exc:  # pylint: disable=broad-exception-caught
             run.status = "error"
             run.error = str(exc)
@@ -1288,6 +1299,10 @@ def create_app():
                   rs: "RunState", model_cfg, scope):
         """Heuristic report + optional LLM evaluation (attaches verdicts)."""
         addresses, domains, exact_domains, search_argument = scope
+        # Pre-flight the model BEFORE the (possibly long) mailbox scan, so a
+        # missing API key or an unreachable Ollama fails fast with a clear message.
+        if model_cfg:
+            ai.check_model_ready(model_cfg)
         cache = _session_cache(sess)
         if cache is not None:
             core.logger.info("Local header cache is ON for this profile.")
