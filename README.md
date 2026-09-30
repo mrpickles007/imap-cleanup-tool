@@ -17,8 +17,8 @@
 Clean your inbox **with AI, by hand, or both.** Let an **LLM** decide what is junk
 and delete it, with your choice of model:
 
-- **Free & private** - run a local model via **Ollama**, so nothing ever leaves
-  your machine; or
+- **Free & private** - run a local model via **Ollama** (you install it
+  yourself - the app does not ship one), so nothing ever leaves your machine; or
 - **BYOA (bring your own API key)** - point it at any cloud model (OpenAI,
   OpenRouter, ...) using your own key.
 
@@ -42,7 +42,8 @@ features are optional extras (see [Install](#install)).
 - 🤖 **AI Cleanup (the headline):** a **local** heuristic scores every sender,
   then an **LLM** decides what is junk and deletes it - with a configurable
   threshold, a report-only mode, and per-model cost tracking. Pick your model:
-  a **free local one** via Ollama (nothing leaves your machine), **or** **BYOA
+  a **free local one** via Ollama, which you install and run yourself (nothing
+  leaves your machine), **or** **BYOA
   (bring your own API key)** for any remote/cloud model (OpenAI / OpenRouter / ...).
   Either way only sender
   **subjects + stats** are sent, never message bodies, and it works on a filter or
@@ -198,8 +199,9 @@ Then, in the browser:
 2. **Pick folders** - select one or more folders to scan (each shows its message
    count); use *Select all* / *Deselect all* as needed.
 3. 🤖 **Let AI clean it (the easy path)** - tick **AI Cleanup**, pick a model: a
-   free local **Ollama** model keeps everything on your machine, or paste your own
-   cloud API key in the **LLM** tab. Tick **Report only** and click **Run** to see
+   free local **Ollama** model keeps everything on your machine (the app does not
+   install it - you install [Ollama](https://ollama.com) and pull a model yourself
+   first), or paste your own cloud API key in the **LLM** tab. Tick **Report only** and click **Run** to see
    exactly what it *would* delete (deletes nothing); untick Report only and **Run**
    again to clean for real. Only subjects + stats are ever sent to the model, never
    message bodies. Saved reports live in the **Reports** tab. See [AI Cleanup](#ai-cleanup).
@@ -236,7 +238,8 @@ imap-cleanup-tool --host imap.gmail.com --user you@gmail.com \
     --ai-cleanup --ai-report-only --ai-report-csv report.csv
 
 # 2. Run AI Cleanup for real with a configured model (omit --dry-run to delete).
-#    Use a local Ollama model to keep everything on your machine.
+#    Use a local Ollama model to keep everything on your machine
+#    (install Ollama and pull the model yourself first).
 imap-cleanup-tool --host imap.gmail.com --user you@gmail.com \
     --ai-cleanup --ai-model my-model --dry-run
 
@@ -249,7 +252,8 @@ imap-cleanup-tool --host imap.gmail.com --user you@gmail.com \
 ```
 
 > AI Cleanup needs the **`[ai]`** extra: `pip install "imap-cleanup-tool[ai]"`.
-> Configure a model in the web **LLM** tab (or point at a local Ollama model).
+> Configure a model in the web **LLM** tab (or point at a local Ollama model you
+> installed yourself - the app does not install one).
 > See [AI Cleanup](#ai-cleanup) for the full set of `--ai-*` flags.
 
 Credentials are read from flags, then environment variables
@@ -264,7 +268,8 @@ land in your shell history.
 *Optional - install the AI extra:* `pip install "imap-cleanup-tool[ai]"`.
 
 > **Local-first, and BYOA (bring your own API key).** AI Cleanup runs great on a
-> **free local model** (Ollama) so nothing ever leaves your machine - or use
+> **free local model** (Ollama, installed and run by you) so nothing ever leaves
+> your machine - or use
 > **BYOA (bring your own API key)** for any remote/cloud model (OpenAI, OpenRouter,
 > ...). Your key, your model, your choice. Either way, only sender **subjects +
 > stats** are sent to the model - **never the message body**.
@@ -398,7 +403,9 @@ the tool seeds two ready-to-use defaults you can edit or delete: **`gpt-4o-mini`
 **`ollama-llama3`** (free, local via Ollama). More options:
 
 - **Local & private (recommended):** an Ollama model (e.g. `ollama/llama3`) keeps
-  everything on your machine. ⚠️ A **remote** model (OpenAI, OpenRouter, ...)
+  everything on your machine. The `ollama-llama3` entry is only a pointer: you
+  must install [Ollama](https://ollama.com), run `ollama pull llama3` and keep
+  Ollama running yourself - the app never installs or downloads a model. ⚠️ A **remote** model (OpenAI, OpenRouter, ...)
   sends the sample subjects to that provider - the app warns you, and only ever
   sends subjects + stats, never message bodies.
 - **Edit** a saved model from the list (the **edit** button loads it into the
@@ -425,7 +432,8 @@ size, exclusions, heuristic weights, report-only, and CSV export:
 
 ```bash
 pip install "imap-cleanup-tool[ai]"
-# Configure a model + API key in the LLM tab (or a local Ollama model), then:
+# Configure a model + API key in the LLM tab (or a local Ollama model you
+# installed yourself), then:
 imap-cleanup-tool --host HOST --user USER \
     --ai-cleanup --ai-model my-model --dry-run
 
@@ -598,7 +606,8 @@ pip install "imap-cleanup-tool[web,ai]"   # everything (recommended)
 You do not need to install the base separately before an extra - it is included.
 The CLI stays dependency-free; the `[web]` extra pulls in FastAPI/uvicorn (and
 cryptography for encrypted profiles), and the **`[ai]` extra** pulls in
-**`litellm`** for [AI Cleanup](#ai-cleanup) (cloud models or a local Ollama one).
+**`litellm`** for [AI Cleanup](#ai-cleanup) (cloud models or a local Ollama one;
+it is only the client library - it does not install Ollama or any model).
 Want the AI features but not the web UI? `pip install "imap-cleanup-tool[ai]"`.
 
 **From a clone (for development):**
@@ -776,8 +785,8 @@ after a period of inactivity. Your password is never stored.
 
 Highlights:
 
-- 🤖 **AI Cleanup** with a model dropdown (local Ollama, or **BYOA (bring your own
-  API key)** for any remote/cloud model),
+- 🤖 **AI Cleanup** with a model dropdown (a local Ollama model you install
+  yourself, or **BYOA (bring your own API key)** for any remote/cloud model),
   a threshold slider, a single **Run** with a **Report only** checkbox, and per-model cost tracking - see
   [AI Cleanup](#ai-cleanup). The **LLM** tab has a **model picker** (presets per
   provider, an **✎ edit** toggle to type any custom litellm id, and the option to
