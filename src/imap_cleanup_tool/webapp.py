@@ -465,6 +465,11 @@ def create_app():
         op: str = "ge"            # is | le | ge | lt | gt
         score: float = 6.0
 
+    class SenderSubjectsIn(BaseModel):
+        sid: str
+        sender: str
+        folders: list[str] = Field(default_factory=list)
+
     class SendersIn(Match):
         sid: str
         folders: list[str] = Field(default_factory=lambda: ["INBOX"])
@@ -1607,6 +1612,32 @@ def create_app():
         res["smtp_active"] = notifications.has_active_profile()
         res["unsub_email_total"] = spamstore.count_unsub_email(sess.user)
         return res
+
+    @app.post("/api/sender-subjects")
+    def sender_subjects(body: SenderSubjectsIn) -> dict[str, Any]:
+        """Subjects (headers only) of a sender's messages - the spam-list preview.
+
+        Lets the user verify a flagged sender before deleting. Never downloads a
+        message body and never marks mail as read (BODY.PEEK, read-only select).
+        """
+        sess = _session(body.sid)
+        sender = (body.sender or "").strip()
+        # An empty term would SEARCH FROM "" (matches everything on many
+        # servers); CR/LF could inject IMAP commands.
+        if not sender or any(c in sender for c in "\r\n\"\\"):
+            raise HTTPException(400, "Provide a valid sender address.")
+        if sess.run and sess.run.status == "running":
+            raise HTTPException(409, "An operation is already running - try "
+                                     "again when it finishes.")
+        folders = body.folders or ["INBOX"]
+        with sess.lock:
+            try:
+                items = core.list_sender_subjects(sess.conn, sender, folders,
+                                                  cap=1000)
+            except (OSError, core.imaplib.IMAP4.error) as exc:
+                raise HTTPException(502, f"IMAP error: {exc}") from exc
+        return {"sender": sender, "folders": folders,
+                "count": len(items), "items": items}
 
     @app.post("/api/spam-delete")
     def spam_delete(body: SpamActionIn) -> dict[str, Any]:

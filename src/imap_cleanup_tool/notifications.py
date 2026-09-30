@@ -438,6 +438,43 @@ def _quiet_close(srv) -> None:
         pass
 
 
+def _smtp_login(srv: smtplib.SMTP, user: str, password: str) -> None:
+    """SMTP login tolerant of non-ASCII credentials.
+
+    smtplib's ``login()`` encodes the credentials as ASCII (and may already have
+    started a CRAM-MD5/LOGIN exchange when it fails), so a user or password with
+    a non-ASCII character is detected **up front** and sent by hand as UTF-8,
+    using ``AUTH PLAIN`` when the server offers it, else a stepwise
+    ``AUTH LOGIN`` (e.g. Office 365 offers LOGIN but not PLAIN).
+    """
+    if user.isascii() and password.isascii():
+        srv.login(user, password)
+        return
+    srv.ehlo_or_helo_if_needed()
+    mechs = (srv.esmtp_features.get("auth", "") or "").upper().split()
+
+    def b64(raw: bytes) -> str:
+        return base64.b64encode(raw).decode("ascii")
+
+    u, p = user.encode("utf-8"), password.encode("utf-8")
+    if "PLAIN" in mechs:
+        code, resp = srv.docmd("AUTH", "PLAIN " + b64(b"\x00" + u + b"\x00" + p))
+    elif "LOGIN" in mechs:
+        code, resp = srv.docmd("AUTH", "LOGIN")
+        if code == 334:
+            code, resp = srv.docmd(b64(u))
+        if code == 334:
+            code, resp = srv.docmd(b64(p))
+    else:
+        raise NotifyError(
+            "Your SMTP user name or password contains non-ASCII characters, but "
+            "this server offers no PLAIN or LOGIN authentication for them. Use an "
+            "app password, or a password with only ASCII characters.")
+    if code != 235:
+        detail = resp.decode(errors="replace") if isinstance(resp, bytes) else resp
+        raise NotifyError(f"SMTP authentication failed ({code}): {detail}")
+
+
 def _server(cfg: dict) -> smtplib.SMTP:
     """Open and authenticate an SMTP connection from a loaded profile dict."""
     host, port = cfg["host"], int(cfg["port"])
@@ -454,7 +491,7 @@ def _server(cfg: dict) -> smtplib.SMTP:
         if cfg.get("auth_method") == "oauth":
             _oauth_login(srv, cfg)
         elif cfg.get("user"):
-            srv.login(cfg["user"], cfg.get("password", ""))
+            _smtp_login(srv, cfg["user"], cfg.get("password", ""))
         return srv
     except (smtplib.SMTPException, OSError, ssl.SSLError) as exc:
         _quiet_close(srv)                     # don't leak the socket on failure

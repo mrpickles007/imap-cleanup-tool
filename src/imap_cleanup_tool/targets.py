@@ -17,6 +17,7 @@ def parse_targets_text(text: str) -> tuple[set[str], set[str], set[str]]:
         *@newsletter.com     # exact domain ONLY - never subdomains
         annoying.com         # domain; also its subdomains if include_subdomains
         mail.annoying.com    # that (sub)domain, treated like a bare domain
+        @                    # every message (all senders)
         # comment lines and blank lines are ignored
 
     The ``*@`` form goes into ``exact_domains`` (never expanded to subdomains);
@@ -45,7 +46,10 @@ def parse_targets_text(text: str) -> tuple[set[str], set[str], set[str]]:
         logger.debug("Target line %d parsed: %r", lineno, entry)
 
     if not addresses and not domains and not exact_domains:
-        raise ValueError("No valid targets found.")
+        raise ValueError(
+            "No valid targets found. Add a sender address or domain per line - "
+            "or a single '@' to select every message in the folder (preview "
+            "with a dry-run first).")
 
     logger.info("Loaded %d address(es), %d domain(s), %d exact-domain(s).",
                 len(addresses), len(domains), len(exact_domains))
@@ -63,7 +67,10 @@ def load_targets(path: str) -> tuple[set[str], set[str], set[str]]:
         try:
             return parse_targets_text(handle.read())
         except ValueError as exc:
-            raise ValueError(f"No valid targets found in {path}") from exc
+            raise ValueError(
+                f"No valid targets found in {path}. Add a sender address or "
+                "domain per line - or a single '@' to select every message "
+                "(preview with a dry-run first).") from exc
 
 
 def sender_matches(sender: str, addresses: set[str], domains: set[str],
@@ -76,10 +83,13 @@ def sender_matches(sender: str, addresses: set[str], domains: set[str],
       subdomain (the ``include_subdomains`` flag is ignored for these).
     * ``domains`` (bare form) - match the domain exactly, and also its
       subdomains when ``include_subdomains`` is true.
+    * a lone ``@`` entry - matches **every** sender (all messages). This keeps
+      ``full`` mode consistent with server-side ``search`` mode, where
+      ``SEARCH FROM "@"`` is a substring match on every address.
     """
     if not sender:
         return False
-    if sender in addresses:
+    if sender in addresses or "@" in addresses:
         return True
     domain = sender.rsplit("@", 1)[-1]
     if domain in exact_domains or domain in domains:

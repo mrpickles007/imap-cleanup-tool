@@ -22,6 +22,17 @@ class ParseTargetsTextTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_targets_text("# only a comment\n\n")
 
+    def test_empty_text_error_mentions_at_wildcard(self):
+        with self.assertRaises(ValueError) as ctx:
+            parse_targets_text("")
+        self.assertIn("'@'", str(ctx.exception))
+
+    def test_lone_at_is_an_address_entry(self):
+        addresses, domains, exact = parse_targets_text("  @  \n")
+        self.assertEqual(addresses, {"@"})
+        self.assertEqual(domains, set())
+        self.assertEqual(exact, set())
+
 
 class LoadTargetsTests(unittest.TestCase):
     def _write(self, text: str) -> str:
@@ -78,6 +89,12 @@ class SenderMatchesTests(unittest.TestCase):
 
     def test_empty_sender(self):
         self.assertFalse(sender_matches("", {"a@b.com"}, {"b.com"}))
+
+    def test_lone_at_matches_every_sender(self):
+        # "@" selects all messages, like SEARCH FROM "@" in search mode
+        for sender in ("a@b.com", "x@sub.other.org", "noreply@z.io"):
+            self.assertTrue(sender_matches(sender, {"@"}, set()), sender)
+        self.assertFalse(sender_matches("", {"@"}, set()))
 
     def test_wildcard_exact_domain_never_matches_subdomain(self):
         # *@b.com -> exact_domains: matches the domain exactly but never a

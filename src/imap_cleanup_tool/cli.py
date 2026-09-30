@@ -660,7 +660,11 @@ def main(argv: list[str] | None = None) -> int:
     folders = args.folder or ["INBOX"]
     try:
         if args.create_folder:
-            print(core.create_folder(conn, args.create_folder))
+            try:
+                print(core.create_folder(conn, args.create_folder))
+            except core.imaplib.IMAP4.error as exc:
+                print(f"[ERROR] {exc}")
+                return 2
             return 0
         if args.delete_folder:
             try:

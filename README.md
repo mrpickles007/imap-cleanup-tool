@@ -99,6 +99,12 @@ opens in your browser.
 
 The download links always serve the latest build (see all on the
 [releases page](https://github.com/mrpickles007/imap-cleanup-tool/releases)).
+
+**Note on AI Cleanup:** it is optional and **bring-your-own**. The installers give
+you the app, not an AI model: to use AI Cleanup you add your own API key for a
+cloud model, or install and run a local model yourself (e.g. Ollama). Everything
+else works without AI. See [AI Cleanup](#ai-cleanup).
+
 Rather use pip on any platform? See [Install](#install).
 
 ---
@@ -262,6 +268,22 @@ land in your shell history.
 > **BYOA (bring your own API key)** for any remote/cloud model (OpenAI, OpenRouter,
 > ...). Your key, your model, your choice. Either way, only sender **subjects +
 > stats** are sent to the model - **never the message body**.
+
+> ⚠️ **Bring your own model - the app does not ship or install one.** To use AI
+> Cleanup you need **one** of these, set up by you:
+>
+> - **A cloud model + your own API key** (e.g. OpenAI `gpt-4o-mini`): add the key
+>   in the **LLM** tab (**Add / edit a model**). Usage is billed by that provider.
+> - **A local model you install and run yourself** (e.g. **Ollama**): installing
+>   Ollama, pulling a model (`ollama pull llama3`), keeping it running
+>   (`ollama serve`) and making sure your hardware can run it are **your
+>   responsibility** - see [ollama.com](https://ollama.com). The app only connects
+>   to it.
+>
+> Everything else - sender/domain lists, rules, the local heuristic report, move,
+> delete, unsubscribe - works **without any AI**. If a cloud model has no API key,
+> or the local Ollama server is not running, the app tells you before it scans your
+> mailbox (a wrong key or a model that is not pulled is reported at the AI step).
 
 AI Cleanup hands "which of these do I actually want?" to a model, safely - and
 **efficiently**. The key design choice: it works on **aggregated per-sender
@@ -710,7 +732,15 @@ spam@example.com        # exact sender address
 *@newsletter.com        # that domain EXACTLY - never subdomains
 annoying.com            # that domain, plus subdomains if --include-subdomains
 mail.annoying.com       # that specific (sub)domain
+@                       # EVERY message (all senders)
 ```
+
+**`@` on its own selects every message** in the chosen folder(s), in both `search`
+and `full` mode. It is handy when you want to act on a whole folder - for example
+to **Export** all messages to a `.mbox`, or to **Move** everything to another
+folder. (Export and List senders also work with an empty target list, which means
+the whole folder too.) If you use `@` for a **delete**, always run a **dry-run**
+first to see the count - it matches everything.
 
 The `*@domain` form always matches the domain exactly; the bare `domain` form
 also matches subdomains when `--include-subdomains` is given. This distinction

@@ -319,6 +319,7 @@ tailwind.config = { theme: { extend: {
             • <code>*@newsletter.com</code> - that domain <b>exactly</b>, never subdomains<br>
             • <code>annoying.com</code> - that domain, <b>plus subdomains</b> if “Include subdomains” is on<br>
             • <code>mail.annoying.com</code> - that specific subdomain<br>
+            • <code>@</code> on its own - <b>every</b> message (all senders): handy e.g. to <b>Export</b> or <b>Move</b> a whole folder. For a delete, always preview with <b>dry-run</b> first.<br>
             • lines starting with <code>#</code> are comments<br>
             <span style="color:#94a0bd">In <b>"full"</b> mode, <code>*@paypal.com</code> = <code>paypal.com</code> <i>without</i> Include-subdomains. The point: with Include-subdomains <b>on</b>, <code>*@paypal.com</code> stays exact while bare domains (e.g. <code>newsletter.com</code>) also catch their subdomains - so you can mix per-entry. (<b>"search"</b> mode is always a substring match.)</span>
           </span></span>
@@ -959,6 +960,18 @@ tailwind.config = { theme: { extend: {
     </div>
     <div id="costTotal" class="text-sm mb-2 text-cream"></div>
     <pre id="costBody" class="console text-[12px] bg-ink border border-line rounded-lg p-3 overflow-auto whitespace-pre-wrap text-[#c4c8d4] flex-1"></pre>
+  </div>
+</div>
+
+<!-- Sender subjects preview (headers only - bodies are never downloaded) -->
+<div id="subjectsModal" class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+  <div class="bg-panel border border-line rounded-xl p-5 w-full max-w-3xl flex flex-col" style="max-height:85vh">
+    <div class="flex items-center justify-between mb-2 gap-3">
+      <h3 class="font-display font-semibold text-brand-light truncate">Subjects from <span id="subjectsSender"></span></h3>
+      <button id="subjectsClose" class="text-xs text-muted hover:text-cream shrink-0">close</button>
+    </div>
+    <div id="subjectsInfo" class="text-xs text-muted mb-2"></div>
+    <div id="subjectsBody" class="bg-ink border border-line rounded-lg overflow-auto flex-1 text-[13px]"></div>
   </div>
 </div>
 
@@ -2304,6 +2317,47 @@ async function openCostLog(name){
 $('costClose').onclick=()=>$('costModal').classList.add('hidden');
 $('costModal').onclick=(e)=>{ if(e.target.id==='costModal') $('costModal').classList.add('hidden'); };
 
+// ---- Sender subjects preview (spam list): subject lines only, never bodies ----
+function fmtMailDate(s){
+  const d=new Date(s); if(!s || isNaN(d)) return s||'';
+  const p=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());
+}
+let subjectsReq=0;   // ignore late answers when the user clicks another sender
+async function openSubjects(addr){
+  if(!SID){ spamMsg('Connect to your mailbox first to preview subjects.','text-warn'); return; }
+  const folders = selectedFolders.length ? selectedFolders : ['INBOX'];
+  const req=++subjectsReq;
+  $('subjectsSender').textContent=addr;
+  $('subjectsInfo').textContent='Searching '+folders.join(', ')+' …';
+  $('subjectsBody').innerHTML='<div class="p-4 text-muted text-xs">Loading subjects…</div>';
+  $('subjectsModal').classList.remove('hidden');
+  try{
+    const d=await api('/api/sender-subjects',{sid:SID, sender:addr, folders});
+    if(req!==subjectsReq) return;
+    const capped = d.count>=1000 ? ' (showing the first 1000)' : '';
+    $('subjectsInfo').textContent = d.count+' message'+(d.count===1?'':'s')+' in '+folders.join(', ')+capped
+      +' · only subject lines are read - message bodies are never downloaded and nothing is marked as read.';
+    if(!d.items.length){
+      $('subjectsBody').innerHTML='<div class="p-4 text-muted text-xs">No messages from this sender in '+escapeHtml(folders.join(', '))
+        +'. Select other folders in the Folders panel and try again.</div>';
+      return;
+    }
+    $('subjectsBody').innerHTML='<table class="w-full text-left"><thead class="sticky top-0 bg-panel"><tr class="text-muted text-[11px] uppercase">'
+      +'<th class="py-2 px-3">Subject</th><th class="py-2 px-3 whitespace-nowrap">Date</th><th class="py-2 px-3">Folder</th></tr></thead><tbody>'
+      + d.items.map(x=>'<tr class="border-t border-line/60"><td class="py-1.5 px-3">'+escapeHtml(x.subject)
+          +'</td><td class="py-1.5 px-3 text-muted text-[11px] whitespace-nowrap">'+escapeHtml(fmtMailDate(x.date))
+          +'</td><td class="py-1.5 px-3 text-muted text-[11px] whitespace-nowrap">'+escapeHtml(x.folder)+'</td></tr>').join('')
+      + '</tbody></table>';
+  }catch(e){
+    if(req!==subjectsReq) return;
+    $('subjectsInfo').textContent='';
+    $('subjectsBody').innerHTML='<div class="p-4 text-danger text-xs">Error: '+escapeHtml(e.message)+'</div>';
+  }
+}
+$('subjectsClose').onclick=()=>$('subjectsModal').classList.add('hidden');
+$('subjectsModal').onclick=(e)=>{ if(e.target.id==='subjectsModal') $('subjectsModal').classList.add('hidden'); };
+
 /* ---------- Notifications tab (SMTP profiles + settings) ---------- */
 let SMTP_PROFILES=[], SMTP_PROVIDERS_DONE=false, EDITING_SMTP=null, EDITING_SMTP_OAUTH=null;
 let smWasEncrypted=false, llmWasEncrypted=false;   // was the edited profile/model encrypted?
@@ -2605,7 +2659,7 @@ function renderSpam(items){
   items.forEach(it=>{
     const tr=document.createElement('tr'); tr.className='border-b border-line/60 hover:bg-white/5';
     const sig=[it.list_unsubscribe?'unsub':'', it.bulk?'bulk':'', it.sender_pattern?'pattern':''].filter(Boolean).join(', ')||'-';
-    let verdict='<span class="text-muted">- not evaluated</span>';
+    let verdict='<span class="text-muted cursor-help" title="The AI gave no decision for this sender: either the report ran without a model (heuristic only), or the model left this sender out of its answer (more common with small local models). It is never deleted automatically - click &quot;subjects&quot; to check its emails and decide yourself.">- not evaluated</span>';
     if(it.verdict_delete===true) verdict='<span class="text-danger font-semibold">delete</span>';
     else if(it.verdict_delete===false) verdict='<span class="text-ok font-semibold">keep</span>';
     const conf = it.verdict_confidence!=null? ' ('+Math.round(it.verdict_confidence*100)+'%)':'';
@@ -2625,7 +2679,8 @@ function renderSpam(items){
     else if(it.list_unsubscribe) unsubCell='<span class="text-warn text-[11px] cursor-help" title="A List-Unsubscribe header was seen but no usable link is stored yet. Run a fresh AI report and it is normally captured (it then shows auto / auto ✉ / link ↗). If it persists, clear the local cache (connection card) and run the report again.">rescan</span>';
     else unsubCell='<span class="text-muted text-[11px] cursor-help" title="No List-Unsubscribe header - this sender can\'t be unsubscribed from here (only flagged/removed).">none</span>';
     tr.innerHTML='<td class="py-2 pr-2"><input type="checkbox" data-addr="'+escapeHtml(it.address)+'" '+checked+'></td>'
-      +'<td class="py-2 pr-3 whitespace-nowrap">'+escapeHtml(it.address)+'</td>'
+      +'<td class="py-2 pr-3 whitespace-nowrap">'+escapeHtml(it.address)
+        +' <button type="button" class="spam-preview text-brand-light text-[11px] hover:underline ml-1" title="Preview the subject lines of this sender&#39;s emails in the selected folders (message bodies are never downloaded, nothing is marked as read)">subjects</button></td>'
       +'<td class="py-2 px-2 text-center font-semibold '+sevClass+'">'+(it.score!=null?it.score:'')+'</td>'
       +'<td class="py-2 px-2 text-center">'+(it.messages||0)+'</td>'
       +'<td class="py-2 px-2 text-center">'+fmtPct(it.unread_ratio)+'</td>'
@@ -2634,6 +2689,7 @@ function renderSpam(items){
       +'<td class="py-2 px-2"><span class="whitespace-nowrap">'+verdict+conf+'</span>'+reason+'</td>'
       +'<td class="py-2 px-2 text-center">'+unsubCell+'</td>';
     tr.querySelector('input').onchange=(e)=>{ const a=e.target.dataset.addr; if(e.target.checked) spamState.sel.add(a); else spamState.sel.delete(a); updateSpamSel(); };
+    const pv=tr.querySelector('.spam-preview'); if(pv) pv.onclick=()=>openSubjects(it.address);
     body.appendChild(tr);
   });
   // pagination

@@ -16,9 +16,11 @@ import re
 import tempfile
 from collections.abc import Callable
 from datetime import datetime
+from email import message_from_string
 from email.header import decode_header, make_header
 from email.utils import parseaddr
 
+from .rules import RuleError
 from .targets import sender_matches
 
 UID_CHUNK_SIZE = 500
@@ -90,14 +92,53 @@ def _extract_uid(meta: bytes) -> bytes | None:
 # --------------------------------------------------------------------------- #
 # Connection
 # --------------------------------------------------------------------------- #
+def _login(conn: imaplib.IMAP4_SSL, user: str, password: str) -> None:
+    """Log in, tolerating non-ASCII credentials.
+
+    imaplib's LOGIN encodes its arguments as ASCII, so a user or password with a
+    non-ASCII character (e.g. Danish 'ae'/'aa', accents) cannot be sent with it.
+    For those we use **SASL PLAIN**, which carries the credentials as UTF-8. The
+    check happens up front, so nothing half-built is ever sent to the server.
+    """
+    if user.isascii() and password.isascii():
+        conn.login(user, password)
+        return
+    caps = tuple(getattr(conn, "capabilities", ()) or ())
+    if caps and "AUTH=PLAIN" not in caps:
+        raise imaplib.IMAP4.error(
+            "Your user name or password contains non-ASCII characters, but this "
+            "server does not offer AUTH=PLAIN, so they cannot be sent safely. "
+            "Use an app password, or a password with only ASCII characters.")
+    auth = b"\x00" + user.encode("utf-8") + b"\x00" + password.encode("utf-8")
+    conn.authenticate("PLAIN", lambda _challenge: auth)
+
+
 def connect(host: str, port: int, user: str, password: str,
             timeout: int = 120) -> imaplib.IMAP4_SSL:
     """Open an SSL IMAP connection and log in. Raises on failure."""
     logger.info("Connecting to %s:%d (timeout %ds) ...", host, port, timeout)
     conn = imaplib.IMAP4_SSL(host, port, timeout=timeout)
-    conn.login(user, password)
+    _login(conn, user, password)
     logger.info("Logged in as %s.", user)
     return conn
+
+
+def _search_from(conn: imaplib.IMAP4_SSL, term: str):
+    """``UID SEARCH FROM <term>``, tolerant of non-ASCII sender addresses.
+
+    imaplib encodes SEARCH arguments as ASCII, so a sender with a non-ASCII
+    character (e.g. 'danskhaandbold' spelled with 'aa') cannot be sent inline.
+    For those we search with ``CHARSET UTF-8`` and send the term as a UTF-8 IMAP
+    literal (via ``conn.literal``). ``conn.literal`` is always cleared afterwards
+    so a failure can never leak a stray literal into the next command.
+    """
+    if term.isascii():
+        return conn.uid("SEARCH", None, "FROM", f'"{term}"')
+    conn.literal = term.encode("utf-8")
+    try:
+        return conn.uid("SEARCH", "CHARSET", "UTF-8", "FROM")
+    finally:
+        conn.literal = None
 
 
 def connect_oauth(host: str, port: int, user: str, access_token: str,
@@ -347,7 +388,7 @@ def search_targets(conn: imaplib.IMAP4_SSL, addresses: set[str],
     for num, term in enumerate(terms, start=1):
         _check_stop(should_stop)
         logger.info("  [%d/%d] SEARCH FROM %r ...", num, total, term)
-        status, data = conn.uid("SEARCH", None, "FROM", f'"{term}"')
+        status, data = _search_from(conn, term)
         if status != "OK":
             logger.warning("SEARCH FROM %r failed.", term)
             continue
@@ -361,13 +402,77 @@ def search_targets(conn: imaplib.IMAP4_SSL, addresses: set[str],
 def search_rule(conn: imaplib.IMAP4_SSL, search_argument: str) -> set[bytes]:
     """Find UIDs matching a compiled IMAP SEARCH argument string."""
     logger.info("Server-side SEARCH: %s", search_argument)
-    status, data = conn.uid("SEARCH", None, *search_argument.split(" "))
+    try:
+        status, data = conn.uid("SEARCH", None, *search_argument.split(" "))
+    except UnicodeEncodeError as exc:
+        raise RuleError(
+            "This rule contains non-ASCII characters, which cannot be sent "
+            "inline in a server-side SEARCH. For non-ASCII senders, use the "
+            "sender/domain list or AI Cleanup instead.") from exc
     if status != "OK":
         logger.warning("SEARCH failed for argument: %s", search_argument)
         return set()
     uids = set(data[0].split()) if data and data[0] else set()
     logger.info("  -> %d match(es)", len(uids))
     return uids
+
+
+def list_sender_subjects(conn: imaplib.IMAP4_SSL, sender: str,
+                         folders: list[str], *, cap: int = 1000,
+                         should_stop: StopCheck | None = None) -> list[dict]:
+    """List the **subjects** (headers only, no body) of messages from ``sender``
+    across ``folders``.
+
+    Returns ``[{"folder", "subject", "date"}]`` (newest first), capped at ``cap``
+    total. Uses ``BODY.PEEK`` on a read-only mailbox, so it never downloads a body
+    and never marks mail as read. Used by the spam-list "preview subjects" action
+    so the user can verify a sender before deleting.
+    """
+    out: list[dict] = []
+    for folder in (folders or ["INBOX"]):
+        _check_stop(should_stop)
+        if len(out) >= cap:
+            break
+        status, _ = conn.select(_quote_mailbox(folder), readonly=True)
+        if status != "OK":
+            continue
+        status, data = _search_from(conn, sender)
+        if status != "OK" or not (data and data[0]):
+            continue
+        uids = sorted(data[0].split(), key=int, reverse=True)   # newest first
+        i = 0
+        while i < len(uids) and len(out) < cap:
+            _check_stop(should_stop)
+            chunk = uids[i:i + min(UID_CHUNK_SIZE, max(1, cap - len(out)))]
+            i += len(chunk)
+            status, fdata = conn.uid(
+                "FETCH", b",".join(chunk),
+                "(UID BODY.PEEK[HEADER.FIELDS (SUBJECT DATE)])")
+            if status != "OK" or not fdata:
+                continue
+            batch: list[tuple[int, dict]] = []
+            for part in fdata:
+                if not (isinstance(part, tuple) and len(part) >= 2 and part[1]):
+                    continue
+                # Decode like the other header fetches (tolerates raw 8-bit /
+                # UTF-8 headers, which are common in spam) and force str values.
+                msg = message_from_string(part[1].decode("utf-8",
+                                                         errors="replace"))
+                uid = _extract_uid(part[0])
+                batch.append((int(uid) if uid and uid.isdigit() else 0, {
+                    "folder": folder,
+                    "subject": decode_mime_header(str(msg.get("Subject", "")
+                                                      or "")) or "(no subject)",
+                    "date": str(msg.get("Date", "") or "").strip(),
+                }))
+            # servers return FETCH results in ascending UID order: re-sort
+            for _uid, item in sorted(batch, key=lambda t: t[0], reverse=True):
+                out.append(item)
+                if len(out) >= cap:
+                    break
+            if len(out) >= cap:
+                break
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -491,6 +596,10 @@ def create_folder(conn: imaplib.IMAP4_SSL, name: str) -> str:
     name = name.strip()
     if not name:
         raise imaplib.IMAP4.error("Empty folder name.")
+    if not name.isascii():
+        raise imaplib.IMAP4.error(
+            "Folder names with non-ASCII characters (accents, ae/oe/aa...) are not "
+            "supported yet when creating a folder - please use ASCII letters.")
     try:
         status, data = conn.create(_quote_mailbox(name))
     except imaplib.IMAP4.error as exc:
@@ -635,7 +744,7 @@ def flag_senders_as_spam(conn: imaplib.IMAP4_SSL, folder: str,
     hit: set[str] = set()
     for addr in sorted(a for a in addresses if a):
         _check_stop(should_stop)
-        status, data = conn.uid("SEARCH", None, "FROM", f'"{addr}"')
+        status, data = _search_from(conn, addr)
         uids = data[0].split() if status == "OK" and data and data[0] else []
         if not uids:
             continue
@@ -981,8 +1090,15 @@ def _apply_exclude(conn: imaplib.IMAP4_SSL, uids, exclude, should_stop=None):
     drop: set[bytes] = set()
     for addr in addrs:
         _check_stop(should_stop)
-        status, data = conn.uid("SEARCH", None, "FROM", f'"{addr}"')
-        if status == "OK" and data and data[0]:
+        status, data = _search_from(conn, addr)
+        if status != "OK":
+            # Fail CLOSED: if we cannot tell which messages are protected, we
+            # must not act on the folder at all (acting would ignore the exclude
+            # list and could delete/move mail the user asked us to keep).
+            raise RuntimeError(
+                f"Could not check the exclude list for {addr!r} (the server "
+                f"answered {status}); stopping so no excluded mail is touched.")
+        if data and data[0]:
             drop.update(data[0].split())
     kept = [u for u in uids if u not in drop]
     removed = len(uids) - len(kept)
@@ -1123,6 +1239,8 @@ def _msgid_in_folder(conn: imaplib.IMAP4_SSL, message_id: str) -> bool:
     """True if a message with ``message_id`` is already in the selected folder."""
     if not message_id:
         return False
+    if not message_id.isascii():
+        return False     # malformed (RFC 5322 IDs are ASCII): just import it
     try:
         status, data = conn.uid("SEARCH", None, "HEADER", "Message-ID",
                                 f'"{message_id}"')
@@ -1266,6 +1384,12 @@ def process_folder(conn: imaplib.IMAP4_SSL, folder: str, *,
     if move and _same_mailbox(dest_folder, folder):
         logger.warning("Skipping %r: cannot move a folder into itself.", folder)
         return 0
+    if move and not dest_folder.isascii():
+        # Folder names from the server are ASCII (modified UTF-7); a typed name
+        # with accents cannot be sent yet - fail before touching anything.
+        raise imaplib.IMAP4.error(
+            f"Destination folder {dest_folder!r} contains non-ASCII characters, "
+            f"which are not supported yet - pick an existing folder from the list.")
     status, _ = conn.select(_quote_mailbox(folder), readonly=dry_run)
     if status != "OK":
         logger.error("Cannot open folder %r - skipping.", folder)
