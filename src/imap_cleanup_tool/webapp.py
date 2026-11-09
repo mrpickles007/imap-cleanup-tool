@@ -1326,7 +1326,7 @@ def create_app():
             recorder = None
             if model_cfg.get("track_costs"):
                 recorder = lambda p, c, co: llm.log_cost(body.model, p, c, co)
-            known_spam = (set(spamstore.all_addresses(sess.user))
+            known_spam = (spamstore.confirmed_verdicts(sess.user)
                           if getattr(body, "check_spam", True) else None)
             try:
                 ev = ai.evaluate(report, model_cfg, should_stop=rs.stop.is_set,

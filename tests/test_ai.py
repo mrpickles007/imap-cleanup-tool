@@ -193,6 +193,76 @@ class AiReportTests(unittest.TestCase):
 
 
 class LLMHelpersTests(unittest.TestCase):
+    def test_cli_report_then_run_only_reuses_confirmed_verdicts(self):
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        from imap_cleanup_tool import cli, llm, scheduler, spamstore
+        from imap_cleanup_tool.headercache import HeaderCache
+
+        def report(*args, **kwargs):
+            return {"senders": [{"sender": name, "flagged": True} for name in
+                    ("unknown@x.com", "keep@x.com", "delete@x.com")],
+                    "flagged_count": 3, "total_senders": 3}
+
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(spamstore, "config_dir", return_value=Path(tmp)), \
+                mock.patch.object(llm, "ensure_default_models"), \
+                mock.patch.object(llm, "load_model", return_value={"model": "m"}), \
+                mock.patch.object(HeaderCache, "has_account", return_value=False), \
+                mock.patch.object(core, "build_ai_report", side_effect=report), \
+                mock.patch.object(core, "ai_report_csv", return_value="csv"), \
+                mock.patch.object(scheduler, "save_ai_report", return_value=Path(tmp) / "r.csv"), \
+                mock.patch.object(cli, "_notify_cli"), \
+                mock.patch.object(ai, "check_model_ready"), \
+                mock.patch.object(core, "process_folder", return_value=0) as process:
+            args = cli.parse_args(["--ai-report-only"])
+            self.assertEqual(cli._run_ai(None, args, ["INBOX"], "a@x.com"), 0)
+            spamstore.record_from_report("a@x.com", {"senders": [
+                {"sender": "keep@x.com", "flagged": True, "verdict": {"delete": False}},
+                {"sender": "delete@x.com", "flagged": True, "verdict": {"delete": True}},
+            ]})
+            args = cli.parse_args(["--ai-cleanup", "--ai-model", "m", "--dry-run"])
+            verdicts = {"keep@x.com": {"delete": False},
+                        "unknown@x.com": {"delete": False},
+                        "delete@x.com": {"delete": True}}
+            with mock.patch.object(ai, "evaluate", return_value={
+                    "verdicts": verdicts, "prompt_tokens": 0,
+                    "completion_tokens": 0, "cost": None}) as evaluate:
+                self.assertEqual(cli._run_ai(None, args, ["INBOX"], "a@x.com"), 0)
+            self.assertEqual(set(evaluate.call_args.kwargs["known_spam"]), {"delete@x.com"})
+            self.assertEqual(process.call_args.kwargs["addresses"], {"delete@x.com"})
+            self.assertTrue(process.call_args.kwargs["dry_run"])
+
+    def test_saved_report_only_skips_confirmed_senders(self):
+        import sys
+        import tempfile
+        import types
+        from pathlib import Path
+        from unittest import mock
+        from imap_cleanup_tool import spamstore
+
+        senders = [{"sender": name, "flagged": True} for name in
+                   ("keep@x.com", "unknown@x.com", "delete@x.com")]
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(spamstore, "config_dir", return_value=Path(tmp)), \
+                mock.patch.dict(sys.modules, {"litellm": types.ModuleType("litellm")}):
+            previous = {"senders": [dict(senders[0], verdict={"delete": False}),
+                                    senders[1],
+                                    dict(senders[2], verdict={"delete": True,
+                                                              "confidence": 0.6})]}
+            spamstore.record_from_report("a@x.com", previous)
+            with mock.patch.object(ai, "_evaluate_batch", return_value=(
+                    {"keep@x.com": {"delete": False},
+                     "unknown@x.com": {"delete": False}}, 0, 0)) as evaluate:
+                result = ai.evaluate({"senders": senders}, {"model": "m"},
+                                     known_spam=spamstore.confirmed_verdicts("a@x.com"))
+            self.assertEqual([s["sender"] for s in evaluate.call_args.args[2]],
+                             ["keep@x.com", "unknown@x.com"])
+            self.assertFalse(result["verdicts"]["keep@x.com"]["delete"])
+            self.assertFalse(result["verdicts"]["unknown@x.com"]["delete"])
+            self.assertEqual(result["verdicts"]["delete@x.com"]["confidence"], 0.6)
+
     def test_validate_verdicts_plain(self):
         out = ai.validate_verdicts(
             '{"verdicts":[{"sender":"A@B.com","delete":true,"reason":"junk",'
@@ -331,14 +401,19 @@ class LLMHelpersTests(unittest.TestCase):
                         "list_unsubscribe": True, "score": 9, "samples": []}
                        for i in range(5)]
             ev = ai.evaluate({"senders": senders}, {"model": "m"},
-                             known_spam={"s0@x.com", "S1@x.com"})  # case-insensitive
+                             known_spam={"s0@x.com": {"delete": True, "confidence": 0.7},
+                                         "S1@x.com": {"delete": True, "reason": "saved spam"}})
             # only the 3 unknown senders reached the model
             self.assertEqual(sorted(seen),
                              ["s2@x.com", "s3@x.com", "s4@x.com"])
             # but all 5 have a verdict; the known ones are synthetic deletes
             self.assertEqual(len(ev["verdicts"]), 5)
             self.assertTrue(ev["verdicts"]["s0@x.com"]["delete"])
+            self.assertEqual(ev["verdicts"]["s0@x.com"]["confidence"], 0.7)
             self.assertIn("saved spam", ev["verdicts"]["s1@x.com"]["reason"])
+            legacy = ai.evaluate({"senders": senders[:1]}, {"model": "m"},
+                                 known_spam={"S0@x.com"})
+            self.assertTrue(legacy["verdicts"]["s0@x.com"]["delete"])
         finally:
             del sys.modules["litellm"]
 

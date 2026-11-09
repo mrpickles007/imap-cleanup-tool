@@ -341,6 +341,55 @@ class WebApiTests(unittest.TestCase):
         r = self.client.post("/api/ai-run", json={"sid": "nope", "model": "m"})
         self.assertEqual(r.status_code, 440)
 
+    def test_ai_report_then_run_only_reuses_confirmed_verdicts(self):
+        from imap_cleanup_tool import ai, core, spamstore, webapp
+
+        def report():
+            return {"senders": [{"sender": "unknown@x.com", "flagged": True},
+                                {"sender": "keep@x.com", "flagged": True},
+                                {"sender": "delete@x.com", "flagged": True}],
+                    "flagged_count": 3, "total_senders": 3}
+
+        def run_inline(session, kind, work):
+            state = webapp.RunState("test", kind, session)
+            session.run = state
+            work(state)
+            state.status = "done"
+            return state
+
+        sess = webapp.Session("spam-test", None, "imap.x.com", 993, "a@x.com")
+        webapp._SESSIONS[sess.sid] = sess
+        try:
+            with tempfile.TemporaryDirectory() as tmp, \
+                    mock.patch.object(spamstore, "config_dir", return_value=Path(tmp)), \
+                    mock.patch.object(webapp, "_start_run", side_effect=run_inline), \
+                    mock.patch.object(core, "build_ai_report", side_effect=lambda *a, **k: report()), \
+                    mock.patch.object(core, "ai_report_csv", return_value="csv"), \
+                    mock.patch.object(scheduler, "save_ai_report", return_value=Path(tmp) / "r.csv"), \
+                    mock.patch.object(notifications, "send_notification", return_value=False), \
+                    mock.patch.object(llm, "load_model", return_value={"model": "m"}), \
+                    mock.patch.object(ai, "check_model_ready"), \
+                    mock.patch.object(core, "process_folder", return_value=0) as process:
+                self.assertEqual(self.client.post("/api/ai-report", json={
+                    "sid": sess.sid, "skip_llm": True}).status_code, 200)
+                spamstore.record_from_report(sess.user, {"senders": [
+                    {"sender": "keep@x.com", "flagged": True, "verdict": {"delete": False}},
+                    {"sender": "delete@x.com", "flagged": True, "verdict": {"delete": True}},
+                ]})
+                verdicts = {"keep@x.com": {"delete": False},
+                            "unknown@x.com": {"delete": False},
+                            "delete@x.com": {"delete": True}}
+                with mock.patch.object(ai, "evaluate", return_value={
+                        "verdicts": verdicts, "prompt_tokens": 0,
+                        "completion_tokens": 0, "cost": None}) as evaluate:
+                    self.assertEqual(self.client.post("/api/ai-run", json={
+                        "sid": sess.sid, "model": "m", "dry_run": True}).status_code, 200)
+                self.assertEqual(set(evaluate.call_args.kwargs["known_spam"]), {"delete@x.com"})
+                self.assertEqual(process.call_args.kwargs["addresses"], {"delete@x.com"})
+                self.assertTrue(process.call_args.kwargs["dry_run"])
+        finally:
+            webapp._SESSIONS.pop(sess.sid, None)
+
     def test_smtp_profiles_and_settings(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(notifications, "config_dir",
