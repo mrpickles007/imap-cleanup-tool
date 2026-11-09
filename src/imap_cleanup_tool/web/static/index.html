@@ -500,7 +500,7 @@ tailwind.config = { theme: { extend: {
         <label class="flex items-center gap-1.5 text-[11px] text-muted pt-1 cursor-pointer">
           <input id="aiCheckSpam" type="checkbox" class="scale-90" checked>
           <span>Check spam addresses</span>
-          <span class="tip"><span class="ic">i</span><span class="bub">Saves LLM tokens: flagged senders that are <b>already in your Spam addresses</b> list (from earlier reports/runs) are accepted as spam <b>without asking the model again</b>, so fewer addresses are sent to the LLM. Edge case: an important email from a sender already on the list would be treated as spam - rare, and avoided by running with this <b>unchecked</b> (then every flagged sender is re-evaluated by the LLM).</span></span>
+          <span class="tip"><span class="ic">i</span><span class="bub">Saves LLM tokens by skipping senders manually added as spam or confirmed for deletion by a newer model verdict. Heuristic-only, keep, and older unverified records are evaluated by the model. Uncheck to re-evaluate every flagged sender.</span></span>
         </label>
         <div id="matchSlotAi" class="hidden my-3 py-3 border-t border-b border-line"></div>
         <p class="text-[11px] text-muted pt-1">Press <b>Run</b> (below) to launch: with <b>Report only</b> it just builds the report; without it, it deletes the confirmed senders. Saved reports live in the <b>Report</b> tab (download / delete there).</p>

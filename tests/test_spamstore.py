@@ -22,6 +22,69 @@ def _sender(addr, score, flagged=True, verdict=None):
 
 
 class SpamStoreTests(unittest.TestCase):
+    def test_only_confirmed_senders_can_bypass_the_model(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):
+                ss.record_from_report("a@x.com", _report([
+                    _sender("keep@x.com", 9, verdict={"delete": False}),
+                    _sender("unknown@x.com", 9),
+                    _sender("delete@x.com", 9, verdict={"delete": True}),
+                ]))
+                ss.add_address("a@x.com", "manual@x.com")
+                ss.add_address("other@x.com", "other@x.com")
+                self.assertEqual(set(ss.confirmed_verdicts("A@X.COM")),
+                                 {"delete@x.com", "manual@x.com"})
+                self.assertEqual(len(ss.all_addresses("a@x.com")), 4)
+                ss.record_from_report("a@x.com", _report([
+                    _sender("delete@x.com", 9, verdict={"delete": False}),
+                    _sender("manual@x.com", 9),
+                ]))
+                self.assertEqual(set(ss.confirmed_verdicts("a@x.com")), {"manual@x.com"})
+                self.assertEqual(ss.confirmed_verdicts("a@x.com")
+                                 ["manual@x.com"]["confidence"], 1.0)
+                ss.record_from_report("a@x.com", _report([
+                    _sender("delete@x.com", 9, verdict={"delete": True})]))
+                self.assertIsNone(ss.confirmed_verdicts("a@x.com")
+                                  ["delete@x.com"]["confidence"])
+
+    def test_legacy_verdicts_are_not_trusted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):
+                import sqlite3
+                conn = sqlite3.connect(ss.db_path())
+                conn.execute("CREATE TABLE spam (account TEXT, address TEXT, "
+                             "verdict_delete INTEGER, verdict_confidence REAL, source TEXT, "
+                             "PRIMARY KEY (account, address))")
+                conn.execute("INSERT INTO spam VALUES ('a@x.com', 'old@x.com', 1, 1, 'report')")
+                conn.commit()
+                conn.close()
+                self.assertEqual(ss.confirmed_verdicts("a@x.com"), {})
+
+    def test_concurrent_legacy_schema_migration(self):
+        import sqlite3
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):
+                conn = sqlite3.connect(ss.db_path())
+                conn.execute("CREATE TABLE spam (account TEXT, address TEXT, "
+                             "PRIMARY KEY (account, address))")
+                conn.close()
+                barrier = Barrier(2)
+
+                def migrate():
+                    barrier.wait()
+                    conn = ss._connect()
+                    try:
+                        return {row["name"] for row in conn.execute("PRAGMA table_info(spam)")}
+                    finally:
+                        conn.close()
+
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    columns = list(pool.map(lambda _: migrate(), range(2)))
+                self.assertTrue(all("confirmed" in cols for cols in columns))
+
     def test_record_only_flagged_and_per_account(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(ss, "config_dir", return_value=Path(tmp)):

@@ -40,6 +40,7 @@ def _connect() -> sqlite3.Connection:
         " bulk INTEGER,"
         " sender_pattern INTEGER,"
         " verdict_delete INTEGER,"        # NULL = no LLM verdict
+        " confirmed INTEGER NOT NULL DEFAULT 0,"  # 1 = model, 2 = manual
         " verdict_reason TEXT,"
         " verdict_confidence REAL,"
         " source TEXT,"                   # 'report' | 'run'
@@ -52,11 +53,18 @@ def _connect() -> sqlite3.Connection:
         " updated_at TEXT,"
         " PRIMARY KEY (account, address))")
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(spam)")}
-    for col, typ in (("unsub_mailto", "TEXT"), ("unsub_http", "TEXT"),
-                     ("unsub_oneclick", "INTEGER"), ("unsub_done_at", "TEXT"),
-                     ("unsub_done_method", "TEXT"), ("unsub_done_result", "TEXT")):
-        if col not in cols:
-            conn.execute(f"ALTER TABLE spam ADD COLUMN {col} {typ}")
+    migrations = (("confirmed", "INTEGER NOT NULL DEFAULT 0"),
+                  ("unsub_mailto", "TEXT"), ("unsub_http", "TEXT"),
+                  ("unsub_oneclick", "INTEGER"), ("unsub_done_at", "TEXT"),
+                  ("unsub_done_method", "TEXT"), ("unsub_done_result", "TEXT"))
+    if any(col not in cols for col, _ in migrations):
+        # Recheck under a write lock in case another session migrated first.
+        conn.execute("BEGIN IMMEDIATE")
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(spam)")}
+        for col, typ in migrations:
+            if col not in cols:
+                conn.execute(f"ALTER TABLE spam ADD COLUMN {col} {typ}")
+        conn.commit()
     return conn
 
 
@@ -78,6 +86,7 @@ def record_from_report(account: str, report: dict, source: str = "report") -> in
             s.get("per_week"), 1 if s.get("list_unsubscribe") else 0,
             1 if s.get("bulk") else 0, 1 if s.get("sender_pattern") else 0,
             (None if vd is None else (1 if vd else 0)),
+            (1 if vd is True else 0),
             v.get("reason") if v else None,
             v.get("confidence") if v else None, source,
             s.get("unsub_mailto"), s.get("unsub_http"),
@@ -89,18 +98,22 @@ def record_from_report(account: str, report: dict, source: str = "report") -> in
         conn.executemany(
             "INSERT INTO spam (account, address, score, messages, unread,"
             " unread_ratio, per_week, list_unsubscribe, bulk, sender_pattern,"
-            " verdict_delete, verdict_reason, verdict_confidence, source,"
+            " verdict_delete, confirmed, verdict_reason, verdict_confidence, source,"
             " unsub_mailto, unsub_http, unsub_oneclick,"
-            " updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            " updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT(account, address) DO UPDATE SET score=excluded.score,"
             " messages=excluded.messages, unread=excluded.unread,"
             " unread_ratio=excluded.unread_ratio, per_week=excluded.per_week,"
             " list_unsubscribe=excluded.list_unsubscribe, bulk=excluded.bulk,"
             " sender_pattern=excluded.sender_pattern,"
             " verdict_delete=COALESCE(excluded.verdict_delete, spam.verdict_delete),"
-            " verdict_reason=COALESCE(excluded.verdict_reason, spam.verdict_reason),"
-            " verdict_confidence=COALESCE(excluded.verdict_confidence,"
-            "  spam.verdict_confidence), source=excluded.source,"
+            " confirmed=CASE WHEN excluded.verdict_delete IS NULL"
+            " THEN spam.confirmed ELSE excluded.confirmed END,"
+            " verdict_reason=CASE WHEN excluded.verdict_delete IS NULL"
+            " THEN spam.verdict_reason ELSE excluded.verdict_reason END,"
+            " verdict_confidence=CASE WHEN excluded.verdict_delete IS NULL"
+            " THEN spam.verdict_confidence ELSE excluded.verdict_confidence END,"
+            " source=excluded.source,"
             " unsub_mailto=COALESCE(excluded.unsub_mailto, spam.unsub_mailto),"
             " unsub_http=COALESCE(excluded.unsub_http, spam.unsub_http),"
             " unsub_oneclick=excluded.unsub_oneclick,"
@@ -277,6 +290,28 @@ def all_addresses(account: str) -> list:
     return [r["address"] for r in rows]
 
 
+def confirmed_verdicts(account: str) -> dict:
+    """Addresses explicitly marked as spam or confirmed by a fresh verdict.
+
+    Existing rows predate provenance tracking and are not trusted until they
+    receive a new verdict or are manually added again.
+    """
+    account = (account or "").strip().lower()
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT address, verdict_confidence, confirmed FROM spam"
+            " WHERE account=? AND confirmed!=0",
+            (account,)).fetchall()
+    finally:
+        conn.close()
+    return {r["address"]: {"delete": True,
+                            "reason": "confirmed saved spam (LLM skipped)",
+                            "confidence": (1.0 if r["confirmed"] == 2
+                                           else r["verdict_confidence"])}
+            for r in rows}
+
+
 def count(account: str) -> int:
     """How many spam addresses are saved for an account."""
     account = (account or "").strip().lower()
@@ -365,11 +400,11 @@ def add_address(account: str, address: str, score: float | None = None) -> bool:
     conn = _connect()
     try:
         conn.execute(
-            "INSERT INTO spam (account, address, score, source, updated_at)"
-            " VALUES (?,?,?,?,?)"
+            "INSERT INTO spam (account, address, score, source, updated_at, confirmed)"
+            " VALUES (?,?,?,?,?,2)"
             " ON CONFLICT(account, address) DO UPDATE SET"
             " score=COALESCE(excluded.score, spam.score),"
-            " source=excluded.source, updated_at=excluded.updated_at",
+            " source=excluded.source, updated_at=excluded.updated_at, confirmed=2",
             (account, address, score, "manual", now))
         conn.commit()
     finally:
